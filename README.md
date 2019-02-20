@@ -19,12 +19,12 @@ Plot spontaneous signal from a fiber-photometry experiment based on the values o
 -->
 
 ## Analysis
--Load and resample `inputFile`.
--Low-pass filter an artifact-free portion of the data and fit an exponential decay to correct for bleaching.
--Correct for movement artifacts with reference signal.
--Compute z-score over the whole recording and low-pass filter to detect peaks.
--Compute df/f in a moving time window to normalize traces around peaks.
--Compute triggered averages of spontaneous activity grouped by condition/epochs definition.
+- Load and resample `inputFile`.
+- Low-pass filter an artifact-free portion of the data and fit an exponential decay to correct for bleaching.
+- Correct for movement artifacts with reference signal.
+- Compute z-score over the whole recording and low-pass filter to detect peaks.
+- Compute df/f in a moving time window to normalize traces around peaks.
+- Compute triggered averages of spontaneous activity grouped by condition/epochs definition.
 
 `configuration` is a struct with the following fields (defaults are used for missing fields):
     `timeTitle` - Exact title name of time column.
