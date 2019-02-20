@@ -62,13 +62,13 @@ Normalization:
         configuration.f1Function = @movstd;
 	```
 
-##Example 1:
+## Example 1:
 ```matlab
     inputFile = 'data/tf_CP_m307_d2_2.csv';
     FPA(inputFile);
 ```
 
-##Example 2:
+## Example 2:
 ```matlab
 	inputFile = 'data/tf_CP_m307_d2_2.csv';
 	configuration.timeTitle = 'Time(s)';
