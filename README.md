@@ -10,7 +10,7 @@ MATLAB scripts to plot data from a fiber photometry recording.
 
 ## Usage
 ```matlab
-	FPA(inputFile, configuration)
+FPA(inputFile, configuration)
 ```
 Plot spontaneous signal from a fiber-photometry experiment based on the values of the `configuration`.
 
