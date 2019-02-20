@@ -16,9 +16,7 @@ Plot spontaneous signal from a fiber-photometry experiment based on the values o
 
 `inputFile` is a CSV file containing time, signal and reference columns.
 
-<!---
 [![FPA demo](fpa-screenshot.png)](https://drive.google.com/file/d/1OXrwykbzTlqiQ13bCYg5v_xJNJIpqeb0)
--->
 
 ## Analysis
 - Load and resample `inputFile`.
