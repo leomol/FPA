@@ -19,6 +19,7 @@
 %     signalTitle - Exact title name of time column.
 %     referenceTitle - Exact title name of time column.
 %     resamplingFrequency - Resampling frequency (Hz).
+%     zScoreEpochs - Time epochs (s) to include for z-score normalization.
 %     bleachingCorrectionEpochs - Time epochs (s) to include for bleaching correction.
 %     f0Function - One of @movmean, @movmedian, @movmin.
 %     f0Window - Length of the moving window to calculate f0.
@@ -52,21 +53,22 @@
 %     configuration.timeTitle = 'Time(s)';
 %     configuration.signalTitle = 'AIn-2 - Demodulated(Lock-In)';
 %     configuration.referenceTitle = 'AIn-1 - Demodulated(Lock-In)';
-%     configuration.resamplingFrequency = 50;
+%     configuration.resamplingFrequency = 20;
 %     configuration.bleachingCorrectionEpochs = [-Inf, 600, 960, Inf];
-%     configuration.conditionEpochs = {'Condition A', [-Inf, 600], 'Condition B', [650, Inf]};
+%     configuration.zScoreEpochs = [-Inf, 600];
+%     configuration.conditionEpochs = {'Environment A', [100, 220, 1480, 1600], 'Environment B', [650, 890]};
 %     configuration.triggeredWindow = 10;
 %     configuration.f0Function = @movmean;
 %     configuration.f0Window = 10;
-%     configuration.f1Function = @movstd;
+%     configuration.f1Function = @movmean;
 %     configuration.f1Window = 10;
 %     configuration.peaksLowpassFrequency = 0.2;
-%     configuration.thresholdingFunction = @std;
+%     configuration.thresholdingFunction = @mad;
 %     configuration.thresholdFactor = 0.10;
 %     FPA(inputFile, configuration);
 
 % 2019-02-01. Leonardo Molina.
-% 2019-02-20. Last modified.
+% 2019-04-23. Last modified.
 function FPA(inputFile, configuration)
     if nargin == 1
         configuration = struct();
@@ -75,6 +77,7 @@ function FPA(inputFile, configuration)
     configuration = setDefault(configuration, 'signalTitle', 'AIn-2 - Demodulated(Lock-In)');
     configuration = setDefault(configuration, 'referenceTitle', 'AIn-1 - Demodulated(Lock-In)');
     configuration = setDefault(configuration, 'resamplingFrequency', 50);
+    configuration = setDefault(configuration, 'zScoreEpochs', [-Inf, Inf]);
     configuration = setDefault(configuration, 'bleachingCorrectionEpochs', [-Inf, Inf]);
     configuration = setDefault(configuration, 'f0Function', @movmean);
     configuration = setDefault(configuration, 'f0Window', 10);
@@ -126,7 +129,8 @@ function FPA(inputFile, configuration)
     % Normalize to reference signal.
     f = sPost ./ rPost;
     % Standardize.
-    z = (f - mean(f)) / std(f);
+    zScoreId = time2id(t, configuration.zScoreEpochs);
+    z = (f - mean(f(zScoreId))) / std(f(zScoreId));
     
     % Normalization factor.
     f0 = configuration.f0Function(f, min(round(configuration.f0Window * configuration.resamplingFrequency), numel(f)));
@@ -176,18 +180,19 @@ function FPA(inputFile, configuration)
         window = window - 1;
     end
     % Index template to apply on each peak.
-    windowTemplateIds = -(window - 1) / 2:(window - 1) / 2;
-    % Filter out traces that would have gone out of bounds.
+    windowTemplate = -(window - 1) / 2:(window - 1) / 2;
+    % Filter out out of range traces.
     peaksId2 = peaksId(peaksId > (window - 1) / 2 & peaksId + (window - 1) / 2 < nSamples);
     % Index of all triggered traces, one per row.
     if numel(peaksId2) > 0
-        triggeredId = bsxfun(@plus, windowTemplateIds, peaksId2);
+        triggeredId = bsxfun(@plus, windowTemplate, peaksId2);
     else
         triggeredId = [];
     end
     % Label each row according to the conditions.
     conditionIds = zeros(1, numel(peaksId2));
-    for id = 1:2:numel(configuration.conditionEpochs)
+    nEpochs = numel(configuration.conditionEpochs) / 2;
+    for id = 1:2:2 * nEpochs
         conditionBool(id:id + 1) = [configuration.conditionEpochs(id), ismember(allIds, time2id(t, configuration.conditionEpochs{id + 1}))];
         k = conditionBool{id + 1}(peaksId2);
         conditionIds(k) = (id + 1) / 2;
@@ -232,30 +237,54 @@ function FPA(inputFile, configuration)
     hold(ax.trigger, 'all');
     uIds = unique(conditionIds);
     uIds = uIds(uIds > 0);
-    triggerT = windowTemplateIds / configuration.resamplingFrequency;
+    triggerT = windowTemplate / configuration.resamplingFrequency;
     nPeaks = zeros(size(uIds));
+    semAtZero = zeros(size(uIds));
+    stdPerCondition = zeros(size(uIds));
     for i = 1:numel(uIds)
         id = uIds(i);
         nPeaks(i) = sum(conditionIds == id);
-        data = dff(triggeredId(conditionIds == id, :));
-        data = reshape(data, numel(data) / window, window);
-        triggerMean = mean(data, 1);
-        triggerStd = std(data, [], 1) / sqrt(size(data, 1));
+        triggeredData = dff(triggeredId(conditionIds == id, :));
+        triggeredData = reshape(triggeredData, numel(triggeredData) / window, window);
+        triggerMean = mean(triggeredData, 1);
+        triggerSem = std(triggeredData, [], 1) / sqrt(size(triggeredData, 1));
+        semAtZero(i) = triggerSem(ceil(window / 2));
+        stdPerCondition(i) = std(z(conditionBool{2 * i}));
         h1 = plot(triggerT, triggerMean);
-        vertices = [triggerT; triggerMean + triggerStd];
-        vertices = cat(2, vertices, [fliplr(triggerT); fliplr(triggerMean - triggerStd)])';
+        vertices = [triggerT; triggerMean + triggerSem / 2];
+        vertices = cat(2, vertices, [fliplr(triggerT); fliplr(triggerMean - triggerSem / 2)])';
         faces = 1:2 * window;
         patch('Faces', faces, 'Vertices', vertices, 'FaceColor', h1.Color, 'EdgeColor', 'none', 'FaceAlpha', 0.10);
     end
-    legend(gca, [configuration.conditionEpochs(2 * uIds - 1); arrayfun(@(s) sprintf('n=%i', s), nPeaks, 'UniformOutput', false)]);
+    legend(gca, [configuration.conditionEpochs(2 * uIds - 1); arrayfun(@(i) ['n=' sprintf('%i', nPeaks(i)) ', SEM=' sprintf('%.4f', semAtZero(i))], 1:numel(uIds), 'UniformOutput', false)]);
     h = title('Triggered average for each condition \pm SEM');
     set(h, 'Interpreter', 'tex');
     xlabel('Time (s)');
     ylabel('df/f');
     axis(ax.trigger, 'tight');
+    
+    % Plot stats on traces.
+    figure('name', 'FPA');
+    counts = zeros(nEpochs, 1);
+    epochIds = zeros(1, 0);
+    for i = 1:nEpochs
+        k = time2id(t, configuration.conditionEpochs{2 * i});
+        epochIds = cat(2, epochIds, k);
+        counts(i) = numel(k);
+    end
+    labelIds = zeros(1, sum(counts));
+    labelIds(cumsum(counts(1:end-1)) + 1) = 1;
+    labelIds = cumsum(labelIds) + 1;
+    keep = ismember(labelIds, uIds);
+    labelIds = labelIds(keep);
+    epochIds = epochIds(keep);
+    labels = arrayfun(@(i) sprintf('"%s" STD:%.2f', configuration.conditionEpochs{2 * i - 1}, stdPerCondition(i)), 1:numel(uIds), 'UniformOutput', false);
+    boxplot(z(epochIds), labelIds, 'Labels', labels);
+    title('Stats on traces by epochs');
 end
 
 function id = time2id(time_vector, time_limits)
+    time_limits = time_limits(:);
     nEpochs = numel(time_limits) / 2;
     epochs = zeros(2, nEpochs);
     epochs(1:2:end) = arrayfun(@(l) find(time_vector >= l, 1, 'first'), time_limits(1:2:end));

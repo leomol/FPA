@@ -6,6 +6,7 @@ MATLAB scripts to plot data from a fiber photometry recording.
 
 ## Installation
 * Install MATLAB.
+* Install Curve Fittin Toolbox.
 * Download and extract these scripts to Documents/MATLAB folder.
 
 ## Usage
