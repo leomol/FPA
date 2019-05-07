@@ -2,7 +2,7 @@
 MATLAB scripts to plot data from a fiber photometry recording.
 
 ## Prerequisites
-* [MATLAB][MATLAB] (last tested with R2018a)
+* [MATLAB][MATLAB] (last tested with R2019a)
 
 ## Installation
 * Install MATLAB.
@@ -19,11 +19,11 @@ Plot spontaneous signal from a fiber-photometry experiment based on the values o
 
 [![FPA demo](fpa-screenshot.png)](https://drive.google.com/file/d/1OXrwykbzTlqiQ13bCYg5v_xJNJIpqeb0)
 
-## Analysis
+## Steps in the Analysis
 - Load and resample `inputFile`.
-- Low-pass filter an artifact-free portion of the data and fit an exponential decay to correct for bleaching.
+- Low-pass filter an artifact-free portion of the data and fit an exponential decay to correct for photo-bleaching.
 - Correct for movement artifacts with reference signal.
-- Compute z-score over the whole recording and low-pass filter to detect peaks.
+- Compute z-score and low-pass filter to detect peaks.
 - Compute df/f in a moving time window to normalize traces around peaks.
 - Compute triggered averages of spontaneous activity grouped by condition/epochs definition.
 
@@ -32,6 +32,7 @@ Plot spontaneous signal from a fiber-photometry experiment based on the values o
 - `signalTitle` - Exact title name of time column.
 - `referenceTitle` - Exact title name of time column.
 - `resamplingFrequency` - Resampling frequency (Hz).
+- `zScoreEpochs` - Time epochs (s) to include for z-score normalization.
 - `bleachingCorrectionEpochs` - Time epochs (s) to include for bleaching correction.
 - `f0Function` - One of `@movmean`, `@movmedian`, `@movmin`.
 - `f0Window` - Length of the moving window to calculate f0.
@@ -47,20 +48,24 @@ See source code for default values.
 
 Units for time and frequency are seconds and hertz respectively.
 
-Normalization:
+Normalization recipes:
 
-`df/f` is calculated as `(f - f0) / f1`, where `f0` and `f1` are computed for each time point using function over a moving window with the given size (s).
-	
-Recipe for `df/f`:
+`df/f` is calculated as `(f - f0) / f1`, where `f0` and `f1` change according to the configuration.
+
+For example, you may want to see changes relative to a 10s moving window:
 ```matlab
 configuration.f0Function = @movmean;
 configuration.f1Function = @movmean;
+configuration.f0Window = 10;
+configuration.f1Window = 10;
 ```
 
-Recipe for z-score:
+... or you may want to see changes from the standard deviation of the whole recording:
 ```matlab
 configuration.f0Function = @movmean;
 configuration.f1Function = @movstd;
+configuration.f0Window = Inf;
+configuration.f1Window = Inf;
 ```
 
 ## Example 1:

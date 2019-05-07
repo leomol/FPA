@@ -1,14 +1,14 @@
 % FPA(inputFile, configuration)
 %     Plot spontaneous signal from a fiber-photometry experiment based on the
 %     values of the configuration. inputFile is a CSV file containing time,
-%     signal and reference columns.
+%     signal (465nm) and reference (405nm) columns.
 % 
-% Fiber photometry analysis:
+% Fiber photometry analysis steps:
 %     -Load and resample inputFile.
 %     -Low-pass filter an artifact-free portion of the data and fit an exponential
-%      decay to correct for bleaching.
+%      decay to correct for photo-bleaching.
 %     -Correct for movement artifacts with reference signal.
-%     -Compute z-score over the whole recording and low-pass filter to detect peaks.
+%     -Compute z-score and low-pass filter to detect peaks.
 %     -Compute df/f in a moving time window to normalize traces around peaks.
 %     -Compute triggered averages of spontaneous activity grouped by condition/epochs
 %      definition.
@@ -68,7 +68,7 @@
 %     FPA(inputFile, configuration);
 
 % 2019-02-01. Leonardo Molina.
-% 2019-04-23. Last modified.
+% 2019-05-07. Last modified.
 function FPA(inputFile, configuration)
     if nargin == 1
         configuration = struct();
@@ -128,6 +128,7 @@ function FPA(inputFile, configuration)
     
     % Normalize to reference signal.
     f = sPost ./ rPost;
+    
     % Standardize.
     zScoreId = time2id(t, configuration.zScoreEpochs);
     z = (f - mean(f(zScoreId))) / std(f(zScoreId));
@@ -280,7 +281,8 @@ function FPA(inputFile, configuration)
     epochIds = epochIds(keep);
     labels = arrayfun(@(i) sprintf('"%s" STD:%.2f', configuration.conditionEpochs{2 * i - 1}, stdPerCondition(i)), 1:numel(uIds), 'UniformOutput', false);
     boxplot(z(epochIds), labelIds, 'Labels', labels);
-    title('Stats on traces by epochs');
+    ylabel('z-score');
+    title('Stats on z-scored traces for each epoch');
 end
 
 function id = time2id(time_vector, time_limits)
