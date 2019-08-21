@@ -1,7 +1,8 @@
 % FPA(inputFile, configuration)
 %     Plot spontaneous signal from a fiber-photometry experiment based on the
 %     values of the configuration. inputFile is a CSV file containing time,
-%     signal (465nm) and reference (405nm) columns.
+%     signal (465nm) and reference (405nm) columns, or a folder with data
+%     recorded with TDT/Synapse.
 % 
 % Fiber photometry analysis steps:
 %     -Load and resample inputFile.
@@ -15,9 +16,6 @@
 % 
 % configuration is a struct with the following fields (defaults are used for
 % missing fields):
-%     timeTitle - Exact title name of time column.
-%     signalTitle - Exact title name of time column.
-%     referenceTitle - Exact title name of time column.
 %     resamplingFrequency - Resampling frequency (Hz).
 %     zScoreEpochs - Time epochs (s) to include for z-score normalization.
 %     bleachingCorrectionEpochs - Time epochs (s) to include for bleaching correction.
@@ -28,7 +26,7 @@
 %     peaksLowpassFrequency - Frequency of lowpass filter to detect peaks.
 %     thresholdingFunction - One of @mad, @std.
 %     thresholdFactor - Thresholding cut-off.
-%     conditionEpochs - Epochs that involving different conditions: {'epoch1', [start1, end1, start2, end2, ...], 'epoch2', ...}
+%     conditionEpochs - Epochs that involve different conditions: {'epoch1', [start1, end1, start2, end2, ...], 'epoch2', ...}
 %     triggeredWindow - Length of the time window around each peak.
 % 
 % See source code for default values.
@@ -44,35 +42,16 @@
 %         configuration.f0Function = @movmean;
 %         configuration.f1Function = @movstd;
 % 
-% Example 1:
-%     inputFile = 'data/tf_CP_m307_d2_2.csv';
-%     FPA(inputFile);
-% 
-% Example 2:
-%     inputFile = 'data/tf_CP_m307_d2_2.csv';
-%     configuration.timeTitle = 'Time(s)';
-%     configuration.signalTitle = 'AIn-2 - Demodulated(Lock-In)';
-%     configuration.referenceTitle = 'AIn-1 - Demodulated(Lock-In)';
-%     configuration.resamplingFrequency = 20;
-%     configuration.bleachingCorrectionEpochs = [-Inf, 600, 960, Inf];
-%     configuration.zScoreEpochs = [-Inf, 600];
-%     configuration.conditionEpochs = {'Environment A', [100, 220, 1480, 1600], 'Environment B', [650, 890]};
-%     configuration.triggeredWindow = 10;
-%     configuration.f0Function = @movmean;
-%     configuration.f0Window = 10;
-%     configuration.f1Function = @movmean;
-%     configuration.f1Window = 10;
-%     configuration.peaksLowpassFrequency = 0.2;
-%     configuration.thresholdingFunction = @mad;
-%     configuration.thresholdFactor = 0.10;
-%     FPA(inputFile, configuration);
+% See FPAexamples
 
 % 2019-02-01. Leonardo Molina.
-% 2019-05-07. Last modified.
-function FPA(inputFile, configuration)
+% 2019-08-21. Last modified.
+function results = FPA(t, s, r, configuration)
+    addpath(fullfile(fileparts(mfilename('fullpath')), 'common'));
     if nargin == 1
         configuration = struct();
     end
+    
     configuration = setDefault(configuration, 'timeTitle', 'Time(s)');
     configuration = setDefault(configuration, 'signalTitle', 'AIn-2 - Demodulated(Lock-In)');
     configuration = setDefault(configuration, 'referenceTitle', 'AIn-1 - Demodulated(Lock-In)');
@@ -88,18 +67,6 @@ function FPA(inputFile, configuration)
     configuration = setDefault(configuration, 'thresholdFactor', 0.10);
     configuration = setDefault(configuration, 'conditionEpochs', {'Condition A', [-Inf, Inf]});
     configuration = setDefault(configuration, 'triggeredWindow', 10);
-    
-    % Processing.
-    % Load data from file.
-    fid = fopen(inputFile, 'r');
-    header = fgetl(fid);
-    header = strsplit(header, ',');
-    header = header(~cellfun(@isempty, header));
-    fclose(fid);
-    data = csvread(inputFile, 1, 0);
-    t = data(:, find(ismember(header, configuration.timeTitle), 1));
-    r = data(:, find(ismember(header, configuration.signalTitle), 1));
-    s = data(:, find(ismember(header, configuration.referenceTitle), 1));
     sourceFrequency = 1 / mean(diff(t));
     
     % Resample to target frequency.
@@ -199,6 +166,9 @@ function FPA(inputFile, configuration)
         conditionIds(k) = (id + 1) / 2;
     end
     
+    % Plots.
+    cmap = lines();
+    
     % Plot raw signal and bleaching.
     figure();
     ax.pre = axes('XTick', []);
@@ -225,12 +195,19 @@ function FPA(inputFile, configuration)
     ax.dff.Position = [ax.dff.Position(1), 0.1, ax.dff.Position(3), 0.25];
     t2 = [t(triggeredId) NaN(size(triggeredId, 1), 1)]';
     y2 = [dff(triggeredId) NaN(size(triggeredId, 1), 1)]';
-    plot(ax.dff, t2(:), y2(:));
-    plot(ax.dff, t(peaksId), dff(peaksId), 'ro');
-    legend(ax.dff, {'df/f', 'peaks'});
+    t3 = t(peaksId);
+    y3 = dff(peaksId);
+    ylims = [min(y2(:)), max(y2(:))];
+    for e = 1:nEpochs
+        epochName = configuration.conditionEpochs{2 * e - 1};
+        [faces, vertices] = patchEpochs(configuration.conditionEpochs{2 * e}, ylims(1), ylims(2));
+        patch('Faces', faces, 'Vertices', vertices, 'FaceColor', cmap(e, :), 'EdgeColor', 'none', 'FaceAlpha', 0.50, 'DisplayName', sprintf('%s', epochName));
+    end
+    plot(ax.dff, t2(:), y2(:), 'DisplayName', 'df/f');
+    plot(ax.dff, t3, y3, 'Color', 'r', 'LineStyle', 'none', 'Marker', 'o', 'DisplayName', 'peaks');
+    legend(ax.dff, 'show');
     
     linkaxes([ax.pre, ax.post, ax.dff], 'x');
-    axis(ax.pre, 'tight');
     
     % Plot triggered average.
     figure('name', 'FPA');
@@ -262,16 +239,15 @@ function FPA(inputFile, configuration)
     set(h, 'Interpreter', 'tex');
     xlabel('Time (s)');
     ylabel('df/f');
-    axis(ax.trigger, 'tight');
     
     % Plot stats on traces.
     figure('name', 'FPA');
     counts = zeros(nEpochs, 1);
     epochIds = zeros(1, 0);
-    for i = 1:nEpochs
-        k = time2id(t, configuration.conditionEpochs{2 * i});
+    for e = 1:nEpochs
+        k = time2id(t, configuration.conditionEpochs{2 * e});
         epochIds = cat(2, epochIds, k);
-        counts(i) = numel(k);
+        counts(e) = numel(k);
     end
     labelIds = zeros(1, sum(counts));
     labelIds(cumsum(counts(1:end-1)) + 1) = 1;
@@ -283,16 +259,11 @@ function FPA(inputFile, configuration)
     boxplot(z(epochIds), labelIds, 'Labels', labels);
     ylabel('z-score');
     title('Stats on z-scored traces for each epoch');
-end
-
-function id = time2id(time_vector, time_limits)
-    time_limits = time_limits(:);
-    nEpochs = numel(time_limits) / 2;
-    epochs = zeros(2, nEpochs);
-    epochs(1:2:end) = arrayfun(@(l) find(time_vector >= l, 1, 'first'), time_limits(1:2:end));
-    epochs(2:2:end) = arrayfun(@(l) find(time_vector <= l, 1, 'last'), time_limits(2:2:end));
-    id = arrayfun(@(e) epochs(1, e):epochs(2, e), 1:nEpochs, 'UniformOutput', false);
-    id = [id{:}];
+    
+    axis([ax.pre, ax.dff, ax.trigger], 'tight');
+    
+    results.peaksId = peaksId;
+    results.dff = dff;
 end
 
 function configuration = setDefault(configuration, fieldname, value)

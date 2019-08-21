@@ -41,7 +41,7 @@ Plot spontaneous signal from a fiber-photometry experiment based on the values o
 - `peaksLowpassFrequency` - Frequency of lowpass filter to detect peaks.
 - `thresholdingFunction` - One of `@mad`, `@std`.
 - `thresholdFactor` - Thresholding cut-off.
-- `conditionEpochs` - Epochs that involving different conditions: `{'epoch1', [start1, end1, start2, end2, ...], 'epoch2', ...}`
+- `conditionEpochs` - Epochs that involve different conditions: `{'epoch1', [start1, end1, start2, end2, ...], 'epoch2', ...}`
 - `triggeredWindow` - Length of the time window around each peak.
 
 See source code for default values.
