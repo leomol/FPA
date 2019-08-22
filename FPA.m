@@ -17,6 +17,7 @@
 % configuration is a struct with the following fields (defaults are used for
 % missing fields):
 %     resamplingFrequency - Resampling frequency (Hz).
+%     artifactEpochs - Time epochs (s) to correct via interpolation.
 %     zScoreEpochs - Time epochs (s) to include for z-score normalization.
 %     bleachingCorrectionEpochs - Time epochs (s) to include for bleaching correction.
 %     f0Function - One of @movmean, @movmedian, @movmin.
@@ -45,7 +46,7 @@
 % See FPAexamples
 
 % 2019-02-01. Leonardo Molina.
-% 2019-08-21. Last modified.
+% 2019-08-22. Last modified.
 function results = FPA(t, s, r, configuration)
     addpath(fullfile(fileparts(mfilename('fullpath')), 'common'));
     if nargin == 1
@@ -56,6 +57,7 @@ function results = FPA(t, s, r, configuration)
     configuration = setDefault(configuration, 'signalTitle', 'AIn-2 - Demodulated(Lock-In)');
     configuration = setDefault(configuration, 'referenceTitle', 'AIn-1 - Demodulated(Lock-In)');
     configuration = setDefault(configuration, 'resamplingFrequency', 50);
+    configuration = setDefault(configuration, 'artifactEpochs', []);
     configuration = setDefault(configuration, 'zScoreEpochs', [-Inf, Inf]);
     configuration = setDefault(configuration, 'bleachingCorrectionEpochs', [-Inf, Inf]);
     configuration = setDefault(configuration, 'f0Function', @movmean);
@@ -75,6 +77,15 @@ function results = FPA(t, s, r, configuration)
     s = resample(s, t, configuration.resamplingFrequency, p, q);
     t = linspace(t(1), numel(s) / configuration.resamplingFrequency, numel(s))';
     
+    % Remove artifacts by interpolating data.
+    id = transpose(1:numel(t));
+    artifactId = setdiff(id, time2id(t, configuration.artifactEpochs));
+    id2 = id(artifactId);
+    r2 = r(artifactId);
+    s2 = s(artifactId);
+    r2 = interp1(id2, r2, id);
+    s2 = interp1(id2, s2, id);
+    
     % Indexed epoch range.
     bleachingCorrectionId = time2id(t, configuration.bleachingCorrectionEpochs);
     
@@ -84,14 +95,14 @@ function results = FPA(t, s, r, configuration)
     bleachingFilter = designfilt('lowpassiir', 'HalfPowerFrequency', bleachingLowpassFrequency, 'SampleRate', configuration.resamplingFrequency, 'DesignMethod', 'butter', 'FilterOrder', filterOrder);
     
     % Fitting function.
-    rLowpass = filtfilt(bleachingFilter, r);
-    sLowpass = filtfilt(bleachingFilter, s);
+    rLowpass = filtfilt(bleachingFilter, r2);
+    sLowpass = filtfilt(bleachingFilter, s2);
     rFit = fit(t(bleachingCorrectionId), rLowpass(bleachingCorrectionId), fittype('exp1'));
     sFit = fit(t(bleachingCorrectionId), sLowpass(bleachingCorrectionId), fittype('exp1'));
     rBleaching = rFit(t);
     sBleaching = sFit(t);
-    rPost = r ./ rBleaching;
-    sPost = s ./ sBleaching;
+    rPost = r2 ./ rBleaching;
+    sPost = s2 ./ sBleaching;
     
     % Normalize to reference signal.
     f = sPost ./ rPost;
@@ -101,8 +112,8 @@ function results = FPA(t, s, r, configuration)
     z = (f - mean(f(zScoreId))) / std(f(zScoreId));
     
     % Normalization factor.
-    f0 = configuration.f0Function(f, min(round(configuration.f0Window * configuration.resamplingFrequency), numel(f)));
-    f1 = configuration.f1Function(f, min(round(configuration.f1Window * configuration.resamplingFrequency), numel(f)));
+    f0 = configuration.f0Function(f, nanmin(round(configuration.f0Window * configuration.resamplingFrequency), numel(f)));
+    f1 = configuration.f1Function(f, nanmin(round(configuration.f1Window * configuration.resamplingFrequency), numel(f)));
     df = f - f0;
     dff = df ./ f1;
     

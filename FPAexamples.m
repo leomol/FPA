@@ -2,7 +2,7 @@
 addpath('common');
 
 %% Example 1 - Process Doric data.
-inputDataFile = 'data/tf_CP_m307_d2_2.csv';
+inputDataFile = 'data/Doric photometry data.csv';
 signalTitle = 'AIn-1 - Demodulated(Lock-In)';
 referenceTitle = 'AIn-2 - Demodulated(Lock-In)';
 configuration.resamplingFrequency = 20;
@@ -28,7 +28,7 @@ FPA(time, signal, reference, configuration);
 
 %% Example 2 - Process Doric data and CleverSys events.
 % Fibre photometry recording file.
-inputDataFile = 'data/Doric fibrephotometry data.csv';
+inputDataFile = 'data/Doric photometry data.csv';
 % CleverSys event file in seconds and the name of the target sheet within.
 inputEventFile = {'data/CleverSys event data.xlsx', 'Trial 1'};
 % Names of columns corresponding to 465nm and 405nm.
@@ -37,6 +37,7 @@ referenceTitle = 'AIn-2 - Demodulated(Lock-In)';
 % Other settings.
 configuration.resamplingFrequency = 20;
 configuration.bleachingCorrectionEpochs = [-Inf, 600, 960, Inf];
+configuration.artifactEpochs = [603, 620, 910, 915];
 configuration.zScoreEpochs = [-Inf, 600];
 configuration.triggeredWindow = 10;
 configuration.f0Function = @movmean;
