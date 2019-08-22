@@ -46,11 +46,11 @@ configuration.f1Function = @movmean;
 configuration.f1Window = 10;
 configuration.peaksLowpassFrequency = 0.2;
 configuration.thresholdingFunction = @mad;
-configuration.thresholdFactor = 0.10;
+configuration.thresholdFactor = 2;
 % Extract epochs from CleverSys output.
 events = loadCleverSysEvents(inputEventFile{:});
 eventNames = events.keys;
-configuration.conditionEpochs = cellfun(@(eventName) {eventName, reshape([events(eventName).start, events(eventName).start + events(eventName).duration], 1, 2 * numel(events(eventName).start))}, eventNames, 'UniformOutput', false);
+configuration.conditionEpochs = cellfun(@(eventName) {eventName, reshape([events(eventName).start, events(eventName).start + events(eventName).duration]', 1, 2 * numel(events(eventName).start))}, eventNames, 'UniformOutput', false);
 configuration.conditionEpochs = cat(2, configuration.conditionEpochs{:});
 [data, names] = loadData(inputDataFile);
 s = ismember(names, signalTitle);
