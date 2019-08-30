@@ -34,6 +34,7 @@ Load vectors time, signal (e.g. 465nm), and reference (e.g. 405nm) using a loade
 Returns a `data` matrix where columns correspond to channels listed in `names`, that is, time followed by other data columns.
 
 Expected format #1:
+
 | time | name 1 | name 2 | ... | name N |
 |:----:|:-----: |:------:|:---:|:------:|
 |  t1  |   a1   |   b2   | ... |   zN   |
@@ -41,6 +42,7 @@ Expected format #1:
 |  tM  |   aM   |   bM   | ... |   zM   |
 
 Expected format #2:
+
 |      | name 1 | name 2 | ... | name N |
 |:----:|:-----: |:------:|:---:|:------:|
 | time | accepted\|rejected | accepted\|rejected | ... | name N |
@@ -55,6 +57,7 @@ Expected format #2:
 Returns a `data` matrix where columns correspond to channels listed in `names`. A sheet number or a sheet name can be passed as the second parameter (default is the first sheet in the document). The sheet name is also returned.
 
 Expected format for each sheed in a document:
+
 | time | name 1 | name 2 | ... | name N |
 |:----:|:-----: |:------:|:---:|:------:|
 |  t1  |   a1   |   b2   | ... |   zN   |
