@@ -1,7 +1,7 @@
 %% Add dependencies.
 addpath('common');
 
-%% Example 1 - Process Doric data.
+%% Example 1 - Analyze fiber-photometry data recorded with Doric DAQ.
 inputDataFile = 'data/Doric photometry data.csv';
 signalTitle = 'AIn-1 - Demodulated(Lock-In)';
 referenceTitle = 'AIn-2 - Demodulated(Lock-In)';
@@ -17,7 +17,6 @@ configuration.f1Window = 10;
 configuration.peaksLowpassFrequency = 0.2;
 configuration.thresholdingFunction = @mad;
 configuration.thresholdFactor = 0.10;
-
 [data, names] = loadData(inputDataFile);
 s = ismember(names, signalTitle);
 r = ismember(names, referenceTitle);
@@ -26,7 +25,7 @@ signal = data(:, s);
 reference = data(:, r);
 FPA(time, signal, reference, configuration);
 
-%% Example 2 - Process Doric data and CleverSys events.
+%% Example 2 - Analyze fiber-photometry data recorded with Doric DAQ and behavioral data recorded with CleverSys.
 % Fibre photometry recording file.
 inputDataFile = 'data/Doric photometry data.csv';
 % CleverSys event file in seconds and the name of the target sheet within.
@@ -67,7 +66,7 @@ fprintf(fid, 'Peak Time (s)\n');
 fprintf(fid, '%.3f\n', time(results.peaksId));
 fclose(fid);
 
-%% Example 3 - Process TDT data.
+%% Example 3 - Analyze fiber-photometry data recorded with TDT DAQ.
 inputFolder = 'data/MM_Pilot1-190702-132554';
 signalTitle = 'Dv1A';
 referenceTitle = 'Dv2A';
@@ -83,7 +82,6 @@ configuration.f1Window = 10;
 configuration.peaksLowpassFrequency = 0.2;
 configuration.thresholdingFunction = @mad;
 configuration.thresholdFactor = 0.10;
-
 [data, names] = loadTDT(inputFolder);
 s = ismember(names, signalTitle);
 r = ismember(names, referenceTitle);

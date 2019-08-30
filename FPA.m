@@ -1,4 +1,4 @@
-% FPA(inputFile, configuration)
+% FPA(time, signal, reference, configuration)
 %     Plot spontaneous signal from a fiber-photometry experiment based on the
 %     values of the configuration. inputFile is a CSV file containing time,
 %     signal (465nm) and reference (405nm) columns, or a folder with data
@@ -46,16 +46,13 @@
 % See FPAexamples
 
 % 2019-02-01. Leonardo Molina.
-% 2019-08-22. Last modified.
-function results = FPA(t, s, r, configuration)
+% 2019-08-30. Last modified.
+function results = FPA(time, signal, reference, configuration)
     addpath(fullfile(fileparts(mfilename('fullpath')), 'common'));
     if nargin == 1
         configuration = struct();
     end
     
-    configuration = setDefault(configuration, 'timeTitle', 'Time(s)');
-    configuration = setDefault(configuration, 'signalTitle', 'AIn-2 - Demodulated(Lock-In)');
-    configuration = setDefault(configuration, 'referenceTitle', 'AIn-1 - Demodulated(Lock-In)');
     configuration = setDefault(configuration, 'resamplingFrequency', 50);
     configuration = setDefault(configuration, 'artifactEpochs', []);
     configuration = setDefault(configuration, 'zScoreEpochs', [-Inf, Inf]);
@@ -69,25 +66,25 @@ function results = FPA(t, s, r, configuration)
     configuration = setDefault(configuration, 'thresholdFactor', 0.10);
     configuration = setDefault(configuration, 'conditionEpochs', {'Condition A', [-Inf, Inf]});
     configuration = setDefault(configuration, 'triggeredWindow', 10);
-    sourceFrequency = 1 / mean(diff(t));
+    sourceFrequency = 1 / mean(diff(time));
     
     % Resample to target frequency.
     [p, q] = rat(configuration.resamplingFrequency / sourceFrequency);
-    r = resample(r, t, configuration.resamplingFrequency, p, q);
-    s = resample(s, t, configuration.resamplingFrequency, p, q);
-    t = linspace(t(1), numel(s) / configuration.resamplingFrequency, numel(s))';
+    reference = resample(reference, time, configuration.resamplingFrequency, p, q);
+    signal = resample(signal, time, configuration.resamplingFrequency, p, q);
+    time = linspace(time(1), numel(signal) / configuration.resamplingFrequency, numel(signal))';
     
     % Remove artifacts by interpolating data.
-    id = transpose(1:numel(t));
-    artifactId = setdiff(id, time2id(t, configuration.artifactEpochs));
+    id = transpose(1:numel(time));
+    artifactId = setdiff(id, time2id(time, configuration.artifactEpochs));
     id2 = id(artifactId);
-    r2 = r(artifactId);
-    s2 = s(artifactId);
+    r2 = reference(artifactId);
+    s2 = signal(artifactId);
     r2 = interp1(id2, r2, id);
     s2 = interp1(id2, s2, id);
     
     % Indexed epoch range.
-    bleachingCorrectionId = time2id(t, configuration.bleachingCorrectionEpochs);
+    bleachingCorrectionId = time2id(time, configuration.bleachingCorrectionEpochs);
     
     % Remove peaks for bleaching correction.
     filterOrder = 12;
@@ -97,10 +94,10 @@ function results = FPA(t, s, r, configuration)
     % Fitting function.
     rLowpass = filtfilt(bleachingFilter, r2);
     sLowpass = filtfilt(bleachingFilter, s2);
-    rFit = fit(t(bleachingCorrectionId), rLowpass(bleachingCorrectionId), fittype('exp1'));
-    sFit = fit(t(bleachingCorrectionId), sLowpass(bleachingCorrectionId), fittype('exp1'));
-    rBleaching = rFit(t);
-    sBleaching = sFit(t);
+    rFit = fit(time(bleachingCorrectionId), rLowpass(bleachingCorrectionId), fittype('exp1'));
+    sFit = fit(time(bleachingCorrectionId), sLowpass(bleachingCorrectionId), fittype('exp1'));
+    rBleaching = rFit(time);
+    sBleaching = sFit(time);
     rPost = r2 ./ rBleaching;
     sPost = s2 ./ sBleaching;
     
@@ -108,7 +105,7 @@ function results = FPA(t, s, r, configuration)
     f = sPost ./ rPost;
     
     % Standardize.
-    zScoreId = time2id(t, configuration.zScoreEpochs);
+    zScoreId = time2id(time, configuration.zScoreEpochs);
     z = (f - mean(f(zScoreId))) / std(f(zScoreId));
     
     % Normalization factor.
@@ -130,7 +127,7 @@ function results = FPA(t, s, r, configuration)
     if mod(w, 2) ~= 0
         w = w + 1;
     end
-    nSamples = numel(t);
+    nSamples = numel(time);
     for i = 1:numel(peaksId)
         range = max(1, peaksId(i) - w / 2):min(nSamples, peaksId(i) + w / 2);
         [~, k] = max(+z(range));
@@ -172,7 +169,7 @@ function results = FPA(t, s, r, configuration)
     conditionIds = zeros(1, numel(peaksId2));
     nEpochs = numel(configuration.conditionEpochs) / 2;
     for id = 1:2:2 * nEpochs
-        conditionBool(id:id + 1) = [configuration.conditionEpochs(id), ismember(allIds, time2id(t, configuration.conditionEpochs{id + 1}))];
+        conditionBool(id:id + 1) = [configuration.conditionEpochs(id), ismember(allIds, time2id(time, configuration.conditionEpochs{id + 1}))];
         k = conditionBool{id + 1}(peaksId2);
         conditionIds(k) = (id + 1) / 2;
     end
@@ -185,18 +182,18 @@ function results = FPA(t, s, r, configuration)
     ax.pre = axes('XTick', []);
     hold(ax.pre, 'all');
     ax.pre.Position = [ax.pre.Position(1), 0.7, ax.pre.Position(3), 0.3];
-    plot(ax.pre, t, s);
-    plot(ax.pre, t, sBleaching, '--');
+    plot(ax.pre, time, signal);
+    plot(ax.pre, time, sBleaching, '--');
     legend(ax.pre, {'Signal', 'Bleaching'});
     
     % Plot corrected signal, low-pass filtered signal and peaks.
     ax.post = axes('XTick', []);
     hold(ax.post, 'all');
     ax.post.Position = [ax.post.Position(1), 0.40, ax.post.Position(3), 0.25];
-    plot(ax.post, t, z);
-    plot(ax.post, t, signalLowPass, 'k');
-    plot(ax.post, t([1, end]), threshold([1, 1]), 'k--');
-    plot(ax.post, t(peaksId), z(peaksId), 'ro');
+    plot(ax.post, time, z);
+    plot(ax.post, time, signalLowPass, 'k');
+    plot(ax.post, time([1, end]), threshold([1, 1]), 'k--');
+    plot(ax.post, time(peaksId), z(peaksId), 'ro');
     legend(ax.post, {'z-score', 'low-pass', 'threshold', 'peaks'});
     
     % Plot traces around peaks.
@@ -204,9 +201,9 @@ function results = FPA(t, s, r, configuration)
     xlabel(ax.dff, 'Time (s)');
     hold(ax.dff, 'all');
     ax.dff.Position = [ax.dff.Position(1), 0.1, ax.dff.Position(3), 0.25];
-    t2 = [t(triggeredId) NaN(size(triggeredId, 1), 1)]';
+    t2 = [time(triggeredId) NaN(size(triggeredId, 1), 1)]';
     y2 = [dff(triggeredId) NaN(size(triggeredId, 1), 1)]';
-    t3 = t(peaksId);
+    t3 = time(peaksId);
     y3 = dff(peaksId);
     ylims = [min(y2(:)), max(y2(:))];
     for e = 1:nEpochs
@@ -256,7 +253,7 @@ function results = FPA(t, s, r, configuration)
     counts = zeros(nEpochs, 1);
     epochIds = zeros(1, 0);
     for e = 1:nEpochs
-        k = time2id(t, configuration.conditionEpochs{2 * e});
+        k = time2id(time, configuration.conditionEpochs{2 * e});
         epochIds = cat(2, epochIds, k);
         counts(e) = numel(k);
     end
