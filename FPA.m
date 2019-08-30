@@ -4,7 +4,7 @@
 %     signal (465nm) and reference (405nm) columns, or a folder with data
 %     recorded with TDT/Synapse.
 % 
-% Fiber photometry analysis steps:
+% Fiber-photometry analysis steps:
 %     -Load and resample inputFile.
 %     -Low-pass filter an artifact-free portion of the data and fit an exponential
 %      decay to correct for photo-bleaching.

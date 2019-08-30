@@ -1,4 +1,4 @@
-# Fiber photometry analysis
+# Fiber-photometry analysis
 MATLAB scripts to plot data from a fiber-photometry recording.
 
 ## Prerequisites
