@@ -196,7 +196,7 @@ Expected format #2:
 
 |      | name 1 | name 2 | ... | name N |
 |:----:|:-----: |:------:|:---:|:------:|
-| time | accepted\|rejected | accepted\|rejected | ... | name N |
+| time | accepted\|rejected | accepted\|rejected | ... | accepted\|rejected |
 |  t1  |   a1   |   b2   | ... |   zN   |
 |  ... |   ...  |  ....  | ... |   ...  |
 |  tM  |   aM   |   bM   | ... |   zM   |

@@ -3,13 +3,13 @@
 % epochs (from1, to1, from2, to2).
 
 % 2019-02-01. Leonardo Molina.
-% 2019-08-30. Last modified.
+% 2019-09-04. Last modified.
 function id = time2id(timeVector, epochs)
     epochs = epochs(:);
     nEpochs = numel(epochs) / 2;
-    epochs = zeros(2, nEpochs);
-    epochs(1:2:end) = arrayfun(@(l) find(timeVector >= l, 1, 'first'), epochs(1:2:end));
-    epochs(2:2:end) = arrayfun(@(l) find(timeVector <= l, 1, 'last'), epochs(2:2:end));
-    id = arrayfun(@(e) epochs(1, e):epochs(2, e), 1:nEpochs, 'UniformOutput', false);
+    timeLimits = zeros(2, nEpochs);
+    timeLimits(1:2:end) = arrayfun(@(l) find(timeVector >= l, 1, 'first'), epochs(1:2:end));
+    timeLimits(2:2:end) = arrayfun(@(l) find(timeVector <= l, 1, 'last'), epochs(2:2:end));
+    id = arrayfun(@(e) timeLimits(1, e):timeLimits(2, e), 1:nEpochs, 'UniformOutput', false);
     id = [id{:}];
 end
