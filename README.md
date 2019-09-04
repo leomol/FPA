@@ -6,7 +6,7 @@ MATLAB scripts to plot data from a fiber-photometry recording.
 
 ## Installation
 * Install MATLAB.
-* Install Curve Fittin Toolbox.
+* Install Curve Fitting Toolbox.
 * Download and extract these scripts to Documents/MATLAB folder.
 
 Also, if your data was recorded with TDT DAQ:
@@ -14,7 +14,7 @@ Also, if your data was recorded with TDT DAQ:
 * Extract `TDTMatlabSDK.zip` and move folder to Documents/MATLAB folder
 * Open MATLAB, execute the following command:
 ```MATLAB
-  addpath(genpath([getenv('USERPROFILE'), '/MATLAB/TDTMatlabSDK/TDTSDK']));
+  addpath(genpath([getenv('USERPROFILE'), '/Documents/MATLAB/TDTMatlabSDK/TDTSDK']));;
 ```
 
 ## Usage

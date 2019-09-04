@@ -1,5 +1,6 @@
 %% Add dependencies.
 addpath('common');
+addpath(genpath([getenv('USERPROFILE'), '/Documents/MATLAB/TDTMatlabSDK/TDTSDK']));
 
 %% Example 1 - Analyze fiber-photometry data recorded with Doric DAQ.
 inputDataFile = 'data/Doric photometry data.csv';
@@ -67,7 +68,7 @@ fprintf(fid, '%.3f\n', time(results.peaksId));
 fclose(fid);
 
 %% Example 3 - Analyze fiber-photometry data recorded with TDT DAQ.
-inputFolder = 'data/MM_Pilot1-190702-132554';
+inputFolder = 'C:\Users\molina\Downloads\GP_PVN_13a-190531-122516';
 signalTitle = 'Dv1A';
 referenceTitle = 'Dv2A';
 configuration.resamplingFrequency = 20;
@@ -82,10 +83,8 @@ configuration.f1Window = 10;
 configuration.peaksLowpassFrequency = 0.2;
 configuration.thresholdingFunction = @mad;
 configuration.thresholdFactor = 0.10;
-[data, names] = loadTDT(inputFolder);
-s = ismember(names, signalTitle);
-r = ismember(names, referenceTitle);
+data = loadTDT(inputFolder, {signalTitle, referenceTitle});
 time = data(:, 1);
-signal = data(:, s);
-reference = data(:, r);
+signal = data(:, 2);
+reference = data(:, 3);
 FPA(time, signal, reference, configuration);
