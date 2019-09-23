@@ -1,6 +1,10 @@
 %% Add dependencies.
 addpath('common');
-addpath(genpath([getenv('USERPROFILE'), '/Documents/MATLAB/TDTMatlabSDK/TDTSDK']));
+
+tdtPath = [getenv('USERPROFILE'), '/Documents/MATLAB/TDTMatlabSDK/TDTSDK/TDTbin2mat/'];
+if exist(tdtPath, 'dir') == 7
+    addpath(genpath(tdtPath));
+end
 
 %% Example 1 - Analyze fiber-photometry data recorded with Doric DAQ.
 inputDataFile = 'data/Doric photometry data.csv';
@@ -68,7 +72,7 @@ fprintf(fid, '%.3f\n', time(results.peaksId));
 fclose(fid);
 
 %% Example 3 - Analyze fiber-photometry data recorded with TDT DAQ.
-inputFolder = 'C:\Users\molina\Downloads\GP_PVN_13a-190531-122516';
+inputFolder = 'data/GP_PVN_13a-190531-122516';
 signalTitle = 'Dv1A';
 referenceTitle = 'Dv2A';
 configuration.resamplingFrequency = 20;

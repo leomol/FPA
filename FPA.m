@@ -46,7 +46,7 @@
 % See FPAexamples
 
 % 2019-02-01. Leonardo Molina.
-% 2019-08-30. Last modified.
+% 2019-09-23. Last modified.
 function results = FPA(time, signal, reference, configuration)
     addpath(fullfile(fileparts(mfilename('fullpath')), 'common'));
     if nargin == 1
@@ -173,6 +173,8 @@ function results = FPA(time, signal, reference, configuration)
         k = conditionBool{id + 1}(peaksId2);
         conditionIds(k) = (id + 1) / 2;
     end
+    uIds = unique(conditionIds);
+    uIds = uIds(uIds > 0);
     
     % Plots.
     cmap = lines();
@@ -217,12 +219,33 @@ function results = FPA(time, signal, reference, configuration)
     
     linkaxes([ax.pre, ax.post, ax.dff], 'x');
     
+    % Plot FFT.
+    figure('name', 'FFT');
+    for e = 1:nEpochs
+        subplot(nEpochs, 1, e);
+        epochName = configuration.conditionEpochs{2 * e - 1};
+        id = time2id(time, configuration.conditionEpochs{2 * e});
+        d = dff(id);
+        n = numel(id);
+        f = fft(d);
+        % Two-sided spectrum.
+        p2 = abs(f / n);
+        % Single-sided amplitude spectrum.
+        p1 = p2(1:n / 2 + 1);
+        p1(2:end-1) = 2 * p1(2:end-1);
+        % Create frequency vector for range.
+        fs = configuration.resamplingFrequency * (0:(n / 2)) / n;
+        plot(fs, p1)
+        ylabel('Amplitude');
+        title(sprintf('%s - FFT', epochName));
+    end
+    xlabel('Frequency (Hz)');
+    
+    
     % Plot triggered average.
     figure('name', 'FPA');
     ax.trigger = axes();
     hold(ax.trigger, 'all');
-    uIds = unique(conditionIds);
-    uIds = uIds(uIds > 0);
     triggerT = windowTemplate / configuration.resamplingFrequency;
     nPeaks = zeros(size(uIds));
     semAtZero = zeros(size(uIds));

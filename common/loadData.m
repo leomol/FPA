@@ -7,10 +7,10 @@
 % If the file has multiple sheets, use sheetName or sheetNumber to select one.
 
 % 2019-05-07. Leonardo Molina.
-% 2019-08-21. Last modified.
+% 2019-09-13. Last modified.
 function [data, names, sheetName] = loadData(filename, sheet)
     [~, ~, extension] = fileparts(filename);
-    if ismember({'.xls', '.xlsx'}, lower(extension))
+    if ismember(lower(extension), {'.xls', '.xlsx'})
         if nargin == 1
             sheet = 1;
         end
