@@ -7,10 +7,13 @@ if exist(tdtPath, 'dir') == 7
 end
 
 %% Example 1 - Analyze fiber-photometry data recorded with Doric DAQ.
-inputDataFile = 'data/Doric photometry data.csv';
-signalTitle = 'AIn-1 - Demodulated(Lock-In)';
-referenceTitle = 'AIn-2 - Demodulated(Lock-In)';
-configuration.resamplingFrequency = 20;
+% inputDataFile = 'data/Doric photometry data.csv';
+% signalTitle = 'AIn-1 - Demodulated(Lock-In)';
+% referenceTitle = 'AIn-2 - Demodulated(Lock-In)';
+inputDataFile = 'C:\Users\molina\Documents\public\HALO\data\FibrePhotometry\Shuo\ph12 SNI_1.csv';
+signalTitle = 'AIn-1 - Dem (AOut-1)';
+referenceTitle = 'AIn-2 - Dem (AOut-2)';
+configuration.resamplingFrequency = 100;
 configuration.bleachingCorrectionEpochs = [-Inf, 600, 960, Inf];
 configuration.zScoreEpochs = [-Inf, 600];
 configuration.conditionEpochs = {'Pre', [100, 220], 'During 1', [650, 890], 'Post', [1480, 1600]};
@@ -68,7 +71,7 @@ results = FPA(time, signal, reference, configuration);
 output = fullfile(folder, sprintf('%s peak-time.csv', basename));
 fid = fopen(output, 'w');
 fprintf(fid, 'Peak Time (s)\n');
-fprintf(fid, '%.3f\n', time(results.peaksId));
+fprintf(fid, '%.3f\n', results.time(results.peaksId));
 fclose(fid);
 
 %% Example 3 - Analyze fiber-photometry data recorded with TDT DAQ.

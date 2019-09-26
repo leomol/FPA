@@ -46,9 +46,9 @@
 % See FPAexamples
 
 % 2019-02-01. Leonardo Molina.
-% 2019-09-23. Last modified.
+% 2019-09-26. Last modified.
 function results = FPA(time, signal, reference, configuration)
-    addpath(fullfile(fileparts(mfilename('fullpath')), 'common'));
+    addpath(fullfile(fileparts(mfilename('c:\hs\U of Calgary\research\Result\Fiber photometry\Sep 14, 19\ph12 SNI_1.csv')), 'common'));
     if nargin == 1
         configuration = struct();
     end
@@ -184,19 +184,18 @@ function results = FPA(time, signal, reference, configuration)
     ax.pre = axes('XTick', []);
     hold(ax.pre, 'all');
     ax.pre.Position = [ax.pre.Position(1), 0.7, ax.pre.Position(3), 0.3];
-    plot(ax.pre, time, signal);
-    plot(ax.pre, time, sBleaching, '--');
-    legend(ax.pre, {'Signal', 'Bleaching'});
+    plot(ax.pre, time, signal, 'DisplayName', 'Signal');
+    plot(ax.pre, time, sBleaching, '--', 'DisplayName', 'Bleaching');
+    legend(ax.pre, 'show');
     
     % Plot corrected signal, low-pass filtered signal and peaks.
     ax.post = axes('XTick', []);
     hold(ax.post, 'all');
     ax.post.Position = [ax.post.Position(1), 0.40, ax.post.Position(3), 0.25];
-    plot(ax.post, time, z);
-    plot(ax.post, time, signalLowPass, 'k');
-    plot(ax.post, time([1, end]), threshold([1, 1]), 'k--');
-    plot(ax.post, time(peaksId), z(peaksId), 'ro');
-    legend(ax.post, {'z-score', 'low-pass', 'threshold', 'peaks'});
+    plot(ax.post, time, z, 'DisplayName', 'z-score');
+    plot(ax.post, time, signalLowPass, 'k', 'DisplayName', 'low-pass');
+    plot(ax.post, time([1, end]), threshold([1, 1]), 'k--', 'DisplayName', 'threshold');
+    plot(ax.post, time(peaksId), z(peaksId), 'ro', 'DisplayName', 'peaks');
     
     % Plot traces around peaks.
     ax.dff = axes();
@@ -221,8 +220,9 @@ function results = FPA(time, signal, reference, configuration)
     
     % Plot FFT.
     figure('name', 'FFT');
+    axs = cell(1, nEpochs);
     for e = 1:nEpochs
-        subplot(nEpochs, 1, e);
+        axs{e} = subplot(nEpochs, 1, e);
         epochName = configuration.conditionEpochs{2 * e - 1};
         id = time2id(time, configuration.conditionEpochs{2 * e});
         d = dff(id);
@@ -239,6 +239,7 @@ function results = FPA(time, signal, reference, configuration)
         ylabel('Amplitude');
         title(sprintf('%s - FFT', epochName));
     end
+    linkaxes([axs{:}], 'x');
     xlabel('Frequency (Hz)');
     
     
@@ -295,6 +296,9 @@ function results = FPA(time, signal, reference, configuration)
     
     results.peaksId = peaksId;
     results.dff = dff;
+    results.time = time;
+    results.reference = reference;
+    results.signal = signal;
 end
 
 function configuration = setDefault(configuration, fieldname, value)
