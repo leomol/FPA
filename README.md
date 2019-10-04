@@ -222,9 +222,9 @@ Expected format for each sheed in a document:
 
 Parses a project folder stored by a TDT DAQ and returns a `data` matrix where columns correspond to channels listed in `names`.
 
-### Load TTL logged by a Doric DAQ
+### Load TTL logged by Inscopix DAQ
 ```matlab
-ttl = loadDoricTTL(filename)
+ttl = loadInscopixTTL(filename)
 ```
 
 Returns timestamps where pin `IO1` changes from low to high state in a Doric DAQ.

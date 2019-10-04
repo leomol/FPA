@@ -1,9 +1,9 @@
-% ttl = loadDoricTTL(filename)
-% Returns timestamps where pin IO1 changes from low to high state in a Doric DAQ.
+% ttl = loadInscopixTTL(filename)
+% Returns timestamps where pin IO1 changes from low to high state in Inscopix DAQ.
 
 % 2019-02-01. Leonardo Molina.
-% 2019-08-30. Last modified.
-function ttl = loadDoricTTL(filename)
+% 2019-10-04. Last modified.
+function ttl = loadInscopixTTL(filename)
     fid = fopen(filename, 'r');
     parts = textscan(fid, '%f%s%d', 'Delimiter', ',', 'HeaderLines', 1);
     fclose(fid);

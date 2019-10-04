@@ -66,28 +66,34 @@ function results = FPA(time, signal, reference, configuration)
     configuration = setDefault(configuration, 'baselineEpochs', [-Inf, Inf]);
     configuration = setDefault(configuration, 'artifactEpochs', []);
     configuration = setDefault(configuration, 'bleachingEpochs', [-Inf, Inf]);
-    configuration = setDefault(configuration, 'resamplingFrequency', 50);
     configuration = setDefault(configuration, 'dffLowpassFrequency', 0.2);
     configuration = setDefault(configuration, 'peaksBandpassFrequency', [0.02, 0.2]);
     configuration = setDefault(configuration, 'bleachingLowpassFrequency', 0.1);
     configuration = setDefault(configuration, 'f0Function', @movmean);
-    configuration = setDefault(configuration, 'f0Window', 10);
+    configuration = setDefault(configuration, 'f0Window', 600);
     configuration = setDefault(configuration, 'f1Function', @movstd);
-    configuration = setDefault(configuration, 'f1Window', 10);
+    configuration = setDefault(configuration, 'f1Window', 600);
     configuration = setDefault(configuration, 'thresholdingFunction', @mad);
     configuration = setDefault(configuration, 'thresholdFactor', 0.10);
     configuration = setDefault(configuration, 'triggeredWindow', 10);
     
     % Sampling frequency.
     sourceFrequency = 1 / mean(diff(time));
+    configuration = setDefault(configuration, 'resamplingFrequency', sourceFrequency);
+    configuration.resamplingFrequency = min(configuration.resamplingFrequency, sourceFrequency);
     
     % Resample to target frequency.
     % Express frequency as a ratio p/q.
     [p, q] = rat(configuration.resamplingFrequency / sourceFrequency);
     % Resample: interpolate every p/q/f, upsample by p, filter, downsample by q.
-    reference = resample(reference, time, configuration.resamplingFrequency, p, q);
-    [signal, time] = resample(signal, time, configuration.resamplingFrequency, p, q);
-    nSamples = numel(time);
+    [signal, time2] = resample(signal, time, configuration.resamplingFrequency, p, q);
+    nSamples = numel(time2);
+    if isempty(reference)
+        reference = ones(nSamples, 1);
+    else
+        reference = resample(reference, time, configuration.resamplingFrequency, p, q);
+    end
+    time = time2;
     
     % Replace artifacts with straight lines.
     % Index of all points.
@@ -134,6 +140,8 @@ function results = FPA(time, signal, reference, configuration)
     dff = (f - f0) ./ f1;
     
     % Band-pass filter to detect peaks.
+    configuration.peaksBandpassFrequency(1) = min(configuration.peaksBandpassFrequency(1), configuration.resamplingFrequency / 2);
+    configuration.peaksBandpassFrequency(2) = min(configuration.peaksBandpassFrequency(2), configuration.resamplingFrequency / 2);
     bandpassFilter = designfilt('bandpassiir', 'HalfPowerFrequency1', configuration.peaksBandpassFrequency(1), 'HalfPowerFrequency2', configuration.peaksBandpassFrequency(2), 'SampleRate', configuration.resamplingFrequency, 'DesignMethod', 'butter', 'FilterOrder', 12);
     dffBandpass = filtfilt(bandpassFilter, dff);
     
@@ -197,6 +205,7 @@ function results = FPA(time, signal, reference, configuration)
     plot(ax.raw, time, signal, 'DisplayName', 'Signal');
     plot(ax.raw, time, reference, 'DisplayName', 'Reference');
     plot(ax.raw, time, sBleaching, 'Color', [0, 0, 0], 'LineStyle', '--', 'DisplayName', 'Bleaching');
+    axis(ax.raw, 'tight');
     legend(ax.raw, 'show');
     
     % Plot band-pass filtered signal and peaks.
@@ -216,19 +225,20 @@ function results = FPA(time, signal, reference, configuration)
     
     % Plot corrected signal, low-pass filtered signal and peaks.
     ax.processed = subplot(3, 1, 3);
-    ax.processed.XTick = [];
     hold(ax.processed, 'all');
     yy = [dff(:); dffLowpass(:)];
-    ylims = [min(yy), max(yy)];
+    ylims = [prctile(yy, 5), max(peakThreshold, prctile(yy, 95))];
+    ylims(1) = ylims(1) - 0.25 * diff(ylims);
+    ylims(2) = ylims(2) + 0.25 * diff(ylims);
     plotEpochs(configuration.conditionEpochs, ylims, cmap, false);
     plot(ax.processed, time, dff, 'DisplayName', 'df/f');
     plot(ax.processed, time, dffLowpass, 'Color', [0, 0, 0], 'DisplayName', 'low-pass df/f');
     plot(ax.processed, time(peaksId), dffLowpass(peaksId), 'Color', [1, 0, 0], 'LineStyle', 'none', 'Marker', 'o', 'DisplayName', 'peaks');
+    ylim(ylims);
     legend(ax.processed, 'show');
     
-    % Move axes together and use all space.
+    % Move axes together.
     linkaxes([ax.raw, ax.peaks, ax.processed], 'x');
-    axis([ax.raw, ax.processed], 'tight');
     
     xlabel('Time (s)');
     ylabel('df/f');

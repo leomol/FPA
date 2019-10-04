@@ -8,8 +8,8 @@ function id = time2id(timeVector, epochs)
     epochs = epochs(:);
     nEpochs = numel(epochs) / 2;
     timeLimits = zeros(2, nEpochs);
-    timeLimits(1:2:end) = arrayfun(@(l) find(timeVector >= l, 1, 'first'), epochs(1:2:end));
-    timeLimits(2:2:end) = arrayfun(@(l) find(timeVector <= l, 1, 'last'), epochs(2:2:end));
-    id = arrayfun(@(e) colon(timeLimits(1, e),timeLimits(2, e))', 1:nEpochs, 'UniformOutput', false);
+    timeLimits(1:2:end) = arrayfun(@(k) find(timeVector >= k, 1, 'first'), epochs(1:2:end));
+    timeLimits(2:2:end) = arrayfun(@(k) find(timeVector <= k, 1, 'last'), epochs(2:2:end));
+    id = arrayfun(@(e) colon(timeLimits(1, e), timeLimits(2, e))', 1:nEpochs, 'UniformOutput', false);
     id = cat(1, id{:});
 end

@@ -1,8 +1,8 @@
 %% Add dependencies.
 addpath(genpath('common'));
 
-%% Example 1 - Analyze fiber-photometry data recorded with Doric DAQ.
-inputDataFile = 'data/Doric photometry data.csv';
+%% Example 1 - Fiber-photometry data recorded with Doric DAQ.
+inputDataFile = 'data/Doric.csv';
 % Names of columns corresponding to 465nm and 405nm.
 signalTitle = 'AIn-1 - Demodulated(Lock-In)';
 referenceTitle = 'AIn-2 - Demodulated(Lock-In)';
@@ -10,6 +10,9 @@ referenceTitle = 'AIn-2 - Demodulated(Lock-In)';
 configuration = struct();
 configuration.conditionEpochs = {'Pre', [100, 220], 'During', [650, 890], 'Post', [1480, 1600]};
 configuration.bleachingEpochs = [-Inf, 600, 960, Inf];
+configuration.dffLowpassFrequency = 0.2;
+configuration.peaksBandpassFrequency = [0.02, 0.2];
+configuration.bleachingLowpassFrequency = 0.1;
 configuration.resamplingFrequency = 100;
 configuration.f0Function = @movmean;
 configuration.f0Window = 600;
@@ -28,11 +31,37 @@ reference = data(:, r);
 % Call FPA with given configuration.
 FPA(time, signal, reference, configuration);
 
-%% Example 2 - Analyze fiber-photometry data recorded with Doric DAQ and behavioral data recorded with CleverSys.
+%% Example 2 - Fiber-photometry data with stimuli recorded with Inscopix.
+inputDataFile = 'data/Inscopix.csv';
+inputEventFile = 'data/InscopixTTL.csv';
+configuration = struct();
+configuration.f0Function = @movmean;
+configuration.f0Window = 600;
+configuration.f1Function = @movmean;
+configuration.f1Window = 600;
+configuration.thresholdingFunction = @mad;
+configuration.thresholdFactor = 0.1;
+configuration.triggeredWindow = 1;
+configuration.dffLowpassFrequency = 2;
+configuration.peaksBandpassFrequency = [0.2, 2];
+data = loadData(inputDataFile);
+time = data(:, 1);
+signal = data(:, 2);
+% Extract epochs from TTL output.
+eventDuration = 3;
+baselineOffset = -4;
+events = loadInscopixTTL(inputEventFile);
+events = [events; events + eventDuration];
+epochs = {'Baseline', events + baselineOffset, 'Stimulation', events};
+configuration.conditionEpochs = epochs;
+FPA(time, signal, [], configuration);
+
+
+%% Example 3 - Fiber-photometry data recorded with Doric DAQ and behavioral data recorded with CleverSys.
 % Fibre photometry recording file.
-inputDataFile = 'data/Doric photometry data.csv';
+inputDataFile = 'data/Doric.csv';
 % CleverSys event file in seconds and the name of the target sheet within.
-inputEventFile = {'data/CleverSys event data.xlsx', 'Trial 1'};
+inputEventFile = {'data/CleverSys.xlsx', 'Trial 1'};
 signalTitle = 'AIn-1 - Demodulated(Lock-In)';
 referenceTitle = 'AIn-2 - Demodulated(Lock-In)';
 configuration = struct();
@@ -66,7 +95,7 @@ fprintf(fid, 'Peak Time (s)\n');
 fprintf(fid, '%.3f\n', results.time(results.peaksId));
 fclose(fid);
 
-%% Example 3 - Analyze fiber-photometry data recorded with TDT DAQ.
+%% Example 4 - Analyze fiber-photometry data recorded with TDT DAQ.
 inputFolder = 'data/GP_PVN_13a-190531-122516';
 signalTitle = 'Dv1A';
 referenceTitle = 'Dv2A';
@@ -74,6 +103,9 @@ configuration = struct();
 configuration.conditionEpochs = {'Baseline', [1, 900], 'Test', [1102, 1702]};
 configuration.baselineEpochs = [-Inf, Inf];
 configuration.bleachingEpochs = [1, 1748];
+configuration.dffLowpassFrequency = 0.2;
+configuration.peaksBandpassFrequency = [0.02, 0.2];
+configuration.bleachingLowpassFrequency = 0.1;
 configuration.resamplingFrequency = 20;
 configuration.f0Function = @movmean;
 configuration.f0Window = 10;
