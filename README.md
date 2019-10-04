@@ -9,48 +9,48 @@ MATLAB scripts to plot data from a fiber-photometry recording.
 * Install Curve Fitting Toolbox.
 * Download and extract these scripts to Documents/MATLAB folder.
 
-Also, if your data was recorded with TDT DAQ:
-* Download TDT MATLAB SDK from https://www.tdt.com/support/matlab-sdk/
-* Extract `TDTMatlabSDK.zip` and move folder to Documents/MATLAB folder
-* Open MATLAB, execute the following command:
-```MATLAB
-  addpath(genpath([getenv('USERPROFILE'), '/Documents/MATLAB/TDTMatlabSDK/TDTSDK']));;
-```
-
 ## Usage
 See examples/description/video below and/or edit `FPAexamples.m` according to your data recordings.
 
 ```matlab
 FPA(time, signal, reference, configuration)
 ```
-Plot spontaneous activity from a fiber-photometry experiment. Data is processed according to the `configuration`.
+Correct signal from bleaching and artifacts, normalize and detect peaks of spontaneous activity based on the given parameters. Signal and reference are column vectors.
 
 [![FPA demo](fpa-screenshot.png)](https://drive.google.com/file/d/1OXrwykbzTlqiQ13bCYg5v_xJNJIpqeb0)
 
 ## Analysis
-Load vectors time, signal (e.g. 465nm), and reference (e.g. 405nm) using a loader compatible with your data. Define parameters in the configuration and run FPA. Internally, FPA will:
-- Load and resample data.
-- Low-pass filter an artifact-free portion of the data and fit an exponential decay to correct for photo-bleaching.
-- Correct for movement artifacts with reference signal.
-- Compute z-score and low-pass filter to detect peaks.
-- Compute df/f in a moving time window to normalize traces around peaks.
-- Compute triggered averages of spontaneous activity grouped by condition/epochs definition.
+Overall analysis steps:
+- Resample data.
+- Fit an exponential decay in a portion of the data representative of bleaching.
+- Normalize signal to reference.
+- Compute df/f in a (moving) window.
+- Find peaks of spontaneous activity.
+- Plot corrected signal and peaks; highlight epochs.
+- Plot triggered averages.
+- Plot power spectrum.
+- Plot stats.
 
 ## Configuration
+
 `configuration` is a struct with the following fields (defaults are used for missing fields):
+- `conditionEpochs` - Epochs for different conditions: `{'epoch1', [start1, end1, start2, end2, ...], 'epoch2', ...}`
+- `baselineEpochs` - Time epochs (s) to include for df/f normalization.
+- `bleachingEpochs` - Time epochs (s) to include for bleaching correction.
+- `artifactEpochs` - Time epochs (s) to remove.
 - `resamplingFrequency` - Resampling frequency (Hz).
-- `artifactEpochs` - Time epochs (s) to include to exclude; data here will be interpolated.
-- `zScoreEpochs` - Time epochs (s) to include for z-score normalization.
-- `bleachingCorrectionEpochs` - Time epochs (s) to include for bleaching correction.
+- `dffLowpassFrequency` - Lowpass frequency to filter df/f.
+- `peaksBandpassFrequency` - Low/High frequencies to compute peaks.
+- `bleachingLowpassFrequency` - Lowpass frequency to detect bleaching decay.
 - `f0Function` - One of `@movmean`, `@movmedian`, `@movmin`.
 - `f0Window` - Length of the moving window to calculate f0.
 - `f1Function` - One of `@movmean`, `@movmedian`, `@movmin`, `@movstd`.
 - `f1Window` - Length of the moving window to calculate f1.
-- `peaksLowpassFrequency` - Frequency of lowpass filter to detect peaks.
 - `thresholdingFunction` - One of `@mad`, `@std`.
 - `thresholdFactor` - Thresholding cut-off.
-- `conditionEpochs` - Epochs that involve different conditions: `{'epoch1', [start1, end1, start2, end2, ...], 'epoch2', ...}`
-- `triggeredWindow` - Length of the time window around each peak.
+- `triggeredWindow` - Length of time to capture around each peak of spontaneous activity.
+
+Peaks are calculated after bandpass filtering df/f. Everything else is calculated after lowpass filtering df/f.
 
 See source code for default values:
 ```matlab
@@ -79,56 +79,58 @@ configuration.f0Window = Inf;
 configuration.f1Window = Inf;
 ```
 
+If baselineEpochs covers the entire data set (e.g. `[-Inf, Inf]`), `df/f` is calculated using a moving window. If baselineEpochs covers a portion of the data set (e.g. `[10, 100]`), `df/f` is calculated using a single window in such period.
+
 ## Examples
 
 ### Example 1 - Analyze fiber-photometry data recorded with Doric DAQ
 ```
 inputDataFile = 'data/Doric photometry data.csv';
+% Names of columns corresponding to 465nm and 405nm.
 signalTitle = 'AIn-1 - Demodulated(Lock-In)';
 referenceTitle = 'AIn-2 - Demodulated(Lock-In)';
-configuration.resamplingFrequency = 20;
-configuration.bleachingCorrectionEpochs = [-Inf, 600, 960, Inf];
-configuration.zScoreEpochs = [-Inf, 600];
-configuration.conditionEpochs = {'Pre', [100, 220], 'During 1', [650, 890], 'Post', [1480, 1600]};
-configuration.triggeredWindow = 10;
+% Configuration (help FPA).
+configuration = struct();
+configuration.conditionEpochs = {'Pre', [100, 220], 'During', [650, 890], 'Post', [1480, 1600]};
+configuration.bleachingEpochs = [-Inf, 600, 960, Inf];
+configuration.resamplingFrequency = 100;
 configuration.f0Function = @movmean;
-configuration.f0Window = 10;
+configuration.f0Window = 600;
 configuration.f1Function = @movmean;
-configuration.f1Window = 10;
-configuration.peaksLowpassFrequency = 0.2;
+configuration.f1Window = 600;
 configuration.thresholdingFunction = @mad;
-configuration.thresholdFactor = 0.10;
+configuration.thresholdFactor = 0.1;
+% Load data (help loadData).
 [data, names] = loadData(inputDataFile);
+% Identify columns in data.
 s = ismember(names, signalTitle);
 r = ismember(names, referenceTitle);
 time = data(:, 1);
 signal = data(:, s);
 reference = data(:, r);
+% Call FPA with given configuration.
 FPA(time, signal, reference, configuration);
 ```
 
 ### Example 2 - Analyze fiber-photometry data recorded with Doric DAQ and behavioral data recorded with CleverSys
 ```
-% Fiber-photometry recording file.
+% Fibre photometry recording file.
 inputDataFile = 'data/Doric photometry data.csv';
 % CleverSys event file in seconds and the name of the target sheet within.
 inputEventFile = {'data/CleverSys event data.xlsx', 'Trial 1'};
-% Names of columns corresponding to 465nm and 405nm.
 signalTitle = 'AIn-1 - Demodulated(Lock-In)';
 referenceTitle = 'AIn-2 - Demodulated(Lock-In)';
-% Other settings.
+configuration = struct();
 configuration.resamplingFrequency = 20;
-configuration.bleachingCorrectionEpochs = [-Inf, 600, 960, Inf];
-configuration.artifactEpochs = [603, 620, 910, 915];
-configuration.zScoreEpochs = [-Inf, 600];
-configuration.triggeredWindow = 10;
 configuration.f0Function = @movmean;
-configuration.f0Window = 10;
+configuration.f0Window = 60;
 configuration.f1Function = @movmean;
-configuration.f1Window = 10;
-configuration.peaksLowpassFrequency = 0.2;
+configuration.f1Window = 60;
+configuration.baselineEpochs = [-Inf, 600];
+configuration.artifactEpochs = [603, 620, 910, 915];
+configuration.bleachingEpochs = [-Inf, 600, 960, Inf];
 configuration.thresholdingFunction = @mad;
-configuration.thresholdFactor = 2;
+configuration.thresholdFactor = 0.1;
 % Extract epochs from CleverSys output.
 events = loadCleverSysEvents(inputEventFile{:});
 eventNames = events.keys;
@@ -146,33 +148,30 @@ results = FPA(time, signal, reference, configuration);
 output = fullfile(folder, sprintf('%s peak-time.csv', basename));
 fid = fopen(output, 'w');
 fprintf(fid, 'Peak Time (s)\n');
-fprintf(fid, '%.3f\n', time(results.peaksId));
+fprintf(fid, '%.3f\n', results.time(results.peaksId));
 fclose(fid);
 ```
 
 ### Example 3 - Analyze fiber-photometry data recorded with TDT DAQ
 ```
-inputFolder = 'data/MM_Pilot1-190702-132554';
+inputFolder = 'data/GP_PVN_13a-190531-122516';
 signalTitle = 'Dv1A';
 referenceTitle = 'Dv2A';
-configuration.resamplingFrequency = 20;
-configuration.bleachingCorrectionEpochs = [1, 1748];
-configuration.zScoreEpochs = [-Inf, Inf];
+configuration = struct();
 configuration.conditionEpochs = {'Baseline', [1, 900], 'Test', [1102, 1702]};
-configuration.triggeredWindow = 10;
+configuration.baselineEpochs = [-Inf, Inf];
+configuration.bleachingEpochs = [1, 1748];
+configuration.resamplingFrequency = 20;
 configuration.f0Function = @movmean;
 configuration.f0Window = 10;
 configuration.f1Function = @movmean;
 configuration.f1Window = 10;
-configuration.peaksLowpassFrequency = 0.2;
 configuration.thresholdingFunction = @mad;
 configuration.thresholdFactor = 0.10;
-[data, names] = loadTDT(inputFolder);
-s = ismember(names, signalTitle);
-r = ismember(names, referenceTitle);
+data = loadTDT(inputFolder, {signalTitle, referenceTitle});
 time = data(:, 1);
-signal = data(:, s);
-reference = data(:, r);
+signal = data(:, 2);
+reference = data(:, 3);
 FPA(time, signal, reference, configuration);
 ```
 

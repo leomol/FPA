@@ -1,9 +1,9 @@
 % [data, names] = loadTDT(folder, channels)
-% Parses a project folder stored by a TDT DAQ and returns a data matrix where
-% columns correspond to channels listed in names.
+% Parses a project folder recorded with TDT DAQ / Synapse and returns a data
+% matrix where columns correspond to channels listed in names.
 
 % 2019-02-01. Leonardo Molina.
-% 2019-09-04. Last modified.
+% 2019-10-03. Last modified.
 function data = loadTDT(folder, names)
     raw = TDTbin2mat(folder, 'TYPE', {'epocs', 'scalars', 'streams'}, 'CHANNEL', 1);
     frequency = raw.streams.(names{1}).fs;

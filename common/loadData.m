@@ -1,13 +1,13 @@
 % [data, names] = loadData(filename)
 % Load one of two formats of data expected from a recording with a Doric or
-% Inscopix data acquisition system.
+% Inscopix DAQ.
 % 
 % [data, names] = loadData(filename, sheetName)
 % [data, names, sheetName] = loadData(filename, sheetNumber)
 % If the file has multiple sheets, use sheetName or sheetNumber to select one.
 
 % 2019-05-07. Leonardo Molina.
-% 2019-09-13. Last modified.
+% 2019-10-03. Last modified.
 function [data, names, sheetName] = loadData(filename, sheet)
     [~, ~, extension] = fileparts(filename);
     if ismember(lower(extension), {'.xls', '.xlsx'})

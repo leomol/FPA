@@ -1,36 +1,31 @@
 %% Add dependencies.
-addpath('common');
-
-tdtPath = [getenv('USERPROFILE'), '/Documents/MATLAB/TDTMatlabSDK/TDTSDK/TDTbin2mat/'];
-if exist(tdtPath, 'dir') == 7
-    addpath(genpath(tdtPath));
-end
+addpath(genpath('common'));
 
 %% Example 1 - Analyze fiber-photometry data recorded with Doric DAQ.
-% inputDataFile = 'data/Doric photometry data.csv';
-% signalTitle = 'AIn-1 - Demodulated(Lock-In)';
-% referenceTitle = 'AIn-2 - Demodulated(Lock-In)';
-inputDataFile = 'C:\Users\molina\Documents\public\HALO\data\FibrePhotometry\Shuo\ph12 SNI_1.csv';
-signalTitle = 'AIn-1 - Dem (AOut-1)';
-referenceTitle = 'AIn-2 - Dem (AOut-2)';
+inputDataFile = 'data/Doric photometry data.csv';
+% Names of columns corresponding to 465nm and 405nm.
+signalTitle = 'AIn-1 - Demodulated(Lock-In)';
+referenceTitle = 'AIn-2 - Demodulated(Lock-In)';
+% Configuration (help FPA).
+configuration = struct();
+configuration.conditionEpochs = {'Pre', [100, 220], 'During', [650, 890], 'Post', [1480, 1600]};
+configuration.bleachingEpochs = [-Inf, 600, 960, Inf];
 configuration.resamplingFrequency = 100;
-configuration.bleachingCorrectionEpochs = [-Inf, 600, 960, Inf];
-configuration.zScoreEpochs = [-Inf, 600];
-configuration.conditionEpochs = {'Pre', [100, 220], 'During 1', [650, 890], 'Post', [1480, 1600]};
-configuration.triggeredWindow = 10;
 configuration.f0Function = @movmean;
-configuration.f0Window = 10;
+configuration.f0Window = 600;
 configuration.f1Function = @movmean;
-configuration.f1Window = 10;
-configuration.peaksLowpassFrequency = 0.2;
+configuration.f1Window = 600;
 configuration.thresholdingFunction = @mad;
-configuration.thresholdFactor = 0.10;
+configuration.thresholdFactor = 0.1;
+% Load data (help loadData).
 [data, names] = loadData(inputDataFile);
+% Identify columns in data.
 s = ismember(names, signalTitle);
 r = ismember(names, referenceTitle);
 time = data(:, 1);
 signal = data(:, s);
 reference = data(:, r);
+% Call FPA with given configuration.
 FPA(time, signal, reference, configuration);
 
 %% Example 2 - Analyze fiber-photometry data recorded with Doric DAQ and behavioral data recorded with CleverSys.
@@ -38,22 +33,19 @@ FPA(time, signal, reference, configuration);
 inputDataFile = 'data/Doric photometry data.csv';
 % CleverSys event file in seconds and the name of the target sheet within.
 inputEventFile = {'data/CleverSys event data.xlsx', 'Trial 1'};
-% Names of columns corresponding to 465nm and 405nm.
 signalTitle = 'AIn-1 - Demodulated(Lock-In)';
 referenceTitle = 'AIn-2 - Demodulated(Lock-In)';
-% Other settings.
+configuration = struct();
 configuration.resamplingFrequency = 20;
-configuration.bleachingCorrectionEpochs = [-Inf, 600, 960, Inf];
-configuration.artifactEpochs = [603, 620, 910, 915];
-configuration.zScoreEpochs = [-Inf, 600];
-configuration.triggeredWindow = 10;
 configuration.f0Function = @movmean;
-configuration.f0Window = 10;
+configuration.f0Window = 60;
 configuration.f1Function = @movmean;
-configuration.f1Window = 10;
-configuration.peaksLowpassFrequency = 0.2;
+configuration.f1Window = 60;
+configuration.baselineEpochs = [-Inf, 600];
+configuration.artifactEpochs = [603, 620, 910, 915];
+configuration.bleachingEpochs = [-Inf, 600, 960, Inf];
 configuration.thresholdingFunction = @mad;
-configuration.thresholdFactor = 2;
+configuration.thresholdFactor = 0.1;
 % Extract epochs from CleverSys output.
 events = loadCleverSysEvents(inputEventFile{:});
 eventNames = events.keys;
@@ -78,16 +70,15 @@ fclose(fid);
 inputFolder = 'data/GP_PVN_13a-190531-122516';
 signalTitle = 'Dv1A';
 referenceTitle = 'Dv2A';
-configuration.resamplingFrequency = 20;
-configuration.bleachingCorrectionEpochs = [1, 1748];
-configuration.zScoreEpochs = [-Inf, Inf];
+configuration = struct();
 configuration.conditionEpochs = {'Baseline', [1, 900], 'Test', [1102, 1702]};
-configuration.triggeredWindow = 10;
+configuration.baselineEpochs = [-Inf, Inf];
+configuration.bleachingEpochs = [1, 1748];
+configuration.resamplingFrequency = 20;
 configuration.f0Function = @movmean;
 configuration.f0Window = 10;
 configuration.f1Function = @movmean;
 configuration.f1Window = 10;
-configuration.peaksLowpassFrequency = 0.2;
 configuration.thresholdingFunction = @mad;
 configuration.thresholdFactor = 0.10;
 data = loadTDT(inputFolder, {signalTitle, referenceTitle});

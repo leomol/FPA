@@ -1,308 +1,327 @@
 % FPA(time, signal, reference, configuration)
-%     Plot spontaneous signal from a fiber-photometry experiment based on the
-%     values of the configuration. inputFile is a CSV file containing time,
-%     signal (465nm) and reference (405nm) columns, or a folder with data
-%     recorded with TDT/Synapse.
 % 
-% Fiber-photometry analysis steps:
-%     -Load and resample inputFile.
-%     -Low-pass filter an artifact-free portion of the data and fit an exponential
-%      decay to correct for photo-bleaching.
-%     -Correct for movement artifacts with reference signal.
-%     -Compute z-score and low-pass filter to detect peaks.
-%     -Compute df/f in a moving time window to normalize traces around peaks.
-%     -Compute triggered averages of spontaneous activity grouped by condition/epochs
-%      definition.
+% Correct signal from bleaching and artifacts, normalize and detect peaks of
+% spontaneous activity based on the given parameters. Signal and reference
+% are column vectors.
 % 
-% configuration is a struct with the following fields (defaults are used for
-% missing fields):
+% Overall analysis steps:
+% 	-Resample data.
+% 	-Fit an exponential decay in a portion of the data representative of bleaching.
+% 	-Normalize signal to reference.
+% 	-Compute df/f in a (moving) window.
+% 	-Find peaks of spontaneous activity.
+% 	-Plot corrected signal and peaks; highlight epochs.
+% 	-Plot triggered averages.
+% 	-Plot power spectrum.
+% 	-Plot stats.
+% 
+% configuration is a struct with the following fields (defaults are used for missing fields):
+%     conditionEpochs - Epochs for different conditions: {'epoch1', [start1, end1, start2, end2, ...], 'epoch2', ...}
+%     baselineEpochs - Time epochs (s) to include for df/f normalization.
+%     bleachingEpochs - Time epochs (s) to include for bleaching correction.
+%     artifactEpochs - Time epochs (s) to remove.
 %     resamplingFrequency - Resampling frequency (Hz).
-%     artifactEpochs - Time epochs (s) to correct via interpolation.
-%     zScoreEpochs - Time epochs (s) to include for z-score normalization.
-%     bleachingCorrectionEpochs - Time epochs (s) to include for bleaching correction.
+%     dffLowpassFrequency - Lowpass frequency to filter df/f.
+%     peaksBandpassFrequency - Low/High frequencies to compute peaks.
+%     bleachingLowpassFrequency - Lowpass frequency to detect bleaching decay.
 %     f0Function - One of @movmean, @movmedian, @movmin.
 %     f0Window - Length of the moving window to calculate f0.
 %     f1Function - One of @movmean, @movmedian, @movmin, @movstd.
 %     f1Window - Length of the moving window to calculate f1.
-%     peaksLowpassFrequency - Frequency of lowpass filter to detect peaks.
 %     thresholdingFunction - One of @mad, @std.
 %     thresholdFactor - Thresholding cut-off.
-%     conditionEpochs - Epochs that involve different conditions: {'epoch1', [start1, end1, start2, end2, ...], 'epoch2', ...}
-%     triggeredWindow - Length of the time window around each peak.
+%     triggeredWindow - Length of time to capture around each peak of spontaneous activity.
+% 
+% Peaks are calculated after bandpass filtering df/f. Everything else is
+% calculated after lowpass filtering df/f.
 % 
 % See source code for default values.
 % Units for time and frequency are seconds and hertz respectively.
 % 
-% Normalization:
+% Normalization recipes:
 %     df/f is calculated as (f - f0) / f1, where f0 and f1 are computed for
-%     each time point using function over a moving window with the given size (s).
+%       each time point using a function over a (moving) window.
 %     Recipe for df/f:
 %         configuration.f0Function = @movmean;
 %         configuration.f1Function = @movmean;
 %     Recipe for z-score:
 %         configuration.f0Function = @movmean;
 %         configuration.f1Function = @movstd;
-% 
+% 	If baselineEpochs covers the entire data set (e.g. [-Inf, Inf]), df/f is
+%   calculated using a moving window. If baselineEpochs covers a portion of
+%   the data set (e.g. [10, 100]), df/f is calculated using a single window
+%   in such period.
+% 	
 % See FPAexamples
 
 % 2019-02-01. Leonardo Molina.
-% 2019-09-26. Last modified.
+% 2019-10-04. Last modified.
 function results = FPA(time, signal, reference, configuration)
-    addpath(fullfile(fileparts(mfilename('c:\hs\U of Calgary\research\Result\Fiber photometry\Sep 14, 19\ph12 SNI_1.csv')), 'common'));
-    if nargin == 1
+    if nargin < 4
         configuration = struct();
     end
     
-    configuration = setDefault(configuration, 'resamplingFrequency', 50);
+    % Read input configuration. Use defaults for missing parameters.
+    configuration = setDefault(configuration, 'conditionEpochs', {'Condition A', [-Inf, Inf]});
+    configuration = setDefault(configuration, 'baselineEpochs', [-Inf, Inf]);
     configuration = setDefault(configuration, 'artifactEpochs', []);
-    configuration = setDefault(configuration, 'zScoreEpochs', [-Inf, Inf]);
-    configuration = setDefault(configuration, 'bleachingCorrectionEpochs', [-Inf, Inf]);
+    configuration = setDefault(configuration, 'bleachingEpochs', [-Inf, Inf]);
+    configuration = setDefault(configuration, 'resamplingFrequency', 50);
+    configuration = setDefault(configuration, 'dffLowpassFrequency', 0.2);
+    configuration = setDefault(configuration, 'peaksBandpassFrequency', [0.02, 0.2]);
+    configuration = setDefault(configuration, 'bleachingLowpassFrequency', 0.1);
     configuration = setDefault(configuration, 'f0Function', @movmean);
     configuration = setDefault(configuration, 'f0Window', 10);
     configuration = setDefault(configuration, 'f1Function', @movstd);
     configuration = setDefault(configuration, 'f1Window', 10);
-    configuration = setDefault(configuration, 'peaksLowpassFrequency', 0.2);
-    configuration = setDefault(configuration, 'thresholdingFunction', @std);
+    configuration = setDefault(configuration, 'thresholdingFunction', @mad);
     configuration = setDefault(configuration, 'thresholdFactor', 0.10);
-    configuration = setDefault(configuration, 'conditionEpochs', {'Condition A', [-Inf, Inf]});
     configuration = setDefault(configuration, 'triggeredWindow', 10);
+    
+    % Sampling frequency.
     sourceFrequency = 1 / mean(diff(time));
     
     % Resample to target frequency.
+    % Express frequency as a ratio p/q.
     [p, q] = rat(configuration.resamplingFrequency / sourceFrequency);
+    % Resample: interpolate every p/q/f, upsample by p, filter, downsample by q.
     reference = resample(reference, time, configuration.resamplingFrequency, p, q);
-    signal = resample(signal, time, configuration.resamplingFrequency, p, q);
-    time = linspace(time(1), numel(signal) / configuration.resamplingFrequency, numel(signal))';
+    [signal, time] = resample(signal, time, configuration.resamplingFrequency, p, q);
+    nSamples = numel(time);
     
-    % Remove artifacts by interpolating data.
-    id = transpose(1:numel(time));
-    artifactId = setdiff(id, time2id(time, configuration.artifactEpochs));
-    id2 = id(artifactId);
-    r2 = reference(artifactId);
-    s2 = signal(artifactId);
-    r2 = interp1(id2, r2, id);
-    s2 = interp1(id2, s2, id);
+    % Replace artifacts with straight lines.
+    % Index of all points.
+    allIds = colon(1, nSamples)';
+    % Index of artifacts and non-artifacts.
+    badId = time2id(time, configuration.artifactEpochs);
+    goodId = setdiff(allIds, badId);
+    % Interpolate.
+    reference2 = reference;
+    signal2 = signal;
+    reference2(badId) = interp1(goodId, reference(goodId), badId);
+    signal2(badId) = interp1(goodId, signal(goodId), badId);
     
-    % Indexed epoch range.
-    bleachingCorrectionId = time2id(time, configuration.bleachingCorrectionEpochs);
+    % Remove high-frequency oscillations to detect bleaching decay.
+    bleachingFilter = designfilt('lowpassiir', 'HalfPowerFrequency', configuration.bleachingLowpassFrequency, 'SampleRate', configuration.resamplingFrequency, 'DesignMethod', 'butter', 'FilterOrder', 12);
+    rLowpass = filtfilt(bleachingFilter, reference2);
+    sLowpass = filtfilt(bleachingFilter, signal2);
     
-    % Remove peaks for bleaching correction.
-    filterOrder = 12;
-    bleachingLowpassFrequency = 0.1;
-    bleachingFilter = designfilt('lowpassiir', 'HalfPowerFrequency', bleachingLowpassFrequency, 'SampleRate', configuration.resamplingFrequency, 'DesignMethod', 'butter', 'FilterOrder', filterOrder);
-    
-    % Fitting function.
-    rLowpass = filtfilt(bleachingFilter, r2);
-    sLowpass = filtfilt(bleachingFilter, s2);
+    % Fit exponential decay at given epochs.
+    bleachingCorrectionId = time2id(time, configuration.bleachingEpochs);
     rFit = fit(time(bleachingCorrectionId), rLowpass(bleachingCorrectionId), fittype('exp1'));
     sFit = fit(time(bleachingCorrectionId), sLowpass(bleachingCorrectionId), fittype('exp1'));
     rBleaching = rFit(time);
     sBleaching = sFit(time);
-    rPost = r2 ./ rBleaching;
-    sPost = s2 ./ sBleaching;
     
-    % Normalize to reference signal.
-    f = sPost ./ rPost;
+    % Correct for bleaching artifact.
+    rCorrected = reference2 ./ rBleaching;
+    sCorrected = signal2 ./ sBleaching;
     
-    % Standardize.
-    zScoreId = time2id(time, configuration.zScoreEpochs);
-    z = (f - mean(f(zScoreId))) / std(f(zScoreId));
+    % Correct for movement artifacts.
+    f = sCorrected ./ rCorrected;
     
-    % Normalization factor.
-    f0 = configuration.f0Function(f, nanmin(round(configuration.f0Window * configuration.resamplingFrequency), numel(f)));
-    f1 = configuration.f1Function(f, nanmin(round(configuration.f1Window * configuration.resamplingFrequency), numel(f)));
-    df = f - f0;
-    dff = df ./ f1;
-    
-    % Find peaks.
-    filterOrder = 12;
-    peaksFilter = designfilt('lowpassiir', 'HalfPowerFrequency', configuration.peaksLowpassFrequency, 'SampleRate', configuration.resamplingFrequency, 'DesignMethod', 'butter', 'FilterOrder', filterOrder);
-    signalLowPass = filtfilt(peaksFilter, z);
-    threshold = mean(signalLowPass) + configuration.thresholdFactor * configuration.thresholdingFunction(signalLowPass);
-    [~, peaksId] = findpeaks(signalLowPass, 'MinPeakHeight', threshold);
-    [~, valleysId] = findpeaks(-signalLowPass);
-    
-    % Find the actual peak around a time window compatible with the filter.
-    w = ceil(0.5 * configuration.resamplingFrequency / configuration.peaksLowpassFrequency);
-    if mod(w, 2) ~= 0
-        w = w + 1;
+    % Calculate df/f.
+    baselineId = time2id(time, configuration.baselineEpochs);
+    if all(ismember(allIds, baselineId))
+        % Compute baseline from a moving window.
+        f0 = configuration.f0Function(f, nanmin(round(configuration.f0Window * configuration.resamplingFrequency), numel(f)));
+        f1 = configuration.f1Function(f, nanmin(round(configuration.f1Window * configuration.resamplingFrequency), numel(f)));
+    else
+        % Compute baseline at given epoch.
+        f0 = configuration.f0Function(f(baselineId), numel(baselineId), 'Endpoints', 'discard');
+        f1 = configuration.f1Function(f(baselineId), numel(baselineId), 'Endpoints', 'discard');
     end
-    nSamples = numel(time);
-    for i = 1:numel(peaksId)
-        range = max(1, peaksId(i) - w / 2):min(nSamples, peaksId(i) + w / 2);
-        [~, k] = max(+z(range));
-        peaksId(i) = k + range(1) - 1;
-        [~, k] = max(-z(range));
-        valleysId(i) = k + range(1) - 1;
-    end
+    dff = (f - f0) ./ f1;
     
-    % Keep highest peak within a period.
-    keep = true(size(peaksId));
-    for i = 1:numel(valleysId) - 1
-        k = peaksId > valleysId(i) & peaksId < valleysId(i);
-        [~, largest] = max(z(k));
-        m = false(sum(k), 1);
-        m(largest) = true;
-        keep(k) = m;
-    end
-    peaksId = peaksId(keep);
+    % Band-pass filter to detect peaks.
+    bandpassFilter = designfilt('bandpassiir', 'HalfPowerFrequency1', configuration.peaksBandpassFrequency(1), 'HalfPowerFrequency2', configuration.peaksBandpassFrequency(2), 'SampleRate', configuration.resamplingFrequency, 'DesignMethod', 'butter', 'FilterOrder', 12);
+    dffBandpass = filtfilt(bandpassFilter, dff);
+    
+    % Get peak threshold.
+    boundaryWindow =  ceil(configuration.peaksBandpassFrequency(1) * configuration.resamplingFrequency);
+    cleanIds = allIds(boundaryWindow:end - boundaryWindow + 1);
+    peakThreshold = mean(dffBandpass(cleanIds)) + configuration.thresholdFactor * configuration.thresholdingFunction(dffBandpass(cleanIds));
+    [~, peaksId] = findpeaks(dffBandpass, 'MinPeakHeight', peakThreshold);
+    
+    % Low-pass.
+    lowpassFilter = designfilt('lowpassiir', 'HalfPowerFrequency', configuration.dffLowpassFrequency, 'SampleRate', configuration.resamplingFrequency, 'DesignMethod', 'butter', 'FilterOrder', 12);
+    dffLowpass = filtfilt(lowpassFilter, dff);
     
     % Split peaks/traces by conditions.
-    allIds = colon(1, nSamples)';
-    conditionBool = cell(size(configuration.conditionEpochs));
-    % Number of samples in a window (force odd number).
+    % Number of samples in a triggered window.
     window = round(configuration.triggeredWindow * configuration.resamplingFrequency);
+    % Force odd count.
     if mod(window, 2) == 0
         window = window - 1;
     end
-    % Index template to apply on each peak.
+    % Index template to apply around each peak.
     windowTemplate = -(window - 1) / 2:(window - 1) / 2;
-    % Filter out out of range traces.
-    peaksId2 = peaksId(peaksId > (window - 1) / 2 & peaksId + (window - 1) / 2 < nSamples);
-    % Index of all triggered traces, one per row.
-    if numel(peaksId2) > 0
-        triggeredId = bsxfun(@plus, windowTemplate, peaksId2);
+    % Filter out out-of-range traces.
+    peaksId = peaksId(peaksId > (window - 1) / 2 & peaksId + (window - 1) / 2 < nSamples);
+    nPeaks = numel(peaksId);
+    % Index of all triggered traces; one per row.
+    if nPeaks > 0
+        triggeredId = bsxfun(@plus, windowTemplate, peaksId);
     else
         triggeredId = [];
     end
-    % Label each row according to the conditions.
-    conditionIds = zeros(1, numel(peaksId2));
+    % Assign a group to each trace (rows in triggeredId) according to the epoch they are.
+    peakGroups = zeros(1, nPeaks);
+    % Boolean index corresponding to each condition.
     nEpochs = numel(configuration.conditionEpochs) / 2;
-    for id = 1:2:2 * nEpochs
-        conditionBool(id:id + 1) = [configuration.conditionEpochs(id), ismember(allIds, time2id(time, configuration.conditionEpochs{id + 1}))];
-        k = conditionBool{id + 1}(peaksId2);
-        conditionIds(k) = (id + 1) / 2;
+    epochBool = cell(1, nEpochs);
+    for e = 1:nEpochs
+        % Epoch index.
+        epochIds = time2id(time, configuration.conditionEpochs{2 * e});
+        epochBool{e} = ismember(allIds, epochIds);
+        % Assign group.
+        k = epochBool{e}(peaksId);
+        peakGroups(k) = e;
     end
-    uIds = unique(conditionIds);
-    uIds = uIds(uIds > 0);
+    uniqueGroups = unique(peakGroups);
+    % An epoch may not have any peaks.
+    uniqueGroups = uniqueGroups(uniqueGroups > 0);
+    nGroups = numel(uniqueGroups);
     
-    % Plots.
+    % Color palette.
     cmap = lines();
     
     % Plot raw signal and bleaching.
-    figure();
-    ax.pre = axes('XTick', []);
-    hold(ax.pre, 'all');
-    ax.pre.Position = [ax.pre.Position(1), 0.7, ax.pre.Position(3), 0.3];
-    plot(ax.pre, time, signal, 'DisplayName', 'Signal');
-    plot(ax.pre, time, sBleaching, '--', 'DisplayName', 'Bleaching');
-    legend(ax.pre, 'show');
+    figure('name', 'FPA: df/f');
+    ax.raw = subplot(3, 1, 1);
+    ax.raw.XTick = [];
+    hold(ax.raw, 'all');
+    yy = [signal(:); reference(:); sBleaching(:)];
+    ylims = [min(yy), max(yy)];
+    plotEpochs(configuration.conditionEpochs, ylims, cmap, true);
+    plot(ax.raw, time, signal, 'DisplayName', 'Signal');
+    plot(ax.raw, time, reference, 'DisplayName', 'Reference');
+    plot(ax.raw, time, sBleaching, 'Color', [0, 0, 0], 'LineStyle', '--', 'DisplayName', 'Bleaching');
+    legend(ax.raw, 'show');
+    
+    % Plot band-pass filtered signal and peaks.
+    ax.peaks = subplot(3, 1, 2);
+    ax.peaks.XTick = [];
+    hold(ax.peaks, 'all');
+    yy = dffBandpass(:);
+    ylims = [prctile(yy, 5), max(peakThreshold, prctile(yy, 95))];
+    ylims(1) = ylims(1) - 0.25 * diff(ylims);
+    ylims(2) = ylims(2) + 0.25 * diff(ylims);
+    plotEpochs(configuration.conditionEpochs, ylims, cmap, false);
+    plot(ax.peaks, time, dffBandpass, 'Color', [0, 0, 0], 'DisplayName', 'band-pass df/f');
+    plot(ax.peaks, time(peaksId), dffBandpass(peaksId), 'ro', 'DisplayName', 'peaks');
+    plot(ax.peaks, time([1, end]), peakThreshold([1, 1]), 'Color', [0, 0, 0], 'LineStyle', '--', 'DisplayName', 'threshold');
+    ylim(ylims);
+    legend(ax.peaks, 'show');
     
     % Plot corrected signal, low-pass filtered signal and peaks.
-    ax.post = axes('XTick', []);
-    hold(ax.post, 'all');
-    ax.post.Position = [ax.post.Position(1), 0.40, ax.post.Position(3), 0.25];
-    plot(ax.post, time, z, 'DisplayName', 'z-score');
-    plot(ax.post, time, signalLowPass, 'k', 'DisplayName', 'low-pass');
-    plot(ax.post, time([1, end]), threshold([1, 1]), 'k--', 'DisplayName', 'threshold');
-    plot(ax.post, time(peaksId), z(peaksId), 'ro', 'DisplayName', 'peaks');
+    ax.processed = subplot(3, 1, 3);
+    ax.processed.XTick = [];
+    hold(ax.processed, 'all');
+    yy = [dff(:); dffLowpass(:)];
+    ylims = [min(yy), max(yy)];
+    plotEpochs(configuration.conditionEpochs, ylims, cmap, false);
+    plot(ax.processed, time, dff, 'DisplayName', 'df/f');
+    plot(ax.processed, time, dffLowpass, 'Color', [0, 0, 0], 'DisplayName', 'low-pass df/f');
+    plot(ax.processed, time(peaksId), dffLowpass(peaksId), 'Color', [1, 0, 0], 'LineStyle', 'none', 'Marker', 'o', 'DisplayName', 'peaks');
+    legend(ax.processed, 'show');
     
-    % Plot traces around peaks.
-    ax.dff = axes();
-    xlabel(ax.dff, 'Time (s)');
-    hold(ax.dff, 'all');
-    ax.dff.Position = [ax.dff.Position(1), 0.1, ax.dff.Position(3), 0.25];
-    t2 = [time(triggeredId) NaN(size(triggeredId, 1), 1)]';
-    y2 = [dff(triggeredId) NaN(size(triggeredId, 1), 1)]';
-    t3 = time(peaksId);
-    y3 = dff(peaksId);
-    ylims = [min(y2(:)), max(y2(:))];
-    for e = 1:nEpochs
-        epochName = configuration.conditionEpochs{2 * e - 1};
-        [faces, vertices] = patchEpochs(configuration.conditionEpochs{2 * e}, ylims(1), ylims(2));
-        patch('Faces', faces, 'Vertices', vertices, 'FaceColor', cmap(e, :), 'EdgeColor', 'none', 'FaceAlpha', 0.50, 'DisplayName', sprintf('%s', epochName));
-    end
-    plot(ax.dff, t2(:), y2(:), 'DisplayName', 'df/f');
-    plot(ax.dff, t3, y3, 'Color', 'r', 'LineStyle', 'none', 'Marker', 'o', 'DisplayName', 'peaks');
-    legend(ax.dff, 'show');
+    % Move axes together and use all space.
+    linkaxes([ax.raw, ax.peaks, ax.processed], 'x');
+    axis([ax.raw, ax.processed], 'tight');
     
-    linkaxes([ax.pre, ax.post, ax.dff], 'x');
+    xlabel('Time (s)');
+    ylabel('df/f');
     
-    % Plot FFT.
-    figure('name', 'FFT');
+    % Plot power spectrum.
+    figure('name', 'FPA: Power spectrum');
     axs = cell(1, nEpochs);
     for e = 1:nEpochs
         axs{e} = subplot(nEpochs, 1, e);
         epochName = configuration.conditionEpochs{2 * e - 1};
-        id = time2id(time, configuration.conditionEpochs{2 * e});
-        d = dff(id);
-        n = numel(id);
+        ids = time2id(time, configuration.conditionEpochs{2 * e});
+        d = dff(ids);
+        n = numel(ids);
+        halfN = floor(n / 2);
         f = fft(d);
         % Two-sided spectrum.
         p2 = abs(f / n);
         % Single-sided amplitude spectrum.
-        p1 = p2(1:n / 2 + 1);
+        p1 = p2(1:halfN + 1);
         p1(2:end-1) = 2 * p1(2:end-1);
         % Create frequency vector for range.
-        fs = configuration.resamplingFrequency * (0:(n / 2)) / n;
-        plot(fs, p1)
-        ylabel('Amplitude');
-        title(sprintf('%s - FFT', epochName));
+        fs = configuration.resamplingFrequency * (0:halfN) / n;
+        plot(fs, p1);
+        title(sprintf('%s - Power spectrum', epochName));
     end
-    linkaxes([axs{:}], 'x');
+    ylabel('Power');
     xlabel('Frequency (Hz)');
-    
+    linkaxes([axs{:}], 'x');
     
     % Plot triggered average.
-    figure('name', 'FPA');
+    figure('name', 'FPA: Triggered average');
     ax.trigger = axes();
     hold(ax.trigger, 'all');
-    triggerT = windowTemplate / configuration.resamplingFrequency;
-    nPeaks = zeros(size(uIds));
-    semAtZero = zeros(size(uIds));
-    stdPerCondition = zeros(size(uIds));
-    for i = 1:numel(uIds)
-        id = uIds(i);
-        nPeaks(i) = sum(conditionIds == id);
-        triggeredData = dff(triggeredId(conditionIds == id, :));
-        triggeredData = reshape(triggeredData, numel(triggeredData) / window, window);
-        triggerMean = mean(triggeredData, 1);
-        triggerSem = std(triggeredData, [], 1) / sqrt(size(triggeredData, 1));
-        semAtZero(i) = triggerSem(ceil(window / 2));
-        stdPerCondition(i) = std(z(conditionBool{2 * i}));
-        h1 = plot(triggerT, triggerMean);
-        vertices = [triggerT; triggerMean + triggerSem / 2];
-        vertices = cat(2, vertices, [fliplr(triggerT); fliplr(triggerMean - triggerSem / 2)])';
+    timeTemplate = windowTemplate / configuration.resamplingFrequency;
+    for e = 1:nGroups
+        group = uniqueGroups(e);
+        triggeredDff = dff(triggeredId(peakGroups == group, :));
+        triggeredDff = reshape(triggeredDff, numel(triggeredDff) / window, window);
+        triggeredMean = mean(triggeredDff, 1);
+        h1 = plot(timeTemplate, triggeredMean, 'HandleVisibility', 'off');
+        epochName = configuration.conditionEpochs{2 * e - 1};
+        triggeredSem = std(triggeredDff, [], 1) / sqrt(size(triggeredDff, 1));
+        semAtZero = triggeredSem(ceil(window / 2));
+        nPeaks = sum(peakGroups == group);
+        text = sprintf('%s (SEM=%.4f, n = %i)', epochName, semAtZero, nPeaks);
+        vertices = [timeTemplate; triggeredMean + triggeredSem / 2];
+        vertices = cat(2, vertices, [fliplr(timeTemplate); fliplr(triggeredMean - triggeredSem / 2)])';
         faces = 1:2 * window;
-        patch('Faces', faces, 'Vertices', vertices, 'FaceColor', h1.Color, 'EdgeColor', 'none', 'FaceAlpha', 0.10);
+        patch('Faces', faces, 'Vertices', vertices, 'FaceColor', h1.Color, 'EdgeColor', 'none', 'FaceAlpha', 0.10, 'DisplayName', text);
     end
-    legend(gca, [configuration.conditionEpochs(2 * uIds - 1); arrayfun(@(i) ['n=' sprintf('%i', nPeaks(i)) ', SEM=' sprintf('%.4f', semAtZero(i))], 1:numel(uIds), 'UniformOutput', false)]);
-    h = title('Triggered average for each condition \pm SEM');
-    set(h, 'Interpreter', 'tex');
+    title('Triggered average');
+    legend('show');
     xlabel('Time (s)');
     ylabel('df/f');
+    axis(ax.trigger, 'tight');
     
-    % Plot stats on traces.
-    figure('name', 'FPA');
-    counts = zeros(nEpochs, 1);
-    epochIds = zeros(1, 0);
+    % Boxplot of dff.
+    figure('name', 'FPA: Boxplot');
+    allEpochIds = zeros(0, 1);
+    allEpochGroups = zeros(0, 1);
+    epochLabels = cell(1, nEpochs);
     for e = 1:nEpochs
-        k = time2id(time, configuration.conditionEpochs{2 * e});
-        epochIds = cat(2, epochIds, k);
-        counts(e) = numel(k);
+        epochIds = time2id(time, configuration.conditionEpochs{2 * e});
+        allEpochIds = cat(1, allEpochIds, epochIds);
+        epochGroups = repmat(e, [numel(epochIds), 1]);
+        allEpochGroups = cat(1, allEpochGroups, epochGroups);
+        epochLabels{e} = sprintf('%s (STD:%.4f)', configuration.conditionEpochs{2 * e - 1}, std(dff(epochIds)));
     end
-    labelIds = zeros(1, sum(counts));
-    labelIds(cumsum(counts(1:end-1)) + 1) = 1;
-    labelIds = cumsum(labelIds) + 1;
-    keep = ismember(labelIds, uIds);
-    labelIds = labelIds(keep);
-    epochIds = epochIds(keep);
-    labels = arrayfun(@(i) sprintf('"%s" STD:%.2f', configuration.conditionEpochs{2 * i - 1}, stdPerCondition(i)), 1:numel(uIds), 'UniformOutput', false);
-    boxplot(z(epochIds), labelIds, 'Labels', labels);
-    ylabel('z-score');
-    title('Stats on z-scored traces for each epoch');
+    boxplot(dff(allEpochIds), allEpochGroups, 'Labels', epochLabels);
+    title('Stats on df/f traces for each condition');
+    ylabel('df/f');
     
-    axis([ax.pre, ax.dff, ax.trigger], 'tight');
-    
-    results.peaksId = peaksId;
-    results.dff = dff;
     results.time = time;
-    results.reference = reference;
-    results.signal = signal;
+    results.dff = dff;
+    results.peaksId = peaksId;
+    results.reference = reference2;
+    results.signal = signal2;
 end
 
 function configuration = setDefault(configuration, fieldname, value)
     if ~isfield(configuration, fieldname)
         configuration.(fieldname) = value;
+    end
+end
+
+function plotEpochs(epochs, ylims, cmap, show)
+    for e = 1:numel(epochs) / 2
+        epochName = epochs{2 * e - 1};
+        [faces, vertices] = patchEpochs(epochs{2 * e}, ylims(1), ylims(2));
+        if show
+            patch('Faces', faces, 'Vertices', vertices, 'FaceColor', cmap(e, :), 'EdgeColor', 'none', 'FaceAlpha', 0.50, 'DisplayName', sprintf('%s', epochName));
+        else
+            patch('Faces', faces, 'Vertices', vertices, 'FaceColor', cmap(e, :), 'EdgeColor', 'none', 'FaceAlpha', 0.50, 'HandleVisibility', 'off');
+        end
     end
 end
