@@ -84,7 +84,7 @@ If baselineEpochs covers the entire data set (e.g. `[-Inf, Inf]`), `df/f` is cal
 ## Examples
 
 ### Example 1 - Analyze fiber-photometry data recorded with Doric DAQ
-```
+```matlab
 inputDataFile = 'data/Doric photometry data.csv';
 % Names of columns corresponding to 465nm and 405nm.
 signalTitle = 'AIn-1 - Demodulated(Lock-In)';
@@ -113,7 +113,7 @@ FPA(time, signal, reference, configuration);
 ```
 
 ### Example 2 - Analyze fiber-photometry data recorded with Doric DAQ and behavioral data recorded with CleverSys
-```
+```matlab
 % Fibre photometry recording file.
 inputDataFile = 'data/Doric photometry data.csv';
 % CleverSys event file in seconds and the name of the target sheet within.
@@ -153,7 +153,7 @@ fclose(fid);
 ```
 
 ### Example 3 - Analyze fiber-photometry data recorded with TDT DAQ
-```
+```matlab
 inputFolder = 'data/GP_PVN_13a-190531-122516';
 signalTitle = 'Dv1A';
 referenceTitle = 'Dv2A';
@@ -177,7 +177,7 @@ FPA(time, signal, reference, configuration);
 
 ## Data loaders
 ### Load a CSV file (e.g. data acquired with Doric or Inscopix DAQ)
-```MATLAB
+```matlab
 [data, names] = loadData(filename)
 ```
 
@@ -201,7 +201,7 @@ Expected format #2:
 |  tM  |   aM   |   bM   | ... |   zM   |
 
 ### Load an XLS or XLSX file (e.g. data acquired with Doric or Inscopix DAQ)
-```MATLAB
+```matlab
 [data, names, sheetName] = loadData(filename, <sheetNumber|sheetName>)
 ```
 
@@ -216,21 +216,21 @@ Expected format for each sheed in a document:
 |  tM  |   aM   |   bM   | ... |   zM   |
 
 ### Load a data folder acquired with TDT DAQ
-```MATLAB
+```matlab
 [data, names] = loadTDT(folder)
 ```
 
 Parses a project folder stored by a TDT DAQ and returns a `data` matrix where columns correspond to channels listed in `names`.
 
 ### Load TTL logged by a Doric DAQ
-```MATLAB
+```matlab
 ttl = loadDoricTTL(filename)
 ```
 
 Returns timestamps where pin `IO1` changes from low to high state in a Doric DAQ.
 
 ### Load behavioral events detected by CleverSys
-```MATLAB
+```matlab
 events = loadCleverSysEvents(filename, sheet)
 ```
 
