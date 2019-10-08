@@ -95,7 +95,7 @@ fprintf(fid, 'Peak Time (s)\n');
 fprintf(fid, '%.3f\n', results.time(results.peaksId));
 fclose(fid);
 
-%% Example 4 - Analyze fiber-photometry data recorded with TDT DAQ.
+%% Example 4 - Fiber-photometry data recorded with TDT DAQ.
 inputFolder = 'data/GP_PVN_13a-190531-122516';
 signalTitle = 'Dv1A';
 referenceTitle = 'Dv2A';

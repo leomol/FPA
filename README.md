@@ -15,6 +15,7 @@ See examples/description/video below and/or edit `FPAexamples.m` according to yo
 ```matlab
 FPA(time, signal, reference, configuration)
 ```
+
 Correct signal from bleaching and artifacts, normalize and detect peaks of spontaneous activity based on the given parameters. Signal and reference are column vectors.
 
 [![FPA demo](fpa-screenshot.png)](https://drive.google.com/file/d/1OXrwykbzTlqiQ13bCYg5v_xJNJIpqeb0)
@@ -83,9 +84,9 @@ If baselineEpochs covers the entire data set (e.g. `[-Inf, Inf]`), `df/f` is cal
 
 ## Examples
 
-### Example 1 - Analyze fiber-photometry data recorded with Doric DAQ
+### Example 1 - Fiber-photometry data recorded with Doric DAQ
 ```matlab
-inputDataFile = 'data/Doric photometry data.csv';
+inputDataFile = 'data/Doric.csv';
 % Names of columns corresponding to 465nm and 405nm.
 signalTitle = 'AIn-1 - Demodulated(Lock-In)';
 referenceTitle = 'AIn-2 - Demodulated(Lock-In)';
@@ -112,12 +113,40 @@ reference = data(:, r);
 FPA(time, signal, reference, configuration);
 ```
 
-### Example 2 - Analyze fiber-photometry data recorded with Doric DAQ and behavioral data recorded with CleverSys
+### Example 2 - Fiber-photometry data with stimuli recorded with Inscopix
+```matlab
+inputDataFile = 'data/Inscopix.csv';
+inputEventFile = 'data/InscopixTTL.csv';
+configuration = struct();
+configuration.f0Function = @movmean;
+configuration.f0Window = 600;
+configuration.f1Function = @movmean;
+configuration.f1Window = 600;
+configuration.thresholdingFunction = @mad;
+configuration.thresholdFactor = 0.1;
+configuration.triggeredWindow = 1;
+configuration.dffLowpassFrequency = 2;
+configuration.peaksBandpassFrequency = [0.2, 2];
+data = loadData(inputDataFile);
+time = data(:, 1);
+signal = data(:, 2);
+% Extract epochs from TTL output.
+eventDuration = 3;
+baselineOffset = -4;
+events = loadInscopixTTL(inputEventFile);
+events = [events; events + eventDuration];
+epochs = {'Baseline', events + baselineOffset, 'Stimulation', events};
+configuration.conditionEpochs = epochs;
+FPA(time, signal, [], configuration);
+```
+
+### Example 3 - Fiber-photometry data recorded with Doric DAQ and behavioral data recorded with CleverSys
+
 ```matlab
 % Fibre photometry recording file.
-inputDataFile = 'data/Doric photometry data.csv';
+inputDataFile = 'data/Doric.csv';
 % CleverSys event file in seconds and the name of the target sheet within.
-inputEventFile = {'data/CleverSys event data.xlsx', 'Trial 1'};
+inputEventFile = {'data/CleverSys.xlsx', 'Trial 1'};
 signalTitle = 'AIn-1 - Demodulated(Lock-In)';
 referenceTitle = 'AIn-2 - Demodulated(Lock-In)';
 configuration = struct();
@@ -152,7 +181,7 @@ fprintf(fid, '%.3f\n', results.time(results.peaksId));
 fclose(fid);
 ```
 
-### Example 3 - Analyze fiber-photometry data recorded with TDT DAQ
+### Example 4 - Fiber-photometry data recorded with TDT DAQ
 ```matlab
 inputFolder = 'data/GP_PVN_13a-190531-122516';
 signalTitle = 'Dv1A';
@@ -227,7 +256,7 @@ Parses a project folder stored by a TDT DAQ and returns a `data` matrix where co
 ttl = loadInscopixTTL(filename)
 ```
 
-Returns timestamps where pin `IO1` changes from low to high state in a Doric DAQ.
+Returns timestamps where pin `IO1` changes from low to high state.
 
 ### Load behavioral events detected by CleverSys
 ```matlab

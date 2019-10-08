@@ -239,6 +239,7 @@ function results = FPA(time, signal, reference, configuration)
     
     % Move axes together.
     linkaxes([ax.raw, ax.peaks, ax.processed], 'x');
+    xlim(ax.raw, [time(1), time(end)]);
     
     xlabel('Time (s)');
     ylabel('df/f');
