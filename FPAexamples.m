@@ -8,7 +8,7 @@ signalTitle = 'AIn-1 - Demodulated(Lock-In)';
 referenceTitle = 'AIn-2 - Demodulated(Lock-In)';
 % Configuration (help FPA).
 configuration = struct();
-configuration.conditionEpochs = {'Pre', [100, 220], 'During', [650, 890], 'Post', [1480, 1600]};
+configuration.conditionEpochs = {'Pre', [100, 340], 'During', [650, 890], 'Post', [1200, 1440]};
 configuration.bleachingEpochs = [-Inf, 600, 960, Inf];
 configuration.dffLowpassFrequency = 0.2;
 configuration.peaksBandpassFrequency = [0.02, 0.2];

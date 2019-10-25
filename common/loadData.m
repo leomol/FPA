@@ -7,7 +7,7 @@
 % If the file has multiple sheets, use sheetName or sheetNumber to select one.
 
 % 2019-05-07. Leonardo Molina.
-% 2019-10-03. Last modified.
+% 2019-10-25. Last modified.
 function [data, names, sheetName] = loadData(filename, sheet)
     [~, ~, extension] = fileparts(filename);
     if ismember(lower(extension), {'.xls', '.xlsx'})
@@ -40,13 +40,27 @@ function [data, names] = loadCSV(filename)
     %  <Time(s)/Cell Status , accepted,  ...  , ... , accepted>
     %   00.00               , 10.00   ,       , ... , 100.00
     %   00.10               , ..
+    % 
+    %  < ---                 , channel2 , channel3 , ... , channelN   >
+    %   Time(s), channelName1,  channelName2  , ... , channelNameN>
+    %   00.00                , 10.00   ,       , ... , 100.00
+    %   00.10                , ..
     
     fid = fopen(filename, 'r');
-    names = fgetl(fid);
-    names = textscan(names, '%s', 'Delimiter', ',');
-    names = names{1};
+    tmp = fgetl(fid);
+    tmp = textscan(tmp, '%s', 'Delimiter', ',');
+    tmp = tmp{1};
+	names = tmp;
     if isnan(str2double(names{1}))
-        nHeaderLines = 1;
+		tmp = fgetl(fid);
+		tmp = textscan(tmp, '%s', 'Delimiter', ',');
+		tmp = tmp{1};
+		if isnan(str2double(tmp{1}))
+			nHeaderLines = 2;
+			names = tmp;
+		else
+			nHeaderLines = 1;
+		end
     else
         names = arrayfun(@num2str, -1:numel(names), 'UniformOutput', false);
         nHeaderLines = 0;
