@@ -55,7 +55,7 @@
 % See FPAexamples
 
 % 2019-02-01. Leonardo Molina.
-% 2019-10-04. Last modified.
+% 2019-11-22. Last modified.
 function results = FPA(time, signal, reference, configuration)
     if nargin < 4
         configuration = struct();
@@ -180,8 +180,8 @@ function results = FPA(time, signal, reference, configuration)
     epochBool = cell(1, nEpochs);
     for e = 1:nEpochs
         % Epoch index.
-        epochIds = time2id(time, configuration.conditionEpochs{2 * e});
-        epochBool{e} = ismember(allIds, epochIds);
+        ids = time2id(time, configuration.conditionEpochs{2 * e});
+        epochBool{e} = ismember(allIds, ids);
         % Assign group.
         k = epochBool{e}(peaksId);
         peakGroups(k) = e;
@@ -298,17 +298,17 @@ function results = FPA(time, signal, reference, configuration)
     
     % Boxplot of dff.
     figure('name', 'FPA: Boxplot');
-    allEpochIds = zeros(0, 1);
-    allEpochGroups = zeros(0, 1);
+    epochIds = zeros(0, 1);
+    epochGroups = zeros(0, 1);
     epochLabels = cell(1, nEpochs);
     for e = 1:nEpochs
-        epochIds = time2id(time, configuration.conditionEpochs{2 * e});
-        allEpochIds = cat(1, allEpochIds, epochIds);
-        epochGroups = repmat(e, [numel(epochIds), 1]);
-        allEpochGroups = cat(1, allEpochGroups, epochGroups);
-        epochLabels{e} = sprintf('%s (STD:%.4f)', configuration.conditionEpochs{2 * e - 1}, std(dff(epochIds)));
+        ids = time2id(time, configuration.conditionEpochs{2 * e});
+        epochIds = cat(1, epochIds, ids);
+        thisEpochGroups = repmat(e, [numel(ids), 1]);
+        epochGroups = cat(1, epochGroups, thisEpochGroups);
+        epochLabels{e} = sprintf('%s (STD:%.4f)', configuration.conditionEpochs{2 * e - 1}, std(dff(ids)));
     end
-    boxplot(dff(allEpochIds), allEpochGroups, 'Labels', epochLabels);
+    boxplot(dff(epochIds), epochGroups, 'Labels', epochLabels);
     title('Stats on df/f traces for each condition');
     ylabel('df/f');
     
@@ -317,6 +317,8 @@ function results = FPA(time, signal, reference, configuration)
     results.peaksId = peaksId;
     results.reference = reference2;
     results.signal = signal2;
+    results.epochIds = epochIds;
+    results.epochGroups = epochGroups;
 end
 
 function configuration = setDefault(configuration, fieldname, value)

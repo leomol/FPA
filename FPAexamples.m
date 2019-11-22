@@ -56,14 +56,13 @@ epochs = {'Baseline', events + baselineOffset, 'Stimulation', events};
 configuration.conditionEpochs = epochs;
 FPA(time, signal, [], configuration);
 
-
 %% Example 3 - Fiber-photometry data recorded with Doric DAQ and behavioral data recorded with CleverSys.
 % Fibre photometry recording file.
 inputDataFile = 'data/Doric.csv';
 % CleverSys event file in seconds and the name of the target sheet within.
 inputEventFile = {'data/CleverSys.xlsx', 'Trial 1'};
-signalTitle = 'AIn-1 - Demodulated(Lock-In)';
-referenceTitle = 'AIn-2 - Demodulated(Lock-In)';
+signalTitle = {'AIn-1 - Demodulated(Lock-In)', 'AIn-1 - Dem (AOut-1)'};
+referenceTitle = {'AIn-2 - Demodulated(Lock-In)', 'AIn-2 - Dem (AOut-2)'};
 configuration = struct();
 configuration.resamplingFrequency = 20;
 configuration.f0Function = @movmean;
@@ -92,7 +91,13 @@ results = FPA(time, signal, reference, configuration);
 output = fullfile(folder, sprintf('%s peak-time.csv', basename));
 fid = fopen(output, 'w');
 fprintf(fid, 'Peak Time (s)\n');
-fprintf(fid, '%.3f\n', results.time(results.peaksId));
+fprintf(fid, '%.4f\n', results.time(results.peaksId));
+fclose(fid);
+% Save dff for statistical analysis.
+output = fullfile(folder, sprintf('%s dff.csv', basename));
+fid = fopen(output, 'w');
+fprintf(fid, 'Time (s), df/f, epoch\n');
+fprintf(fid, '%.4f, %.4f, %d\n', [results.time(results.epochIds), results.dff(results.epochIds), results.epochGroups]');
 fclose(fid);
 
 %% Example 4 - Fiber-photometry data recorded with TDT DAQ.
