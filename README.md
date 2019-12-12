@@ -236,6 +236,8 @@ fclose(fid);
 ```
 
 ### Example 5 - Fiber-photometry data recorded with TDT DAQ
+
+```matlab
 inputFolder = 'data/GP_PVN_13a-190531-122516';
 signalTitle = 'Dv1A';
 referenceTitle = 'Dv2A';
