@@ -55,7 +55,7 @@
 % See FPAexamples
 
 % 2019-02-01. Leonardo Molina.
-% 2019-11-22. Last modified.
+% 2019-12-12. Last modified.
 function results = FPA(time, signal, reference, configuration)
     if nargin < 4
         configuration = struct();
@@ -76,6 +76,8 @@ function results = FPA(time, signal, reference, configuration)
     configuration = setDefault(configuration, 'thresholdingFunction', @mad);
     configuration = setDefault(configuration, 'thresholdFactor', 0.10);
     configuration = setDefault(configuration, 'triggeredWindow', 10);
+    configuration = setDefault(configuration, 'f0', []);
+    configuration = setDefault(configuration, 'f1', []);
     
     % Sampling frequency.
     sourceFrequency = 1 / mean(diff(time));
@@ -127,15 +129,25 @@ function results = FPA(time, signal, reference, configuration)
     f = sCorrected ./ rCorrected;
     
     % Calculate df/f.
-    baselineId = time2id(time, configuration.baselineEpochs);
-    if all(ismember(allIds, baselineId))
-        % Compute baseline from a moving window.
-        f0 = configuration.f0Function(f, nanmin(round(configuration.f0Window * configuration.resamplingFrequency), numel(f)));
-        f1 = configuration.f1Function(f, nanmin(round(configuration.f1Window * configuration.resamplingFrequency), numel(f)));
+    if isempty(configuration.f0) && isempty(configuration.f1)
+        baselineId = time2id(time, configuration.baselineEpochs);
+        if all(ismember(allIds, baselineId))
+            % Compute baseline from a moving window.
+            f0 = configuration.f0Function(f, nanmin(round(configuration.f0Window * configuration.resamplingFrequency), numel(f)));
+            f1 = configuration.f1Function(f, nanmin(round(configuration.f1Window * configuration.resamplingFrequency), numel(f)));
+        else
+            % Compute baseline at given epoch.
+            f0 = configuration.f0Function(f(baselineId), numel(baselineId), 'Endpoints', 'discard');
+            f1 = configuration.f1Function(f(baselineId), numel(baselineId), 'Endpoints', 'discard');
+        end
     else
-        % Compute baseline at given epoch.
-        f0 = configuration.f0Function(f(baselineId), numel(baselineId), 'Endpoints', 'discard');
-        f1 = configuration.f1Function(f(baselineId), numel(baselineId), 'Endpoints', 'discard');
+        f0 = configuration.f0;
+        f1 = configuration.f1;
+        if isempty(f0)
+            f1 = f0;
+        elseif isempty(f1)
+            f0 = f1;
+        end
     end
     dff = (f - f0) ./ f1;
     
@@ -319,6 +331,8 @@ function results = FPA(time, signal, reference, configuration)
     results.signal = signal2;
     results.epochIds = epochIds;
     results.epochGroups = epochGroups;
+    results.f0 = mean(f0);
+    results.f1 = mean(f1);
 end
 
 function configuration = setDefault(configuration, fieldname, value)

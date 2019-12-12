@@ -24,10 +24,11 @@ Correct signal from bleaching and artifacts, normalize and detect peaks of spont
 
 ## Analysis
 Overall analysis steps:
-- Resample data.
-- Fit an exponential decay in a portion of the data representative of bleaching.
+- Resample data to a target frequency.
+- Correct for photo-bleaching with an exponential decay fit on the low-pass filtered signal.
 - Normalize signal to reference.
 - Compute df/f in a (moving) window.
+- Band-pass filter data.
 - Find peaks of spontaneous activity.
 - Plot corrected signal and peaks; highlight epochs.
 - Plot triggered averages.
