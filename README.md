@@ -90,13 +90,15 @@ If baselineEpochs covers the entire data set (e.g. `[-Inf, Inf]`), `df/f` is cal
 ### Example 1 - Fiber-photometry data recorded with Doric DAQ
 ```matlab
 inputDataFile = 'data/Doric.csv';
-% Names of columns corresponding to 465nm and 405nm.
-signalTitle = 'AIn-1 - Demodulated(Lock-In)';
-referenceTitle = 'AIn-2 - Demodulated(Lock-In)';
-% Configuration (help FPA).
+% Columns corresponding to 465nm and 405nm.
+signalColumn = 2;
+referenceColumn = 3;
 configuration = struct();
-configuration.conditionEpochs = {'Pre', [100, 220], 'During', [650, 890], 'Post', [1480, 1600]};
+configuration.conditionEpochs = {'Pre', [100, 340], 'During', [650, 890], 'Post', [1200, 1440]};
 configuration.bleachingEpochs = [-Inf, 600, 960, Inf];
+configuration.dffLowpassFrequency = 0.2;
+configuration.peaksBandpassFrequency = [0.02, 0.2];
+configuration.bleachingLowpassFrequency = 0.1;
 configuration.resamplingFrequency = 100;
 configuration.f0Function = @movmean;
 configuration.f0Window = 600;
@@ -104,16 +106,19 @@ configuration.f1Function = @movmean;
 configuration.f1Window = 600;
 configuration.thresholdingFunction = @mad;
 configuration.thresholdFactor = 0.1;
-% Load data (help loadData).
-[data, names] = loadData(inputDataFile);
-% Identify columns in data.
-s = ismember(names, signalTitle);
-r = ismember(names, referenceTitle);
+data = loadData(inputDataFile);
 time = data(:, 1);
-signal = data(:, s);
-reference = data(:, r);
+signal = data(:, signalColumn);
+reference = data(:, referenceColumn);
 % Call FPA with given configuration.
-FPA(time, signal, reference, configuration);
+results = FPA(time, signal, reference, configuration);
+% Save dff for statistical analysis.
+[folder, basename] = fileparts(inputDataFile);
+output = fullfile(folder, sprintf('%s dff.csv', basename));
+fid = fopen(output, 'w');
+fprintf(fid, 'Time (s), df/f, epoch\n');
+fprintf(fid, '%.4f, %.4f, %d\n', [results.time(results.epochIds), results.dff(results.epochIds), results.epochGroups]');
+fclose(fid);
 ```
 
 ### Example 2 - Fiber-photometry data with stimuli recorded with Inscopix
@@ -150,8 +155,8 @@ FPA(time, signal, [], configuration);
 inputDataFile = 'data/Doric.csv';
 % CleverSys event file in seconds and the name of the target sheet within.
 inputEventFile = {'data/CleverSys.xlsx', 'Trial 1'};
-signalTitle = 'AIn-1 - Demodulated(Lock-In)';
-referenceTitle = 'AIn-2 - Demodulated(Lock-In)';
+signalColumn = 2;
+referenceColumn = 3;
 configuration = struct();
 configuration.resamplingFrequency = 20;
 configuration.f0Function = @movmean;
@@ -168,24 +173,69 @@ events = loadCleverSysEvents(inputEventFile{:});
 eventNames = events.keys;
 configuration.conditionEpochs = cellfun(@(eventName) {eventName, reshape([events(eventName).start, events(eventName).start + events(eventName).duration]', 1, 2 * numel(events(eventName).start))}, eventNames, 'UniformOutput', false);
 configuration.conditionEpochs = cat(2, configuration.conditionEpochs{:});
-[data, names] = loadData(inputDataFile);
-s = ismember(names, signalTitle);
-r = ismember(names, referenceTitle);
+data = loadData(inputDataFile);
 time = data(:, 1);
-signal = data(:, s);
-reference = data(:, r);
+signal = data(:, signalColumn);
+reference = data(:, referenceColumn);
 results = FPA(time, signal, reference, configuration);
 % Save peak times to file.
 [folder, basename] = fileparts(inputDataFile);
 output = fullfile(folder, sprintf('%s peak-time.csv', basename));
 fid = fopen(output, 'w');
 fprintf(fid, 'Peak Time (s)\n');
-fprintf(fid, '%.3f\n', results.time(results.peaksId));
+fprintf(fid, '%.4f\n', results.time(results.peaksId));
+fclose(fid);
+% Save dff for statistical analysis.
+output = fullfile(folder, sprintf('%s dff.csv', basename));
+fid = fopen(output, 'w');
+fprintf(fid, 'Time (s), df/f, epoch\n');
+fprintf(fid, '%.4f, %.4f, %d\n', [results.time(results.epochIds), results.dff(results.epochIds), results.epochGroups]');
 fclose(fid);
 ```
 
-### Example 4 - Fiber-photometry data recorded with TDT DAQ
+### Example 4 - Fiber-photometry data recorded with Doric DAQ - baseline from another file
+
 ```matlab
+inputDataFile1 = 'data/Doric.csv';
+inputDataFile2 = 'data/Doric2.csv';
+% Columns corresponding to 465nm and 405nm.
+signalColumn = 2;
+referenceColumn = 3;
+configuration = struct();
+configuration.dffLowpassFrequency = 0.2;
+configuration.peaksBandpassFrequency = [0.02, 0.2];
+configuration.bleachingLowpassFrequency = 0.1;
+configuration.resamplingFrequency = 100;
+configuration.f0Function = @movmean;
+configuration.f0Window = Inf;
+configuration.f1Function = @movmean;
+configuration.f1Window = Inf;
+configuration.thresholdingFunction = @mad;
+configuration.thresholdFactor = 0.1;
+% Parse file with baseline data.
+data = loadData(inputDataFile1);
+time = data(:, 1);
+signal = data(:, signalColumn);
+reference = data(:, referenceColumn);
+baseline = FPA(time, signal, reference, configuration);
+% Parse file with test data.
+data = loadData(inputDataFile2);
+time = data(:, 1);
+signal = data(:, signalColumn);
+reference = data(:, referenceColumn);
+configuration.f0 = baseline.f0;
+configuration.f1 = baseline.f1;
+results = FPA(time, signal, reference, configuration);
+% Save dff for statistical analysis.
+[folder, basename] = fileparts(inputDataFile2);
+output = fullfile(folder, sprintf('%s dff.csv', basename));
+fid = fopen(output, 'w');
+fprintf(fid, 'Time (s), df/f, epoch\n');
+fprintf(fid, '%.4f, %.4f, %d\n', [results.time(results.epochIds), results.dff(results.epochIds), results.epochGroups]');
+fclose(fid);
+```
+
+### Example 5 - Fiber-photometry data recorded with TDT DAQ
 inputFolder = 'data/GP_PVN_13a-190531-122516';
 signalTitle = 'Dv1A';
 referenceTitle = 'Dv2A';
@@ -193,6 +243,9 @@ configuration = struct();
 configuration.conditionEpochs = {'Baseline', [1, 900], 'Test', [1102, 1702]};
 configuration.baselineEpochs = [-Inf, Inf];
 configuration.bleachingEpochs = [1, 1748];
+configuration.dffLowpassFrequency = 0.2;
+configuration.peaksBandpassFrequency = [0.02, 0.2];
+configuration.bleachingLowpassFrequency = 0.1;
 configuration.resamplingFrequency = 20;
 configuration.f0Function = @movmean;
 configuration.f0Window = 10;
