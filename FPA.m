@@ -1,19 +1,20 @@
 % FPA(time, signal, reference, configuration)
 % 
 % Correct signal from bleaching and artifacts, normalize and detect peaks of
-% spontaneous activity based on the given parameters. Signal and reference
-% are column vectors.
+% spontaneous activity based on the given parameters.
+% Signal and reference are column vectors.
 % 
 % Overall analysis steps:
 % 	-Resample data.
-% 	-Fit an exponential decay in a portion of the data representative of bleaching.
+% 	-Fit an exponential decay in a portion of the data representative of bleaching (low-pass).
 % 	-Normalize signal to reference.
 % 	-Compute df/f in a (moving) window.
-% 	-Find peaks of spontaneous activity.
+% 	-Find peaks of spontaneous activity (band-pass).
 % 	-Plot corrected signal and peaks; highlight epochs.
 % 	-Plot triggered averages.
 % 	-Plot power spectrum.
 % 	-Plot stats.
+% Note that some plots are of df/f while others are of filtered df/f.
 % 
 % configuration is a struct with the following fields (defaults are used for missing fields):
 %     conditionEpochs - Epochs for different conditions: {'epoch1', [start1, end1, start2, end2, ...], 'epoch2', ...}
@@ -22,7 +23,7 @@
 %     artifactEpochs - Time epochs (s) to remove.
 %     resamplingFrequency - Resampling frequency (Hz).
 %     dffLowpassFrequency - Lowpass frequency to filter df/f.
-%     peaksBandpassFrequency - Low/High frequencies to compute peaks.
+%     peaksBandpassFrequency - Low/High frequencies to detect peaks.
 %     bleachingLowpassFrequency - Lowpass frequency to detect bleaching decay.
 %     f0Function - One of @movmean, @movmedian, @movmin.
 %     f0Window - Length of the moving window to calculate f0.
@@ -55,7 +56,7 @@
 % See FPAexamples
 
 % 2019-02-01. Leonardo Molina.
-% 2019-12-12. Last modified.
+% 2020-01-15. Last modified.
 function results = FPA(time, signal, reference, configuration)
     if nargin < 4
         configuration = struct();
