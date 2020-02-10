@@ -56,7 +56,7 @@
 % See FPAexamples
 
 % 2019-02-01. Leonardo Molina.
-% 2020-01-15. Last modified.
+% 2020-02-10. Last modified.
 function results = FPA(time, signal, reference, configuration)
     if nargin < 4
         configuration = struct();
@@ -160,8 +160,8 @@ function results = FPA(time, signal, reference, configuration)
     
     % Get peak threshold.
     boundaryWindow =  ceil(configuration.peaksBandpassFrequency(1) * configuration.resamplingFrequency);
-    cleanIds = allIds(boundaryWindow:end - boundaryWindow + 1);
-    peakThreshold = mean(dffBandpass(cleanIds)) + configuration.thresholdFactor * configuration.thresholdingFunction(dffBandpass(cleanIds));
+    useIds = setdiff(time2id(time, cat(2, configuration.conditionEpochs{2:2:end})), [1:boundaryWindow, numel(time) - boundaryWindow + 1]');
+    peakThreshold = mean(dffBandpass(useIds)) + configuration.thresholdFactor * configuration.thresholdingFunction(dffBandpass(useIds));
     [~, peaksId] = findpeaks(dffBandpass, 'MinPeakHeight', peakThreshold);
     
     % Low-pass.
@@ -204,8 +204,9 @@ function results = FPA(time, signal, reference, configuration)
     uniqueGroups = uniqueGroups(uniqueGroups > 0);
     nGroups = numel(uniqueGroups);
     
-    % Color palette.
+    % Style.
     cmap = lines();
+    xlims = time([1, end]);
     
     % Plot raw signal and bleaching.
     figure('name', 'FPA: df/f');
@@ -214,7 +215,7 @@ function results = FPA(time, signal, reference, configuration)
     hold(ax.raw, 'all');
     yy = [signal(:); reference(:); sBleaching(:)];
     ylims = [min(yy), max(yy)];
-    plotEpochs(configuration.conditionEpochs, ylims, cmap, true);
+    plotEpochs(configuration.conditionEpochs, xlims, ylims, cmap, true);
     plot(ax.raw, time, signal, 'DisplayName', 'Signal');
     plot(ax.raw, time, reference, 'DisplayName', 'Reference');
     plot(ax.raw, time, sBleaching, 'Color', [0, 0, 0], 'LineStyle', '--', 'DisplayName', 'Bleaching');
@@ -229,7 +230,7 @@ function results = FPA(time, signal, reference, configuration)
     ylims = [prctile(yy, 5), max(peakThreshold, prctile(yy, 95))];
     ylims(1) = ylims(1) - 0.25 * diff(ylims);
     ylims(2) = ylims(2) + 0.25 * diff(ylims);
-    plotEpochs(configuration.conditionEpochs, ylims, cmap, false);
+    plotEpochs(configuration.conditionEpochs, xlims, ylims, cmap, false);
     plot(ax.peaks, time, dffBandpass, 'Color', [0, 0, 0], 'DisplayName', 'band-pass df/f');
     plot(ax.peaks, time(peaksId), dffBandpass(peaksId), 'ro', 'DisplayName', 'peaks');
     plot(ax.peaks, time([1, end]), peakThreshold([1, 1]), 'Color', [0, 0, 0], 'LineStyle', '--', 'DisplayName', 'threshold');
@@ -243,7 +244,7 @@ function results = FPA(time, signal, reference, configuration)
     ylims = [prctile(yy, 5), max(peakThreshold, prctile(yy, 95))];
     ylims(1) = ylims(1) - 0.25 * diff(ylims);
     ylims(2) = ylims(2) + 0.25 * diff(ylims);
-    plotEpochs(configuration.conditionEpochs, ylims, cmap, false);
+    plotEpochs(configuration.conditionEpochs, xlims, ylims, cmap, false);
     plot(ax.processed, time, dff, 'DisplayName', 'df/f');
     plot(ax.processed, time, dffLowpass, 'Color', [0, 0, 0], 'DisplayName', 'low-pass df/f');
     plot(ax.processed, time(peaksId), dffLowpass(peaksId), 'Color', [1, 0, 0], 'LineStyle', 'none', 'Marker', 'o', 'DisplayName', 'peaks');
@@ -342,10 +343,12 @@ function configuration = setDefault(configuration, fieldname, value)
     end
 end
 
-function plotEpochs(epochs, ylims, cmap, show)
+function plotEpochs(epochs, xlims, ylims, cmap, show)
     for e = 1:numel(epochs) / 2
         epochName = epochs{2 * e - 1};
         [faces, vertices] = patchEpochs(epochs{2 * e}, ylims(1), ylims(2));
+        vertices(vertices == -inf) = xlims(1);
+        vertices(vertices == +inf) = xlims(2);
         if show
             patch('Faces', faces, 'Vertices', vertices, 'FaceColor', cmap(e, :), 'EdgeColor', 'none', 'FaceAlpha', 0.50, 'DisplayName', sprintf('%s', epochName));
         else

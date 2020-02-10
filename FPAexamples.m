@@ -1,11 +1,11 @@
-%% Add dependencies.
+% Add dependencies.
 addpath(genpath('common'));
 
 %% Example 1 - Fiber-photometry data recorded with Doric DAQ.
 inputDataFile = 'data/Doric.csv';
 % Columns corresponding to 465nm and 405nm.
 signalColumn = 2;
-referenceColumn = 3;
+referenceColumn = 4;
 configuration = struct();
 configuration.conditionEpochs = {'Pre', [100, 340], 'During', [650, 890], 'Post', [1200, 1440]};
 configuration.bleachingEpochs = [-Inf, 600, 960, Inf];
@@ -64,7 +64,7 @@ inputDataFile = 'data/Doric.csv';
 % CleverSys event file in seconds and the name of the target sheet within.
 inputEventFile = {'data/CleverSys.xlsx', 'Trial 1'};
 signalColumn = 2;
-referenceColumn = 3;
+referenceColumn = 4;
 configuration = struct();
 configuration.resamplingFrequency = 20;
 configuration.f0Function = @movmean;
@@ -105,7 +105,7 @@ inputDataFile1 = 'data/Doric.csv';
 inputDataFile2 = 'data/Doric2.csv';
 % Columns corresponding to 465nm and 405nm.
 signalColumn = 2;
-referenceColumn = 3;
+referenceColumn = 4;
 configuration = struct();
 configuration.dffLowpassFrequency = 0.2;
 configuration.peaksBandpassFrequency = [0.02, 0.2];
@@ -162,3 +162,39 @@ time = data(:, 1);
 signal = data(:, 2);
 reference = data(:, 3);
 FPA(time, signal, reference, configuration);
+
+%% Example 6 - Fiber-photometry data recorded with Doric DAQ. Two conditions are encoded as TTL values 1 or 0.
+inputDataFile = 'data/Doric.csv';
+% Columns corresponding to 465nm and 405nm.
+signalColumn = 2;
+referenceColumn = 4;
+ttlColumn = 6;
+homeCageEpoch = [0, 10];
+configuration = struct();
+configuration.bleachingEpochs = [-Inf, 600, 960, Inf];
+configuration.dffLowpassFrequency = 0.2;
+configuration.peaksBandpassFrequency = [0.02, 0.2];
+configuration.bleachingLowpassFrequency = 0.1;
+configuration.resamplingFrequency = 100;
+configuration.f0Function = @movmean;
+configuration.f0Window = 600;
+configuration.f1Function = @movmean;
+configuration.f1Window = 600;
+configuration.thresholdingFunction = @mad;
+configuration.thresholdFactor = 0.1;
+[lowEpochs, highEpochs] = loadTTLEpochs(inputDataFile, ttlColumn);
+lowEpochs(1) = max(homeCageEpoch(2), lowEpochs(1));
+configuration.conditionEpochs = {'No stimulation', lowEpochs, 'Stimulation', highEpochs};
+data = loadData(inputDataFile);
+time = data(:, 1);
+signal = data(:, signalColumn);
+reference = data(:, referenceColumn);
+% Call FPA with given configuration.
+results = FPA(time, signal, reference, configuration);
+% Save dff for statistical analysis.
+[folder, basename] = fileparts(inputDataFile);
+output = fullfile(folder, sprintf('%s dff.csv', basename));
+fid = fopen(output, 'w');
+fprintf(fid, 'Time (s), df/f, epoch\n');
+fprintf(fid, '%.4f, %.4f, %d\n', [results.time(results.epochIds), results.dff(results.epochIds), results.epochGroups]');
+fclose(fid);
