@@ -25,6 +25,7 @@
 %     dffLowpassFrequency - Lowpass frequency to filter df/f.
 %     peaksBandpassFrequency - Low/High frequencies to detect peaks.
 %     bleachingLowpassFrequency - Lowpass frequency to detect bleaching decay.
+%     movingWindow - Whether to use a moving window to calculate f.
 %     f0Function - One of @movmean, @movmedian, @movmin.
 %     f0Window - Length of the moving window to calculate f0.
 %     f1Function - One of @movmean, @movmedian, @movmin, @movstd.
@@ -56,7 +57,7 @@
 % See FPAexamples
 
 % 2019-02-01. Leonardo Molina.
-% 2020-02-19. Last modified.
+% 2020-03-09. Last modified.
 function results = FPA(time, signal, reference, configuration)
     results.warnings = {};
     if nargin < 4
@@ -81,6 +82,7 @@ function results = FPA(time, signal, reference, configuration)
     configuration = setDefault(configuration, 'triggeredWindow', 10);
     configuration = setDefault(configuration, 'f0', []);
     configuration = setDefault(configuration, 'f1', []);
+    configuration = setDefault(configuration, 'plot', true);
     
     % Sampling frequency.
     sourceFrequency = 1 / mean(diff(time));
@@ -240,117 +242,6 @@ function results = FPA(time, signal, reference, configuration)
     uniqueGroups = uniqueGroups(uniqueGroups > 0);
     nGroups = numel(uniqueGroups);
     
-    % Style.
-    cmap = lines();
-    xlims = time([1, end]);
-    
-    % Plot raw signal and bleaching.
-    results.figures = figure('name', 'FPA: df/f');
-    ax.raw = subplot(3, 1, 1);
-    ax.raw.XTick = [];
-    hold(ax.raw, 'all');
-    yy = [signal(:); reference(:); sBleaching(:)];
-    ylims = [min(yy), max(yy)];
-    plotEpochs(configuration.conditionEpochs, xlims, ylims, cmap, true);
-    plot(ax.raw, time, signal, 'DisplayName', 'Signal');
-    plot(ax.raw, time, reference, 'DisplayName', 'Reference');
-    plot(ax.raw, time, sBleaching, 'Color', [0, 0, 0], 'LineStyle', '--', 'DisplayName', 'Bleaching');
-    axis(ax.raw, 'tight');
-    legend(ax.raw, 'show');
-    
-    % Plot band-pass filtered signal and peaks.
-    ax.peaks = subplot(3, 1, 2);
-    ax.peaks.XTick = [];
-    hold(ax.peaks, 'all');
-    yy = dffBandpass(:);
-    ylims = [min(yy), max(yy)]; %[prctile(yy, 1), max(peakThreshold, prctile(yy, 99))];
-    ylims(1) = ylims(1) - 0.25 * diff(ylims);
-    ylims(2) = ylims(2) + 0.25 * diff(ylims);
-    plotEpochs(configuration.conditionEpochs, xlims, ylims, cmap, false);
-    plot(ax.peaks, time, dffBandpass, 'Color', [0, 0, 0], 'DisplayName', 'band-pass df/f');
-    plot(ax.peaks, time(peaksId), dffBandpass(peaksId), 'Color', [1, 0, 0], 'LineStyle', 'none', 'Marker', 'o', 'DisplayName', sprintf('%i peaks', numel(peaksId)));
-    plot(ax.peaks, time([1, end]), peakThreshold([1, 1]), 'Color', [0, 0, 0], 'LineStyle', '--', 'DisplayName', 'threshold');
-    plot(ax.peaks, time(valleysId), dffBandpass(valleysId), 'Color', [0, 0, 0], 'LineStyle', 'none', 'Marker', 'o', 'DisplayName', sprintf('%i valleys', numel(valleysId)));
-    plot(ax.peaks, time([1, end]), valleyThreshold([1, 1]), 'Color', [0, 0, 0], 'LineStyle', '--', 'HandleVisibility', 'off');
-    ylim(ylims);
-    legend(ax.peaks, 'show');
-    
-    % Plot corrected signal, low-pass filtered signal and peaks.
-    ax.processed = subplot(3, 1, 3);
-    hold(ax.processed, 'all');
-    yy = [dff(:); dffLowpass(:)];
-    ylims = [min(yy), max(yy)]; %[prctile(yy, 1), max(peakThreshold, prctile(yy, 99))];
-    ylims(1) = ylims(1) - 0.25 * diff(ylims);
-    ylims(2) = ylims(2) + 0.25 * diff(ylims);
-    plotEpochs(configuration.conditionEpochs, xlims, ylims, cmap, false);
-    plot(ax.processed, time, dff, 'DisplayName', 'df/f');
-    plot(ax.processed, time, dffLowpass, 'Color', [0, 0, 0], 'DisplayName', 'low-pass df/f');
-    plot(ax.processed, time(peaksId), dffLowpass(peaksId), 'Color', [1, 0, 0], 'LineStyle', 'none', 'Marker', 'o', 'DisplayName', 'peaks');
-    plot(ax.processed, time(valleysId), dffLowpass(valleysId), 'Color', [0, 0, 0], 'LineStyle', 'none', 'Marker', 'o', 'DisplayName', 'valleys');
-    ylim(ylims);
-    legend(ax.processed, 'show');
-    
-    % Move axes together.
-    linkaxes([ax.raw, ax.peaks, ax.processed], 'x');
-    xlim(ax.raw, [time(1), time(end)]);
-    
-    xlabel('Time (s)');
-    ylabel('df/f');
-    
-    % Plot power spectrum.
-    results.figures(end + 1) = figure('name', 'FPA: Power spectrum');
-    axs = cell(1, nEpochs);
-    for e = 1:nEpochs
-        axs{e} = subplot(nEpochs, 1, e);
-        epochName = configuration.conditionEpochs{2 * e - 1};
-        ids = time2id(time, configuration.conditionEpochs{2 * e});
-        d = dff(ids);
-        n = numel(ids);
-        halfN = floor(n / 2);
-        f = fft(d);
-        % Two-sided spectrum.
-        p2 = abs(f / n);
-        % Single-sided amplitude spectrum.
-        p1 = p2(1:halfN + 1);
-        p1(2:end-1) = 2 * p1(2:end-1);
-        % Create frequency vector for range.
-        fs = configuration.resamplingFrequency * (0:halfN) / n;
-        plot(fs, p1);
-        title(sprintf('%s - Power spectrum', epochName));
-    end
-    ylabel('Power');
-    xlabel('Frequency (Hz)');
-    linkaxes([axs{:}], 'x');
-    
-    % Plot triggered average.
-    results.figures(end + 1) = figure('name', 'FPA: Triggered average');
-    ax.trigger = axes();
-    hold(ax.trigger, 'all');
-    timeTemplate = windowTemplate / configuration.resamplingFrequency;
-    for e = 1:nGroups
-        group = uniqueGroups(e);
-        triggeredDff = dff(triggeredId(peakGroups == group, :));
-        triggeredDff = reshape(triggeredDff, numel(triggeredDff) / window, window);
-        triggeredMean = mean(triggeredDff, 1);
-        h1 = plot(timeTemplate, triggeredMean, 'HandleVisibility', 'off');
-        epochName = configuration.conditionEpochs{2 * e - 1};
-        triggeredSem = std(triggeredDff, [], 1) / sqrt(size(triggeredDff, 1));
-        semAtZero = triggeredSem(ceil(window / 2));
-        nPeaks = sum(peakGroups == group);
-        text = sprintf('%s (SEM=%.4f, n = %i)', epochName, semAtZero, nPeaks);
-        vertices = [timeTemplate; triggeredMean + triggeredSem / 2];
-        vertices = cat(2, vertices, [fliplr(timeTemplate); fliplr(triggeredMean - triggeredSem / 2)])';
-        faces = 1:2 * window;
-        patch('Faces', faces, 'Vertices', vertices, 'FaceColor', h1.Color, 'EdgeColor', 'none', 'FaceAlpha', 0.10, 'DisplayName', text);
-    end
-    title('Triggered average');
-    legend('show');
-    xlabel('Time (s)');
-    ylabel('df/f');
-    axis(ax.trigger, 'tight');
-    
-    % Boxplot of dff.
-    results.figures(end + 1) = figure('name', 'FPA: Boxplot');
     epochIds = zeros(0, 1);
     epochGroups = zeros(0, 1);
     epochLabels = cell(1, nEpochs);
@@ -361,10 +252,124 @@ function results = FPA(time, signal, reference, configuration)
         epochGroups = cat(1, epochGroups, thisEpochGroups);
         epochLabels{e} = sprintf('%s (STD:%.4f)', configuration.conditionEpochs{2 * e - 1}, std(dff(ids)));
     end
-    boxplot(dff(epochIds), epochGroups, 'Labels', epochLabels);
-    title('Stats on df/f traces for each condition');
-    ylabel('df/f');
     
+    % Style.
+    cmap = lines();
+    xlims = time([1, end]);
+    
+    if configuration.plot
+        % Plot raw signal and bleaching.
+        results.figures = figure('name', 'FPA: df/f');
+        ax.raw = subplot(3, 1, 1);
+        ax.raw.XTick = [];
+        hold(ax.raw, 'all');
+        yy = [signal(:); reference(:); sBleaching(:)];
+        ylims = [min(yy), max(yy)];
+        plotEpochs(configuration.conditionEpochs, xlims, ylims, cmap, true);
+        plot(ax.raw, time, signal, 'DisplayName', 'Signal');
+        plot(ax.raw, time, reference, 'DisplayName', 'Reference');
+        plot(ax.raw, time, sBleaching, 'Color', [0, 0, 0], 'LineStyle', '--', 'DisplayName', 'Bleaching');
+        axis(ax.raw, 'tight');
+        legend(ax.raw, 'show');
+
+        % Plot band-pass filtered signal and peaks.
+        ax.peaks = subplot(3, 1, 2);
+        ax.peaks.XTick = [];
+        hold(ax.peaks, 'all');
+        yy = dffBandpass(:);
+        ylims = [min(yy), max(yy)]; %[prctile(yy, 1), max(peakThreshold, prctile(yy, 99))];
+        ylims(1) = ylims(1) - 0.25 * diff(ylims);
+        ylims(2) = ylims(2) + 0.25 * diff(ylims);
+        plotEpochs(configuration.conditionEpochs, xlims, ylims, cmap, false);
+        plot(ax.peaks, time, dffBandpass, 'Color', [0, 0, 0], 'DisplayName', 'band-pass df/f');
+        plot(ax.peaks, time(peaksId), dffBandpass(peaksId), 'Color', [1, 0, 0], 'LineStyle', 'none', 'Marker', 'o', 'DisplayName', sprintf('%i peaks', numel(peaksId)));
+        plot(ax.peaks, time([1, end]), peakThreshold([1, 1]), 'Color', [0, 0, 0], 'LineStyle', '--', 'DisplayName', 'threshold');
+        plot(ax.peaks, time(valleysId), dffBandpass(valleysId), 'Color', [0, 0, 0], 'LineStyle', 'none', 'Marker', 'o', 'DisplayName', sprintf('%i valleys', numel(valleysId)));
+        plot(ax.peaks, time([1, end]), valleyThreshold([1, 1]), 'Color', [0, 0, 0], 'LineStyle', '--', 'HandleVisibility', 'off');
+        ylim(ylims);
+        legend(ax.peaks, 'show');
+
+        % Plot corrected signal, low-pass filtered signal and peaks.
+        ax.processed = subplot(3, 1, 3);
+        hold(ax.processed, 'all');
+        yy = [dff(:); dffLowpass(:)];
+        ylims = [min(yy), max(yy)]; %[prctile(yy, 1), max(peakThreshold, prctile(yy, 99))];
+        ylims(1) = ylims(1) - 0.25 * diff(ylims);
+        ylims(2) = ylims(2) + 0.25 * diff(ylims);
+        plotEpochs(configuration.conditionEpochs, xlims, ylims, cmap, false);
+        plot(ax.processed, time, dff, 'DisplayName', 'df/f');
+        plot(ax.processed, time, dffLowpass, 'Color', [0, 0, 0], 'DisplayName', 'low-pass df/f');
+        plot(ax.processed, time(peaksId), dffLowpass(peaksId), 'Color', [1, 0, 0], 'LineStyle', 'none', 'Marker', 'o', 'DisplayName', 'peaks');
+        plot(ax.processed, time(valleysId), dffLowpass(valleysId), 'Color', [0, 0, 0], 'LineStyle', 'none', 'Marker', 'o', 'DisplayName', 'valleys');
+        ylim(ylims);
+        legend(ax.processed, 'show');
+
+        % Move axes together.
+        linkaxes([ax.raw, ax.peaks, ax.processed], 'x');
+        xlim(ax.raw, [time(1), time(end)]);
+
+        xlabel('Time (s)');
+        ylabel('df/f');
+
+        % Plot power spectrum.
+        results.figures(end + 1) = figure('name', 'FPA: Power spectrum');
+        axs = cell(1, nEpochs);
+        for e = 1:nEpochs
+            axs{e} = subplot(nEpochs, 1, e);
+            epochName = configuration.conditionEpochs{2 * e - 1};
+            ids = time2id(time, configuration.conditionEpochs{2 * e});
+            d = dff(ids);
+            n = numel(ids);
+            halfN = floor(n / 2);
+            f = fft(d);
+            % Two-sided spectrum.
+            p2 = abs(f / n);
+            % Single-sided amplitude spectrum.
+            p1 = p2(1:halfN + 1);
+            p1(2:end-1) = 2 * p1(2:end-1);
+            % Create frequency vector for range.
+            fs = configuration.resamplingFrequency * (0:halfN) / n;
+            plot(fs, p1);
+            title(sprintf('%s - Power spectrum', epochName));
+        end
+        ylabel('Power');
+        xlabel('Frequency (Hz)');
+        linkaxes([axs{:}], 'x');
+
+        % Plot triggered average.
+        results.figures(end + 1) = figure('name', 'FPA: Triggered average');
+        ax.trigger = axes();
+        hold(ax.trigger, 'all');
+        timeTemplate = windowTemplate / configuration.resamplingFrequency;
+        for e = 1:nGroups
+            group = uniqueGroups(e);
+            triggeredDff = dff(triggeredId(peakGroups == group, :));
+            triggeredDff = reshape(triggeredDff, numel(triggeredDff) / window, window);
+            triggeredMean = mean(triggeredDff, 1);
+            h1 = plot(timeTemplate, triggeredMean, 'HandleVisibility', 'off');
+            epochName = configuration.conditionEpochs{2 * e - 1};
+            triggeredSem = std(triggeredDff, [], 1) / sqrt(size(triggeredDff, 1));
+            semAtZero = triggeredSem(ceil(window / 2));
+            nPeaks = sum(peakGroups == group);
+            text = sprintf('%s (SEM=%.4f, n = %i)', epochName, semAtZero, nPeaks);
+            vertices = [timeTemplate; triggeredMean + triggeredSem / 2];
+            vertices = cat(2, vertices, [fliplr(timeTemplate); fliplr(triggeredMean - triggeredSem / 2)])';
+            faces = 1:2 * window;
+            patch('Faces', faces, 'Vertices', vertices, 'FaceColor', h1.Color, 'EdgeColor', 'none', 'FaceAlpha', 0.10, 'DisplayName', text);
+        end
+        title('Triggered average');
+        legend('show');
+        xlabel('Time (s)');
+        ylabel('df/f');
+        axis(ax.trigger, 'tight');
+
+        % Boxplot of dff.
+        results.figures(end + 1) = figure('name', 'FPA: Boxplot');
+        boxplot(dff(epochIds), epochGroups, 'Labels', epochLabels);
+        title('Stats on df/f traces for each condition');
+        ylabel('df/f');
+    end
+
     results.time = time;
     results.dff = dff;
     results.peaksId = peaksId;
