@@ -13,7 +13,6 @@ fpa.configuration.file = 'C:/Users/molina/Documents/public/MATLAB/EMGFPA/noclip2
 % Columns corresponding to 465nm and 405nm.
 fpa.configuration.fp465Column = 2;
 fpa.configuration.fp405Column = 4;
-% Signal processing settings.
 fpa.configuration.bleachingEpochs = [700, 2000];
 fpa.configuration.dffLowpassFrequency = 0.2;
 fpa.configuration.f0Function = @movmean;
@@ -27,7 +26,6 @@ emg.configuration = struct();
 emg.configuration.file = 'C:/Users/molina/Documents/public/MATLAB/EMGFPA/19n28003V9.abf';
 % Column corresponding to EMG (column 1 is time).
 emg.configuration.emgColumn = 4;
-% Signal processing settings.
 emg.configuration.bandpassFrequency = [100, 500];
 emg.configuration.envelopeSize = 0.9;
 emg.configuration.envelopeLowpassFrequency = 5;
