@@ -47,7 +47,7 @@ classdef Plots < handle
                 hold(obj.handles.emgAxes, 'all');
 
                 obj.handles.fpaPlot = plot(obj.handles.fpaAxes, NaN(2, 1), NaN(2, 1), 'LineWidth', 1, 'DisplayName', 'Fiber-photometry');
-                obj.handles.emgPlot = plot(obj.handles.emgAxes, NaN(2, 1), NaN(2, 1), 'DisplayName', 'EMG');
+                obj.handles.emgPlot = plot(obj.handles.emgAxes, NaN(2, 1), NaN(2, 1), 'DisplayName', 'Fiber-photometry');
                 obj.handles.envelopePlot = plot(obj.handles.emgAxes, NaN(2, 1), NaN(2, 1), 'LineWidth', 1, 'DisplayName', 'EMG envelope');
                 obj.handles.thresholdPlot = plot(obj.handles.emgAxes, NaN(2, 1), NaN(2, 1), 'LineWidth', 1, 'DisplayName', 'EMG threshold');
                 linkaxes([obj.handles.fpaAxes, obj.handles.emgAxes], 'x');

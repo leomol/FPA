@@ -103,7 +103,7 @@ handles.emgAxes = subplot(2, 1, 2);
 hold(handles.emgAxes, 'all');
 linkaxes([handles.fpaAxes, handles.emgAxes], 'x');
 handles.fpaPlot = plot(handles.fpaAxes, NaN(2, 1), NaN(2, 1), 'LineWidth', 1, 'DisplayName', 'Fiber-photometry');
-handles.emgPlot = plot(handles.emgAxes, NaN(2, 1), NaN(2, 1), 'DisplayName', 'EMG');
+handles.emgPlot = plot(handles.emgAxes, NaN(2, 1), NaN(2, 1), 'DisplayName', 'Fiber-photometry');
 handles.envelopePlot = plot(handles.emgAxes, NaN(2, 1), NaN(2, 1), 'LineWidth', 1, 'DisplayName', 'EMG envelope');
 handles.thresholdPlot = plot(handles.emgAxes, NaN(2, 1), NaN(2, 1), 'LineWidth', 1, 'DisplayName', 'EMG threshold');
 title(handles.fpaAxes, 'FP and EMG');
