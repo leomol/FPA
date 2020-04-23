@@ -1,5 +1,5 @@
-% Add function dependencies.
-addpath(genpath('../FPA'));
+% Add FPA dependencies.
+addpath(genpath(fullfile(fileparts(mfilename('fullpath')), '../..')));
 
 % Global configuration.
 resamplingFrequency = 100;
@@ -9,7 +9,7 @@ xcorrSeconds = 5;
 % Fiber-photometry analysis configuration.
 fpa.configuration = struct();
 % Fiber-photometry data recorded with Doric DAQ.
-fpa.configuration.file = 'C:/Users/molina/Documents/public/MATLAB/EMGFPA/noclip2_2.csv';
+fpa.configuration.file = 'C:/Users/molina/Documents/public/HALO/data/EMGFPA/noclip2_2.csv';
 % Columns corresponding to 465nm and 405nm.
 fpa.configuration.fp465Column = 2;
 fpa.configuration.fp405Column = 4;
@@ -23,7 +23,7 @@ fpa.configuration.f1Window = 180;
 % EMG configuration.
 emg.configuration = struct();
 % EMG data recorded with Axon.
-emg.configuration.file = 'C:/Users/molina/Documents/public/MATLAB/EMGFPA/19n28003V9.abf';
+emg.configuration.file = 'C:/Users/molina/Documents/public/HALO/data/EMGFPA/19n28003V9.abf';
 % Column corresponding to EMG (column 1 is time).
 emg.configuration.emgColumn = 4;
 emg.configuration.bandpassFrequency = [100, 500];
