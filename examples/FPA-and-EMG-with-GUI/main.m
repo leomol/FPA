@@ -2,8 +2,8 @@
 % See analysis.m for details on analysis steps.
 % See script.m for a non-GUI simpler version independent of main.m, analysis.m, and, Plots.m.
 
-% Add function dependencies.
-addpath(genpath('../FPA/../'));
+% Add FPA dependencies.
+addpath(genpath(fullfile(fileparts(mfilename('fullpath')), '../..')));
 
 % Global configuration.
 shared.resamplingFrequency = 100;
@@ -27,7 +27,7 @@ fpa.configuration.f1Window = 180;
 % EMG configuration.
 emg.configuration = struct();
 % EMG data recorded with Axon.
-emg.configuration.file = 'C:/Users/molina/Documents/public/HALO/data\EMGFPA/19n28003V9.abf';
+emg.configuration.file = 'C:/Users/molina/Documents/public/HALO/data/EMGFPA/19n28003V9.abf';
 % Column corresponding to EMG (column 1 is time).
 emg.configuration.emgColumn = 4;
 emg.configuration.bandpassFrequency = [100, 500];
