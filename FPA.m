@@ -57,7 +57,7 @@
 % See FPAexamples
 
 % 2019-02-01. Leonardo Molina.
-% 2020-03-09. Last modified.
+% 2020-04-23. Last modified.
 function results = FPA(time, signal, reference, configuration)
     results.warnings = {};
     if nargin < 4
@@ -110,7 +110,7 @@ function results = FPA(time, signal, reference, configuration)
             reference = resample(reference, time, configuration.resamplingFrequency, p, q);
         end
         time = time2;
-    else
+    elseif configuration.resamplingFrequency ~= sourceFrequency
         results.warnings{end + 1} = warn('Cannot resample to frequencies higher than the source frequency (%.2f Hz).', sourceFrequency);
     end
     nSamples = numel(time);
