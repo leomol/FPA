@@ -62,6 +62,7 @@ classdef Plots < handle
                 xlabel(obj.handles.emgAxes, 'time (s)');
                 legend(obj.handles.fpaAxes, 'show');
                 legend(obj.handles.emgAxes, 'show');
+                legend(obj.handles.envelopeAxes, 'show');
                 title(obj.handles.fpaAxes, 'FP and EMG');
             end
             if ~obj.initialized || ~isobject(obj.handles.mixedFigure)
