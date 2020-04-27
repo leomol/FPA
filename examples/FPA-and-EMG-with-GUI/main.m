@@ -18,7 +18,7 @@ fpa.configuration.file = 'C:/Users/molina/Documents/public/HALO/data/EMGFPA/nocl
 fpa.configuration.fp465Column = 2;
 fpa.configuration.fp405Column = 4;
 fpa.configuration.bleachingEpochs = [700, 2000];
-fpa.configuration.dffLowpassFrequency = 0.2;
+fpa.configuration.dffLowpassFrequency = 0.5;
 fpa.configuration.f0Function = @movmean;
 fpa.configuration.f0Window = 180;
 fpa.configuration.f1Function = @movstd;
@@ -32,8 +32,8 @@ emg.configuration.file = 'C:/Users/molina/Documents/public/HALO/data/EMGFPA/19n2
 emg.configuration.emgColumn = 4;
 emg.configuration.bandpassFrequency = [100, 500];
 emg.configuration.envelopeSize = 0.9;
-emg.configuration.envelopeLowpassFrequency = 5;
-emg.configuration.envelopeThreshold = 1;
+emg.configuration.envelopeLowpassFrequency = 1.5;
+emg.configuration.envelopeThreshold = 0.7;
 
 % Run the analysis.
 analysis(shared, fpa, emg);

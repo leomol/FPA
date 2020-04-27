@@ -21,37 +21,43 @@ classdef Plots < handle
                 signal = varargin{3 * t - 0};
                 switch targetName
                     case 'fpa'
-                        target = obj.handles.fpaPlot;
+                        set(obj.handles.fpaPlot, 'XData', time, 'YData', signal);
                     case 'emg'
-                        target = obj.handles.emgPlot;
+                        set(obj.handles.emgPlot, 'XData', time, 'YData', signal);
                     case 'envelope'
-                        target = obj.handles.envelopePlot;
+                        set(obj.handles.envelopePlot1, 'XData', time, 'YData', signal);
+                        set(obj.handles.envelopePlot2, 'XData', time, 'YData', signal);
                     case 'threshold'
-                        target = obj.handles.thresholdPlot;
+                        set(obj.handles.thresholdPlot, 'XData', time, 'YData', signal);
                     case 'xcorr'
-                        target = obj.handles.xcorrPlot;
+                        set(obj.handles.xcorrPlot, 'XData', time, 'YData', signal);
                 end
-                set(target, 'XData', time, 'YData', signal);
             end
-            
+        end
+        
+        function close(obj)
+            delete(obj.handles.isolatedFigure);
+            delete(obj.handles.mixedFigure);
         end
     end
     
     methods (Access = private)
         function setupFigures(obj)
+            % Initialize and format plot handles.
             if ~obj.initialized || ~isobject(obj.handles.isolatedFigure)
-                % Initialize and format plot handles.
                 obj.handles.isolatedFigure = figure('name', 'FPA and EMG');
-                obj.handles.fpaAxes = subplot(2, 1, 1);
-                obj.handles.emgAxes = subplot(2, 1, 2);
+                obj.handles.fpaAxes = subplot(3, 1, 1);
+                obj.handles.emgAxes = subplot(3, 1, 2);
+                obj.handles.envelopeAxes = subplot(3, 1, 3);
                 hold(obj.handles.emgAxes, 'all');
-
+                
                 obj.handles.fpaPlot = plot(obj.handles.fpaAxes, NaN(2, 1), NaN(2, 1), 'LineWidth', 1, 'DisplayName', 'Fiber-photometry');
                 obj.handles.emgPlot = plot(obj.handles.emgAxes, NaN(2, 1), NaN(2, 1), 'DisplayName', 'Fiber-photometry');
-                obj.handles.envelopePlot = plot(obj.handles.emgAxes, NaN(2, 1), NaN(2, 1), 'LineWidth', 1, 'DisplayName', 'EMG envelope');
                 obj.handles.thresholdPlot = plot(obj.handles.emgAxes, NaN(2, 1), NaN(2, 1), 'LineWidth', 1, 'DisplayName', 'EMG threshold');
-                linkaxes([obj.handles.fpaAxes, obj.handles.emgAxes], 'x');
-
+                obj.handles.envelopePlot1 = plot(obj.handles.emgAxes, NaN(2, 1), NaN(2, 1), 'LineWidth', 1, 'DisplayName', 'EMG envelope');
+                obj.handles.envelopePlot2 = plot(obj.handles.envelopeAxes, NaN(2, 1), NaN(2, 1), 'LineWidth', 1, 'DisplayName', 'EMG envelope', 'Color', obj.handles.envelopePlot1.Color);
+                linkaxes([obj.handles.fpaAxes, obj.handles.emgAxes, obj.handles.envelopeAxes], 'x');
+                
                 ylabel(obj.handles.fpaAxes, 'z-score');
                 xlabel(obj.handles.emgAxes, 'time (s)');
                 legend(obj.handles.fpaAxes, 'show');

@@ -1,9 +1,9 @@
 % 2020-04-23. Leonardo Molina.
-% 2020-04-23. Last modified.
+% 2020-04-27. Last modified.
 function analysis(shared, fpa, emg)
     % Complete configuration.
     fpa.configuration.plot = false;
-    fpa.configuration.shared.resamplingFrequency = shared.resamplingFrequency;
+    fpa.configuration.resamplingFrequency = shared.resamplingFrequency;
     fpa.configuration.conditionEpochs = shared.conditionEpochs;
     fpa.data = loadData(fpa.configuration.file);
     emg.data = loadABF(emg.configuration.file);
@@ -18,49 +18,64 @@ function analysis(shared, fpa, emg)
     end
     
     % GUI configuration.
-    shared.envelopeSizeRange = [0, 3];
-    shared.envelopeLowpassFrequencyRange = [1, shared.resamplingFrequency / 2];
-    shared.envelopeThresholdRange = [0.01, 3];
+    shared.envelopeSizeRange = [0, 10];
+    shared.envelopeLowpassFrequencyRange = [1e-6, shared.resamplingFrequency / 20];
+    shared.envelopeThresholdRange = [1e-3, prctile(emg.signal, 99)];
     
-    control = uifigure('name', sprintf('%s - control', mfilename('Class')), 'MenuBar', 'none', 'NumberTitle', 'off', 'ToolBar', 'none');
+    control = uifigure('name', sprintf('%s - control', mfilename('Class')), 'MenuBar', 'none', 'NumberTitle', 'off', 'ToolBar', 'none', 'CloseRequestFcn', @(handle, event)close());
     
     dy = 50;
     nControls = 3;
     layout = uigridlayout(control);
     layout.RowHeight = repmat({dy}, [1, nControls]);
-    layout.ColumnWidth = {'1x', '2x'};
+    layout.ColumnWidth = {'2x', '3x'};
     
-    ui = uilabel(layout, 'Text', 'Envelope size:');
-    ui.Layout.Column = 1;
-    ui.Layout.Row = 1;
+    target = 'envelopeSize';
+    text = 'Envelope size';
     value = min(max(emg.configuration.envelopeSize, shared.envelopeSizeRange(1)), shared.envelopeSizeRange(2));
-    ui = uislider(layout, 'Limits', shared.envelopeSizeRange, 'Value', value, 'ValueChangedFcn', @(handle, event) update(handle, 'envelopeSize'));
-    ui.Layout.Column = 2;
-    ui.Layout.Row = 1;
+    label = uilabel(layout);
+    label.Layout.Column = 1;
+    label.Layout.Row = 1;
+    slider = uislider(layout, 'Limits', shared.envelopeSizeRange, 'Value', value, 'ValueChangedFcn', @(slider, event) update(slider, label, text, target));
+    slider.Layout.Column = 2;
+    slider.Layout.Row = 1;
+    update(slider, label, text, target);
     
-    ui = uilabel(layout, 'Text', 'Envelope low-pass frequency:');
-    ui.Layout.Column = 1;
-    ui.Layout.Row = 2;
+    target = 'envelopeLowpassFrequency';
+    text = 'Envelope low-pass frequency';
     value = min(max(emg.configuration.envelopeLowpassFrequency, shared.envelopeLowpassFrequencyRange(1)), shared.envelopeLowpassFrequencyRange(2));
-    ui = uislider(layout, 'Limits', shared.envelopeLowpassFrequencyRange, 'Value', value, 'ValueChangedFcn', @(handle, event) update(handle, 'envelopeLowpassFrequency'));
-    ui.Layout.Column = 2;
-    ui.Layout.Row = 2;
+    label = uilabel(layout);
+    label.Layout.Column = 1;
+    label.Layout.Row = 2;
+    slider = uislider(layout, 'Limits', shared.envelopeLowpassFrequencyRange, 'Value', value, 'ValueChangedFcn', @(slider, event) update(slider, label, text, target));
+    slider.Layout.Column = 2;
+    slider.Layout.Row = 2;
+    update(slider, label, text, target);
     
-    ui = uilabel(layout, 'Text', 'Envelope threshold:');
-    ui.Layout.Column = 1;
-    ui.Layout.Row = 3;
+    target = 'envelopeThreshold';
+    text = 'Envelope threshold';
     value = min(max(emg.configuration.envelopeThreshold, shared.envelopeThresholdRange(1)), shared.envelopeThresholdRange(2));
-    ui = uislider(layout, 'Limits', shared.envelopeThresholdRange, 'Value', value, 'ValueChangedFcn', @(handle, event) update(handle, 'envelopeThreshold'));
-    ui.Layout.Column = 2;
-    ui.Layout.Row = 3;
+    label = uilabel(layout);
+    label.Layout.Column = 1;
+    label.Layout.Row = 3;
+    slider = uislider(layout, 'Limits', shared.envelopeThresholdRange, 'Value', value, 'ValueChangedFcn', @(slider, event) update(slider, label, text, target));
+    slider.Layout.Column = 2;
+    slider.Layout.Row = 3;
+    update(slider, label, text, target);
     
     position = control.Position;
     control.Position = [position(1:3), dy * (nControls + 1)];
     
-    function update(handle, target)
-        emg.configuration.(target) = handle.Value;
+    function update(slider, label, baseText, target)
+        emg.configuration.(target) = slider.Value;
+        label.Text = sprintf('%s (%.2f):', baseText, slider.Value);
         [shared, fpa, emg] = analysis2(shared, fpa, emg);
         plots.setData('fpa', fpa.time, fpa.signal, 'emg', emg.time, emg.signal, 'envelope', emg.time, emg.envelope(:, 1), 'threshold', emg.time, emg.threshold, 'xcorr', shared.xcorrTics, shared.xcorr);
+    end
+    
+    function close()
+        plots.close();
+        delete(control);
     end
 end
 
@@ -123,10 +138,10 @@ function [shared, fpa, emg] = analysis2(shared, fpa, emg)
     low = filtfilt(lowpassFilter, low);
     emg.envelope = [high, low];
     % Threshold envelope.
-    emg.envelopeThreshold = mean(high) + std(high) * emg.configuration.envelopeThreshold;
-    emg.threshold = emg.envelopeThreshold * (high >= emg.envelopeThreshold);
+    emg.envelopeThreshold = emg.configuration.envelopeThreshold;
+    emg.threshold = prctile(emg.signal, 99) * (high >= emg.envelopeThreshold);
     % Cross-correlation.
     xcLags = round(shared.xcorrSeconds * shared.resamplingFrequency);
     shared.xcorrTics = (-xcLags:xcLags) / shared.resamplingFrequency;
-    shared.xcorr = xcorr(fpa.signal, emg.envelope(:, 1), xcLags);
+    shared.xcorr = xcorr(fpa.signal, emg.envelope(:, 1), xcLags, 'normalized');
 end
