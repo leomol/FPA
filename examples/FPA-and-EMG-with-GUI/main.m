@@ -1,39 +1,45 @@
-% Draft of a GUI for analyzing fiber-photometry and EMG data.
-% See analysis.m for details on analysis steps.
-% See script.m for a non-GUI simpler version independent of main.m, analysis.m, and, Plots.m.
+% 2020-04-23. Leonardo Molina.
+% 2020-05-07. Last modified.
+% Draft #2 of a GUI for analyzing fiber-photometry and EMG data.
+% See setupAnalysis and recalculate in GUI.m for details on analysis steps.
 
 % Add FPA dependencies.
 addpath(genpath(fullfile(fileparts(mfilename('fullpath')), '../..')));
 
 % Global configuration.
-shared.resamplingFrequency = 100;
-shared.conditionEpochs = {'Awake', [800, 2000]};
-shared.xcorrSeconds = 5;
+configuration = struct();
+configuration.resamplingFrequency = 100;
+configuration.conditionEpochs = {'Awake', [800, 2000]};
+configuration.xcorrSeconds = 5;
 
 % Fiber-photometry configuration.
-fpa.configuration = struct();
+configuration.fpa = struct();
 % Fiber-photometry data recorded with Doric DAQ.
-fpa.configuration.file = 'C:/Users/molina/Documents/public/HALO/data/EMGFPA/noclip2_2.csv';
+configuration.fpa.file = 'C:/Users/molina/Documents/public/HALO/data/EMGFPA/noclip2_2.csv';
 % Columns corresponding to 465nm and 405nm.
-fpa.configuration.fp465Column = 2;
-fpa.configuration.fp405Column = 4;
-fpa.configuration.bleachingEpochs = [700, 2000];
-fpa.configuration.dffLowpassFrequency = 0.5;
-fpa.configuration.f0Function = @movmean;
-fpa.configuration.f0Window = 180;
-fpa.configuration.f1Function = @movstd;
-fpa.configuration.f1Window = 180;
+configuration.fpa.fp465Column = 2;
+configuration.fpa.fp405Column = 4;
+configuration.fpa.dffLowpassFrequency = 0.5;
+configuration.fpa.f0Function = @movmean;
+configuration.fpa.f0Window = 180;
+configuration.fpa.f1Function = @movstd;
+configuration.fpa.f1Window = 180;
 
 % EMG configuration.
-emg.configuration = struct();
+configuration.emg = struct();
 % EMG data recorded with Axon.
-emg.configuration.file = 'C:/Users/molina/Documents/public/HALO/data/EMGFPA/19n28003V9.abf';
+configuration.emg.file = 'C:/Users/molina/Documents/public/HALO/data/EMGFPA/19n28003V9.abf';
 % Column corresponding to EMG (column 1 is time).
-emg.configuration.emgColumn = 4;
-emg.configuration.bandpassFrequency = [100, 500];
-emg.configuration.envelopeSize = 0.9;
-emg.configuration.envelopeLowpassFrequency = 1.5;
-emg.configuration.envelopeThreshold = 0.7;
+configuration.emg.emgColumn = 4;
+configuration.emg.bandpassFrequency = [100, 500];
+configuration.emg.envelopeSize = 0.9;
+configuration.emg.envelopeLowpassFrequency = 1.0;
+configuration.emg.envelopeThreshold = 1.1;
 
 % Run the analysis.
-analysis(shared, fpa, emg);
+obj = GUI(configuration);
+
+% Adjust settings in the console like this:
+obj.envelopeSize = 0.9;
+obj.envelopeLowpassFrequency = 1.0;
+obj.envelopeThreshold = 1.1;
