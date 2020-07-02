@@ -1,20 +1,28 @@
 % FPA(time, signal, reference, configuration)
 % 
-% Correct signal from bleaching and artifacts, normalize and detect peaks of
-% spontaneous activity based on the given parameters.
+% Correct signal from bleaching and artifacts; detect peaks of spontaneous
+% activity based on the given parameters.
 % Signal and reference are column vectors.
 % 
 % Overall analysis steps:
-% 	-Resample data.
-% 	-Fit an exponential decay in a portion of the data representative of bleaching (low-pass).
-% 	-Normalize signal to reference.
-% 	-Compute df/f in a (moving) window.
-% 	-Find peaks of spontaneous activity (band-pass).
-% 	-Plot corrected signal and peaks; highlight epochs.
-% 	-Plot triggered averages.
-% 	-Plot power spectrum.
-% 	-Plot stats.
-% Note that some plots are of df/f while others are of filtered df/f.
+%   -Resample to target frequency.
+%   -Remove artifacts: Replace artifacts with lines in flagged regions.
+% 	-Correct for bleaching: Fit an exponential decay in low-pass data.
+% 	-Correct for motion artifacts: Subtract bleaching corrected signals.
+% 	-Compute df/f or z-score according to settings.
+% 	-Find peaks of spontaneous activity in band-pass signal.
+%   Plot 1:
+%     -Raw signal and bleaching fit.
+%     -Band-pass signal and peaks.
+%     -Motion and bleaching corrected signal.
+%   Plot 2:
+%     -Power spectrum of each epoch.
+%   Plot 3:
+%     -Boxplot.
+%   Plot 4:
+%     -Area under the curve.
+%   Plot 5:
+%     -Triggered average of spontaneous activity (if any peaks are found).
 % 
 % configuration is a struct with the following fields (defaults are used for missing fields):
 %     conditionEpochs - Epochs for different conditions: {'epoch1', [start1, end1, start2, end2, ...], 'epoch2', ...}
@@ -34,10 +42,7 @@
 %     thresholdFactor - Thresholding cut-off.
 %     triggeredWindow - Length of time to capture around each peak of spontaneous activity.
 % 
-% Peaks are calculated after bandpass filtering df/f. Everything else is
-% calculated after lowpass filtering df/f.
-% 
-% See source code for default values.
+% See source code for detailed analysis steps and default parameters.
 % Units for time and frequency are seconds and hertz respectively.
 % 
 % Normalization recipes:
@@ -49,15 +54,11 @@
 %     Recipe for z-score:
 %         configuration.f0Function = @movmean;
 %         configuration.f1Function = @movstd;
-% 	If dffEpochs covers the entire data set (e.g. [-Inf, Inf]), df/f is
-%   calculated using a moving window. If dffEpochs covers a portion of
-%   the data set (e.g. [10, 100]), df/f is calculated using a single window
-%   in such period.
 % 	
-% See FPAexamples
+% See examples
 
 % 2019-02-01. Leonardo Molina.
-% 2020-04-23. Last modified.
+% 2020-07-02. Last modified.
 function results = FPA(time, signal, reference, configuration)
     results.warnings = {};
     if nargin < 4
@@ -191,11 +192,19 @@ function results = FPA(time, signal, reference, configuration)
     boundaryWindow =  ceil(configuration.peaksBandpassFrequency(1) * configuration.resamplingFrequency);
     useIds = setdiff(time2id(time, cat(2, configuration.conditionEpochs{2:2:end})), [1:boundaryWindow, numel(time) - boundaryWindow + 1]');
     peakThreshold = mean(dffBandpass(useIds)) + configuration.thresholdFactor * configuration.thresholdingFunction(dffBandpass(useIds));
-    [~, peaksId] = findpeaks(+dffBandpass, 'MinPeakHeight', peakThreshold);
-    peaksId = intersect(peaksId, useIds);
     valleyThreshold = -peakThreshold;
-    [~, valleysId] = findpeaks(-dffBandpass, 'MinPeakHeight', peakThreshold);
-    valleysId = intersect(valleysId, useIds);
+    if any(dffBandpass >= peakThreshold)
+        [~, peaksId] = findpeaks(+dffBandpass, 'MinPeakHeight', peakThreshold);
+        peaksId = intersect(peaksId, useIds);
+    else
+        peaksId = [];
+    end
+    if any(-dffBandpass >= peakThreshold)
+        [~, valleysId] = findpeaks(-dffBandpass, 'MinPeakHeight', peakThreshold);
+        valleysId = intersect(valleysId, useIds);
+    else
+        valleysId = [];
+    end
     
     % Low-pass.
     if configuration.dffLowpassFrequency <= configuration.resamplingFrequency / 2
@@ -238,19 +247,19 @@ function results = FPA(time, signal, reference, configuration)
         peakGroups(k) = e;
     end
     uniqueGroups = unique(peakGroups);
-    % An epoch may not have any peaks.
+    % Epochs may not have peaks.
     uniqueGroups = uniqueGroups(uniqueGroups > 0);
     nGroups = numel(uniqueGroups);
     
     epochIds = zeros(0, 1);
     epochGroups = zeros(0, 1);
-    epochLabels = cell(1, nEpochs);
+    epochStatLabels = cell(1, nEpochs);
     for e = 1:nEpochs
         ids = time2id(time, configuration.conditionEpochs{2 * e});
         epochIds = cat(1, epochIds, ids);
         thisEpochGroups = repmat(e, [numel(ids), 1]);
         epochGroups = cat(1, epochGroups, thisEpochGroups);
-        epochLabels{e} = sprintf('%s (STD:%.4f)', configuration.conditionEpochs{2 * e - 1}, std(dff(ids)));
+        epochStatLabels{e} = sprintf('\nmean:%.2f\nstd:%.2f', mean(dff(ids)), std(dff(ids)));
     end
     
     % Style.
@@ -336,38 +345,52 @@ function results = FPA(time, signal, reference, configuration)
         xlabel('Frequency (Hz)');
         linkaxes([axs{:}], 'x');
 
+        % Boxplot of dff.
+        results.figures(end + 1) = figure('name', 'FPA: Boxplot');
+        h = axes();
+        boxplot(dff(epochIds), epochGroups, 'Labels',  configuration.conditionEpochs(1:2:end));
+        hold('all');
+        area = zeros(1, nEpochs);
+        ylims = ylim();
+        for e = 1:nEpochs
+            ids = time2id(time, configuration.conditionEpochs{2 * e});
+            area(e) = mean(dff(ids));
+            text(e, ylims(2), epochStatLabels{e}, 'HorizontalAlignment', 'center', 'VerticalAlignment', 'Top');
+        end
+        plot(h.XTick, area, 'k.', 'DisplayName', 'Mean');
+        ylabel('df/f');
+        title('Stats on df/f traces for each condition');
+
         % Plot triggered average.
         results.figures(end + 1) = figure('name', 'FPA: Triggered average');
         ax.trigger = axes();
         hold(ax.trigger, 'all');
-        timeTemplate = windowTemplate / configuration.resamplingFrequency;
-        for e = 1:nGroups
-            group = uniqueGroups(e);
-            triggeredDff = dff(triggeredId(peakGroups == group, :));
-            triggeredDff = reshape(triggeredDff, numel(triggeredDff) / window, window);
-            triggeredMean = mean(triggeredDff, 1);
-            h1 = plot(timeTemplate, triggeredMean, 'HandleVisibility', 'off');
-            epochName = configuration.conditionEpochs{2 * e - 1};
-            triggeredSem = std(triggeredDff, [], 1) / sqrt(size(triggeredDff, 1));
-            semAtZero = triggeredSem(ceil(window / 2));
-            nPeaks = sum(peakGroups == group);
-            text = sprintf('%s (SEM=%.4f, n = %i)', epochName, semAtZero, nPeaks);
-            vertices = [timeTemplate; triggeredMean + triggeredSem / 2];
-            vertices = cat(2, vertices, [fliplr(timeTemplate); fliplr(triggeredMean - triggeredSem / 2)])';
-            faces = 1:2 * window;
-            patch('Faces', faces, 'Vertices', vertices, 'FaceColor', h1.Color, 'EdgeColor', 'none', 'FaceAlpha', 0.10, 'DisplayName', text);
+        if nGroups > 0
+            timeTemplate = windowTemplate / configuration.resamplingFrequency;
+            for e = 1:nGroups
+                group = uniqueGroups(e);
+                triggeredDff = dff(triggeredId(peakGroups == group, :));
+                triggeredDff = reshape(triggeredDff, numel(triggeredDff) / window, window);
+                triggeredMean = mean(triggeredDff, 1);
+                h1 = plot(timeTemplate, triggeredMean, 'HandleVisibility', 'off');
+                epochName = configuration.conditionEpochs{2 * e - 1};
+                triggeredSem = std(triggeredDff, [], 1) / sqrt(size(triggeredDff, 1));
+                semAtZero = triggeredSem(ceil(window / 2));
+                nPeaks = sum(peakGroups == group);
+                label = sprintf('%s (SEM=%.4f, n = %i)', epochName, semAtZero, nPeaks);
+                vertices = [timeTemplate; triggeredMean + triggeredSem / 2];
+                vertices = cat(2, vertices, [fliplr(timeTemplate); fliplr(triggeredMean - triggeredSem / 2)])';
+                faces = 1:2 * window;
+                patch('Faces', faces, 'Vertices', vertices, 'FaceColor', h1.Color, 'EdgeColor', 'none', 'FaceAlpha', 0.10, 'DisplayName', label);
+            end
+        else
+            text(ax.trigger, 0.5, 0.5, sprintf('No peaks above threshold %.2f (factor:%.2f)', peakThreshold, configuration.thresholdFactor), 'HorizontalAlignment', 'center');
         end
         title('Triggered average');
         legend('show');
         xlabel('Time (s)');
         ylabel('df/f');
         axis(ax.trigger, 'tight');
-
-        % Boxplot of dff.
-        results.figures(end + 1) = figure('name', 'FPA: Boxplot');
-        boxplot(dff(epochIds), epochGroups, 'Labels', epochLabels);
-        title('Stats on df/f traces for each condition');
-        ylabel('df/f');
     end
 
     results.time = time;

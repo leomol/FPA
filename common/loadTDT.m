@@ -3,9 +3,9 @@
 % matrix where columns correspond to channels listed in names.
 
 % 2019-02-01. Leonardo Molina.
-% 2019-10-03. Last modified.
+% 2020-07-02. Last modified.
 function data = loadTDT(folder, names)
-    raw = resources.TDTbin2mat(folder, 'TYPE', {'epocs', 'scalars', 'streams'}, 'CHANNEL', 1);
+    raw = TDTbin2mat(folder, 'TYPE', {'epocs', 'scalars', 'streams'}, 'CHANNEL', 1);
     frequency = raw.streams.(names{1}).fs;
     nSamples = numel(raw.streams.(names{1}).data);
     nChannels = numel(names);

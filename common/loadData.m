@@ -1,13 +1,13 @@
 % [data, names] = loadData(filename)
-% Load one of two formats of data expected from a recording with a Doric or
-% Inscopix DAQ.
+% Load one of several formats of data expected from a recording with either:
+% Doric (csv), Inscopix (xls), or Axon (abf).
 % 
 % [data, names] = loadData(filename, sheetName)
 % [data, names, sheetName] = loadData(filename, sheetNumber)
 % If the file has multiple sheets, use sheetName or sheetNumber to select one.
 
 % 2019-05-07. Leonardo Molina.
-% 2019-10-25. Last modified.
+% 2020-06-08. Last modified.
 function [data, names, sheetName] = loadData(filename, sheet)
     [~, ~, extension] = fileparts(filename);
     if ismember(lower(extension), {'.xls', '.xlsx'})
@@ -15,6 +15,8 @@ function [data, names, sheetName] = loadData(filename, sheet)
             sheet = 1;
         end
         [data, names, sheetName] = loadXLS(filename, sheet);
+    elseif ismember(lower(extension), '.abf')
+        [data, ~, names] = loadABF(filename);
     else
         [data, names] = loadCSV(filename);
     end

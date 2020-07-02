@@ -34,7 +34,7 @@ classdef GUI < handle
             
             % Load data.
             obj.fpa.data = loadData(obj.configuration.fpa.file);
-            obj.emg.data = loadABF(obj.configuration.emg.file);
+            obj.emg.data = loadData(obj.configuration.emg.file);
             
             % Complete configuration.
             obj.configuration.fpa.bleachingEpochs = [configuration.conditionEpochs{2:2:end}];
