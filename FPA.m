@@ -11,17 +11,15 @@
 % 	-Correct for motion artifacts: Subtract bleaching corrected signals.
 % 	-Compute df/f or z-score according to settings.
 % 	-Find peaks of spontaneous activity in band-pass signal.
-%   Plot 1:
+%   -Plot 1:
 %     -Raw signal and bleaching fit.
 %     -Band-pass signal and peaks.
 %     -Motion and bleaching corrected signal.
-%   Plot 2:
+%   -Plot 2:
 %     -Power spectrum of each epoch.
-%   Plot 3:
+%   -Plot 3:
 %     -Boxplot.
-%   Plot 4:
-%     -Area under the curve.
-%   Plot 5:
+%   -Plot 4:
 %     -Triggered average of spontaneous activity (if any peaks are found).
 % 
 % configuration is a struct with the following fields (defaults are used for missing fields):
