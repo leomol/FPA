@@ -1,5 +1,6 @@
 % Add dependencies.
-addpath(genpath('common'));
+addpath('..');
+addpath(genpath('../common'));
 
 %% Example 1 - Fiber-photometry data recorded with Doric DAQ.
 inputDataFile = 'data/Doric.csv';
