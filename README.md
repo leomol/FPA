@@ -89,8 +89,6 @@ configuration.f0Window = Inf;
 configuration.f1Window = Inf;
 ```
 
-If baselineEpochs covers the entire data set (e.g. `[-Inf, Inf]`), `df/f` is calculated using a moving window. If baselineEpochs covers a portion of the data set (e.g. `[10, 100]`), `df/f` is calculated using a single window in such period.
-
 ## Data loaders
 ### Load a CSV file (e.g. data acquired with Doric or Inscopix DAQ)
 ```matlab
