@@ -3,7 +3,7 @@ addpath('..');
 addpath(genpath('../common'));
 
 %% Fiber-photometry data recorded with Doric DAQ.
-inputDataFile = 'G:\My Drive\MSc\Research Data\Experiment 1.3 - FP and EMG Pilot\iso to wake\1L1R FP_2.csv';
+inputDataFile = 'C:\Users\Molina\Documents\public\HALO\data\FibrePhotometry\Elizabeth\1L1R FP_2.csv';
 % Columns corresponding to 465nm and 405nm.
 signalColumn = 2;
 referenceColumn = 4;

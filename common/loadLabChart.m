@@ -1,4 +1,4 @@
-% Load mat file exported by LabChart in a more intuitive manner.
+% Loads a mat file exported by LabChart in an intuitive manner.
 % 
 % [data, comments, units, titles] = loadLabChart(filename)
 % 
@@ -25,7 +25,7 @@
 %   plot(data(1, 1).time, data(1, 1).data)
 % 
 % 2020-02-10. Leonardo Molina.
-% 2020-03-02. Last modified.
+% 2020-07-22. Last modified.
 function [data, units, names, comments] = loadLabChart(filename)
     vars = load(filename);
     [nChannels, nBlocks] = size(vars.datastart);
