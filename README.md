@@ -45,20 +45,20 @@ Overall analysis steps:
 
 `configuration` is a struct with the following fields (defaults are used for missing fields):
 - `conditionEpochs` - Epochs for different conditions: `{'epoch1', [start1, end1, start2, end2, ...], 'epoch2', ...}`
-- `baselineEpochs` - Time epochs (s) to include for `df/f` normalization.
 - `bleachingEpochs` - Time epochs (s) to include for bleaching correction.
 - `artifactEpochs` - Time epochs (s) to remove.
 - `resamplingFrequency` - Resampling frequency (Hz).
 - `dffLowpassFrequency` - Lowpass frequency to filter `df/f`.
 - `peaksBandpassFrequency` - Low/High frequencies to compute peaks.
 - `bleachingLowpassFrequency` - Lowpass frequency to detect bleaching decay.
+- `thresholdingFunction` - One of `@mad`, `@std`.
+- `thresholdFactor` - Thresholding cut-off.
+- `triggeredWindow` - Length of time to capture around each peak of spontaneous activity.
+- `dffEpochs` - Time epochs (s) to include for `df/f` normalization.
 - `f0Function` - One of `@movmean`, `@movmedian`, `@movmin`.
 - `f0Window` - Length of the moving window to calculate `f0`.
 - `f1Function` - One of `@movmean`, `@movmedian`, `@movmin`, `@movstd`.
 - `f1Window` - Length of the moving window to calculate `f1`.
-- `thresholdingFunction` - One of `@mad`, `@std`.
-- `thresholdFactor` - Thresholding cut-off.
-- `triggeredWindow` - Length of time to capture around each peak of spontaneous activity.
 
 Peaks are calculated after bandpass filtering `df/f`. Everything else is calculated after lowpass filtering `df/f`.
 
@@ -88,6 +88,35 @@ configuration.f1Function = @movstd;
 configuration.f0Window = Inf;
 configuration.f1Window = Inf;
 ```
+
+### Example case 1:
+Use the first minute as the baseline for the rest of the data.
+```matlab
+configuration.f0Function = @movmean;
+configuration.f1Function = @movstd;
+configuration.dffEpochs = [0, 60]
+```
+`f0Window` and `f1Window` are ignored because `dffEpochs` takes precedence.
+
+### Example case 2:
+Compute a moving baseline that is 1min wide.
+```matlab
+configuration.f0Function = @movmean;
+configuration.f1Function = @movstd;
+configuration.f0Window = 60;
+configuration.f1Window = 60;
+```
+`dffEpochs` must be empty (`configuration.dffEpochs = [];`) which is the default.
+
+### Example case 3:
+Compute a common baseline from the entire recording.
+```matlab
+configuration.f0Function = @movmean;
+configuration.f1Function = @movstd;
+configuration.f0Window = Inf;
+configuration.f1Window = Inf;
+```
+`dffEpochs` must be empty.
 
 ## Data loaders
 ### Load a CSV file (e.g. data acquired with Doric or Inscopix DAQ)
