@@ -20,8 +20,6 @@ FPA(time, signal, reference, configuration)
 
 Correct signal from bleaching and artifacts, normalize and detect peaks of spontaneous activity based on the given parameters. Signal and reference are column vectors.
 
-[![FPA demo](fpa-screenshot.png)](https://drive.google.com/file/d/1OXrwykbzTlqiQ13bCYg5v_xJNJIpqeb0)
-
 ## Analysis
 Overall analysis steps:
 - Resample to target frequency.
