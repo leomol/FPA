@@ -15,7 +15,7 @@
 %   title(sprintf('Compare speeds between "%s" and "%s"', name1, name2));
 
 % 2019-08-20. Leonardo Molina.
-% 2019-08-21. Last modified.
+% 2020-10-06. Last modified.
 function events = loadCleverSysEvents(filename, sheet)
     if nargin == 1
         sheet = 1;
@@ -26,12 +26,12 @@ function events = loadCleverSysEvents(filename, sheet)
     else
         sheetName = sheet;
     end
-    state = warning('QUERY', 'MATLAB:table:ModifiedAndSavedVarnames');
-    warning('OFF', 'MATLAB:table:ModifiedAndSavedVarnames');
-    table = readtable(filename, 'Sheet', sheetName, 'ReadVariableNames', false);
+    state = warning('QUERY', 'MATLAB:datetime:AutoConvertStrings');
+    warning('OFF', 'MATLAB:datetime:AutoConvertStrings');
+    data = readcell(filename, 'Sheet', sheetName);
     warning(state.state, 'MATLAB:table:ModifiedAndSavedVarnames');
-    data = table2array(table);
-    [r, c] = find(ismember(data, 'Event'));
+    
+    [r, c] = find(cellfun(@(c) isequal(c, 'Event'), data));
     titles = data(r, :);
     eventList = data(r + 1:end, c);
     eventNames = unique(eventList);
