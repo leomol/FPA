@@ -10,10 +10,10 @@
 % 	-Correct for bleaching: Fit an exponential decay in low-pass data.
 % 	-Correct for motion artifacts: Subtract bleaching corrected signals.
 % 	-Compute df/f or z-score according to settings.
-% 	-Find peaks of spontaneous activity in band-pass signal.
+% 	-Find peaks of spontaneous activity in low-pass signal.
 %   -Plot 1:
 %     -Raw signal and bleaching fit.
-%     -Band-pass signal and peaks.
+%     -Low-pass signal and peaks.
 %     -Motion and bleaching corrected signal.
 %   -Plot 2:
 %     -Power spectrum of each epoch.
@@ -28,7 +28,7 @@
 %     artifactEpochs - Time epochs (s) to remove.
 %     resamplingFrequency - Resampling frequency (Hz).
 %     dffLowpassFrequency - Lowpass frequency to filter df/f.
-%     peaksBandpassFrequency - Low/High frequencies to detect peaks.
+%     peaksLowpassFrequency - Low/High frequencies to detect peaks.
 %     bleachingLowpassFrequency - Lowpass frequency to detect bleaching decay.
 %     thresholdingFunction - One of @mad, @std.
 %     thresholdFactor - Thresholding cut-off.
@@ -76,7 +76,7 @@
 % See examples
 
 % 2019-02-01. Leonardo Molina.
-% 2020-08-12. Last modified.
+% 2020-10-29. Last modified.
 function results = FPA(time, signal, reference, configuration)
     results.warnings = {};
     if nargin < 4
@@ -88,8 +88,8 @@ function results = FPA(time, signal, reference, configuration)
     configuration = setDefault(configuration, 'dffEpochs', []);
     configuration = setDefault(configuration, 'bleachingEpochs', [-Inf, Inf]);
     configuration = setDefault(configuration, 'artifactEpochs', []);
-    configuration = setDefault(configuration, 'dffLowpassFrequency', 2.00);
-    configuration = setDefault(configuration, 'peaksBandpassFrequency', [0.02, 0.20]);
+    configuration = setDefault(configuration, 'dffLowpassFrequency', 2.0);
+    configuration = setDefault(configuration, 'peaksLowpassFrequency', 0.2);
     configuration = setDefault(configuration, 'bleachingLowpassFrequency', 0.1);
     configuration = setDefault(configuration, 'f0Function', @movmean);
     configuration = setDefault(configuration, 'f0Window', 600);
@@ -106,7 +106,7 @@ function results = FPA(time, signal, reference, configuration)
     grow = 0.50;
     
     % Sampling frequency.
-    sourceFrequency = 1 / mean(diff(time));
+    sourceFrequency = 1 / median(diff(time));
     configuration = setDefault(configuration, 'resamplingFrequency', sourceFrequency);
     
     % Make vectors of equal size.
@@ -201,28 +201,28 @@ function results = FPA(time, signal, reference, configuration)
     end
     dff = (f - f0) ./ f1;
     
-    % Band-pass filter to detect peaks.
-    if all(configuration.peaksBandpassFrequency <= configuration.resamplingFrequency / 2)
-        bandpassFilter = designfilt('bandpassfir', 'CutoffFrequency1', configuration.peaksBandpassFrequency(1), 'CutoffFrequency2', configuration.peaksBandpassFrequency(2), 'SampleRate', configuration.resamplingFrequency, 'DesignMethod', 'window', 'FilterOrder', 12);
-        dffBandpass = filtfilt(bandpassFilter, dff);
+    % Low-pass filter to detect peaks.
+    if configuration.peaksLowpassFrequency <= configuration.resamplingFrequency / 2
+        peaksFilter = designfilt('lowpassiir', 'HalfPowerFrequency', configuration.peaksLowpassFrequency, 'SampleRate', configuration.resamplingFrequency, 'DesignMethod', 'butter', 'FilterOrder', 12);
+        peaksLowpass = filtfilt(peaksFilter, dff);
     else
-        results.warnings{end + 1} = warn('[peak detection] Cannot bandpass at the given frequency range because at least one of the frequencies is greater than the resampling frequency (%.2f Hz).', configuration.resamplingFrequency);
-        dffBandpass = dff;
+        results.warnings{end + 1} = warn('[peak detection] Cannot lowpass to frequencies smaller than half of the resampling frequency (%.2f Hz).', configuration.resamplingFrequency / 2);
+        peaksLowpass = dff;
     end
     
     % Get peak threshold.
-    boundaryWindow =  ceil(configuration.peaksBandpassFrequency(1) * configuration.resamplingFrequency);
-    useIds = setdiff(time2id(time, cat(2, configuration.conditionEpochs{2:2:end})), [1:boundaryWindow, numel(time) - boundaryWindow + 1]');
-    peakThreshold = mean(dffBandpass(useIds)) + configuration.thresholdFactor * configuration.thresholdingFunction(dffBandpass(useIds));
+    excludeWindow =  ceil(configuration.peaksLowpassFrequency * configuration.resamplingFrequency);
+    useIds = setdiff(time2id(time, cat(2, configuration.conditionEpochs{2:2:end})), [1:excludeWindow, numel(time) - excludeWindow + 1]');
+    peakThreshold = mean(peaksLowpass(useIds)) + configuration.thresholdFactor * configuration.thresholdingFunction(peaksLowpass(useIds));
     valleyThreshold = -peakThreshold;
-    if any(dffBandpass >= peakThreshold)
-        [~, peaksId] = findpeaks(+dffBandpass, 'MinPeakHeight', peakThreshold);
+    if any(peaksLowpass >= peakThreshold)
+        [~, peaksId] = findpeaks(+peaksLowpass, 'MinPeakHeight', peakThreshold);
         peaksId = intersect(peaksId, useIds);
     else
         peaksId = [];
     end
-    if any(-dffBandpass >= peakThreshold)
-        [~, valleysId] = findpeaks(-dffBandpass, 'MinPeakHeight', peakThreshold);
+    if any(-peaksLowpass >= peakThreshold)
+        [~, valleysId] = findpeaks(-peaksLowpass, 'MinPeakHeight', peakThreshold);
         valleysId = intersect(valleysId, useIds);
     else
         valleysId = [];
@@ -233,7 +233,7 @@ function results = FPA(time, signal, reference, configuration)
         lowpassFilter = designfilt('lowpassiir', 'HalfPowerFrequency', configuration.dffLowpassFrequency, 'SampleRate', configuration.resamplingFrequency, 'DesignMethod', 'butter', 'FilterOrder', 12);
         dffLowpass = filtfilt(lowpassFilter, dff);
     else
-        results.warnings{end + 1} = warn('[dff] Cannot lowpass to frequencies smaller than half of the resampling frequency (%.2f Hz).', configuration.resamplingFrequency / 2);
+        results.warnings{end + 1} = warn('[dff lowpass] Cannot lowpass to frequencies smaller than half of the resampling frequency (%.2f Hz).', configuration.resamplingFrequency / 2);
         dffLowpass = dff;
     end
     
@@ -276,8 +276,14 @@ function results = FPA(time, signal, reference, configuration)
     epochIds = zeros(0, 1);
     epochGroups = zeros(0, 1);
     epochStatLabels = cell(1, nEpochs);
+    area = zeros(1, nEpochs);
+    peaksCount = zeros(1, nEpochs);
+    valleysCount = zeros(1, nEpochs);
     for e = 1:nEpochs
         ids = time2id(time, configuration.conditionEpochs{2 * e});
+        area(e) = sum(dff(ids));
+        peaksCount(e) = sum(ismember(ids, peaksId));
+        valleysCount(e) = sum(ismember(ids, valleysId));
         epochIds = cat(1, epochIds, ids);
         thisEpochGroups = repmat(e, [numel(ids), 1]);
         epochGroups = cat(1, epochGroups, thisEpochGroups);
@@ -292,9 +298,9 @@ function results = FPA(time, signal, reference, configuration)
         signalColor = [0 0.4470 0.7410];
         referenceColor = [0.8500 0.3250 0.0980];
         lowpassColor = [0.4940 0.1840 0.5560];
-        bandpassColor = [0.4660 0.6740 0.1880];
+        peaksLineColor = [0.4660 0.6740 0.1880];
+        peaksMarkerColor = [1, 0, 0];
         dashColor = [0, 0, 0];
-        peaksColor = [1, 0, 0];
         
         results.figures = [];
         
@@ -329,26 +335,31 @@ function results = FPA(time, signal, reference, configuration)
         ax.filtered = subplot(4, 1, 3);
         ax.filtered.XTick = [];
         hold(ax.filtered, 'all');
-        yy = [dff(:); dffBandpass(:); dffLowpass(:)];
+        yy = [dff(:); peaksLowpass(:); dffLowpass(:)];
         ylims = limits(yy, percentile, grow);
-        plotEpochs(configuration.conditionEpochs, xlims, ylims, cmap, false);
-        plot(ax.filtered, time, dffBandpass, 'Color', bandpassColor, 'DisplayName', 'band-pass filtered df/f');
-        plot(ax.filtered, time, dffLowpass, 'Color', lowpassColor, 'DisplayName', 'low-pass filtered df/f');
+        epochs = configuration.conditionEpochs;
+        epochs(1:2:end) = arrayfun(@(e) sprintf('area:%.2f', area(e)), 1:nEpochs, 'UniformOutput', false);
+        plotEpochs(epochs, xlims, ylims, cmap, true);
         plot(ax.filtered, time, dff, 'Color', signalColor, 'DisplayName', 'df/f');
+        plot(ax.filtered, time, dffLowpass, 'Color', lowpassColor, 'DisplayName', sprintf('Lowpass filtered df/f (%.2fHz)', configuration.dffLowpassFrequency));
+        plot(ax.filtered, time, peaksLowpass, 'Color', peaksLineColor, 'DisplayName', sprintf('Lowpass filtered df/f (%.2fHz)', configuration.peaksLowpassFrequency));
         ylim(ylims);
         legend(ax.filtered, 'show');
 
         % Plot df/f and peaks.
         ax.processed = subplot(4, 1, 4);
         hold(ax.processed, 'all');
-        yy = dffBandpass(:);
+        yy = peaksLowpass(:);
         ylims = limits(yy, percentile, grow);
-        plotEpochs(configuration.conditionEpochs, xlims, ylims, cmap, false);
-        plot(ax.processed, time, dffBandpass, 'Color', lowpassColor, 'DisplayName', 'band-pass filtered df/f');
+        
+        epochs = configuration.conditionEpochs;
+        epochs(1:2:end) = arrayfun(@(e) sprintf('%i peaks / %i valleys', peaksCount(e), valleysCount(e)), 1:nEpochs, 'UniformOutput', false);
+        plotEpochs(epochs, xlims, ylims, cmap, true);
+        plot(ax.processed, time, peaksLowpass, 'Color', peaksLineColor, 'DisplayName', sprintf('Lowpass filtered df/f (%.2fHz)', configuration.peaksLowpassFrequency));
         plot(ax.processed, time([1, end]), peakThreshold([1, 1]), 'Color', dashColor, 'LineStyle', '--', 'DisplayName', 'threshold');
         plot(ax.processed, time([1, end]), valleyThreshold([1, 1]), 'Color', dashColor, 'LineStyle', '--', 'HandleVisibility', 'off');
-        plot(ax.processed, time(peaksId), dffBandpass(peaksId), 'Color', peaksColor, 'LineStyle', 'none', 'Marker', 'o', 'DisplayName', sprintf('%i peaks', numel(peaksId)));
-        plot(ax.processed, time(valleysId), dffBandpass(valleysId), 'Color', peaksColor, 'LineStyle', 'none', 'Marker', 'o', 'DisplayName', sprintf('%i valleys', numel(valleysId)));
+        plot(ax.processed, time(peaksId), peaksLowpass(peaksId), 'Color', peaksMarkerColor, 'LineStyle', 'none', 'Marker', 'o', 'HandleVisibility', 'off');
+        plot(ax.processed, time(valleysId), peaksLowpass(valleysId), 'Color', peaksMarkerColor, 'LineStyle', 'none', 'Marker', 'o', 'HandleVisibility', 'off');
         ylim(ylims);
         legend(ax.processed, 'show');
 
@@ -399,6 +410,7 @@ function results = FPA(time, signal, reference, configuration)
         end
         plot(h.XTick, area, 'k.', 'DisplayName', 'Mean');
         ylabel('df/f');
+        xtickangle(45);
         title('Stats on df/f traces for each condition');
 
         % Plot triggered average.
@@ -436,7 +448,7 @@ function results = FPA(time, signal, reference, configuration)
     results.time = time;
     results.dff = dff;
     results.dffLowpass = dffLowpass;
-    results.dffBandpass = dffBandpass;
+    results.peaksLowpass = peaksLowpass;
     results.peaksId = peaksId;
     results.reference = reference2;
     results.signal = signal2;

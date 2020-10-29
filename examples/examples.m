@@ -81,8 +81,7 @@ configuration.thresholdingFunction = @mad;
 configuration.thresholdFactor = 0.1;
 % Extract epochs from CleverSys output.
 events = loadCleverSysEvents(inputEventFile{:});
-eventNames = events.keys;
-configuration.conditionEpochs = cellfun(@(eventName) {eventName, reshape([events(eventName).start, events(eventName).start + events(eventName).duration]', 1, 2 * numel(events(eventName).start))}, eventNames, 'UniformOutput', false);
+configuration.conditionEpochs = cellfun(@(eventName) {eventName, reshape([events(eventName).start, events(eventName).start + events(eventName).duration]', 1, 2 * numel(events(eventName).start))}, events.keys, 'UniformOutput', false);
 configuration.conditionEpochs = cat(2, configuration.conditionEpochs{:});
 data = loadData(inputDataFile);
 time = data(:, 1);
