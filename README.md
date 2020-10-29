@@ -47,7 +47,7 @@ Overall analysis steps:
 - `artifactEpochs` - Time epochs (s) to remove.
 - `resamplingFrequency` - Resampling frequency (Hz).
 - `dffLowpassFrequency` - Lowpass frequency to filter `df/f`.
-- `peaksBandpassFrequency` - Low/High frequencies to compute peaks.
+- `peaksLowpassFrequency` - Low/High frequencies to compute peaks.
 - `bleachingLowpassFrequency` - Lowpass frequency to detect bleaching decay.
 - `thresholdingFunction` - One of `@mad`, `@std`.
 - `thresholdFactor` - Thresholding cut-off.
@@ -57,8 +57,6 @@ Overall analysis steps:
 - `f0Window` - Length of the moving window to calculate `f0`.
 - `f1Function` - One of `@movmean`, `@movmedian`, `@movmin`, `@movstd`.
 - `f1Window` - Length of the moving window to calculate `f1`.
-
-Peaks are calculated after bandpass filtering `df/f`. Everything else is calculated after lowpass filtering `df/f`.
 
 See source code for default values:
 ```matlab
