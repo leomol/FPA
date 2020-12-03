@@ -13,7 +13,7 @@
 %   title(sprintf('Compare speeds between "%s" and "%s"', labels{1}, labels{2}));
 
 % 2019-08-20. Leonardo Molina.
-% 2020-10-22. Last modified.
+% 2020-11-24. Last modified.
 function varargout = loadCleverSys(filename, sheet)
     [~, sheetNames, tableFormat] = xlsfinfo(filename);
     
@@ -38,7 +38,9 @@ function varargout = loadCleverSys(filename, sheet)
     
     [r, c] = find(cellfun(@(c) isequal(c, 'Event'), data));
     titles = data(r, :);
-    eventNames = data(r + 1:end, c);
+    valid = cellfun(@isstr, data(:, c));
+    valid(1:r) = false;
+    eventNames = data(valid, c);
     labels = unique(eventNames);
     nUnique = numel(labels);
     columns = [...
@@ -47,7 +49,7 @@ function varargout = loadCleverSys(filename, sheet)
         find(cellfun(@(title) startsWith(title, 'Dist('), titles)), ...
         find(cellfun(@(title) startsWith(title, 'V('), titles)) ...
     ];
-    data = cell2mat(data(r + 1:end, columns));
+    data = cell2mat(data(valid, columns));
     start = cell(nUnique, 1);
     finish = cell(nUnique, 1);
     distance = cell(nUnique, 1);

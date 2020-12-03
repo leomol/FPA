@@ -1,12 +1,20 @@
 % LOADLABCHART - Loads a dot-mat file exported from LabChart.
 % 
-% [time, data, units, names, comments] = loadLabChart(filename)
+% [time, data, units, comments, names] = loadLabChart(filename)
 % 
-% See LOADADICHT.
-% 
+%   Most data are organized in 2D cells where row indices select channels
+%   and column indices select blocks:
+%        time{channel, block}
+%        data{channel, block}
+%        units{channel, block}
+%        comments{channel, block}
+%     
+%   Channel names are organized in a cell array:
+%        names{channel}
+
 % 2020-02-10. Leonardo Molina.
-% 2020-10-22. Last modified.
-function [time, data, units, names, comments] = loadLabChart(filename)
+% 2020-11-19. Last modified.
+function [time, data, units, comments, names] = loadLabChart(filename)
     vars = load(filename);
     [nChannels, nBlocks] = size(vars.datastart);
     

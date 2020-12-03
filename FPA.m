@@ -76,7 +76,7 @@
 % See examples
 
 % 2019-02-01. Leonardo Molina.
-% 2020-10-29. Last modified.
+% 2020-12-02. Last modified.
 function results = FPA(time, signal, reference, configuration)
     results.warnings = {};
     if nargin < 4
@@ -101,6 +101,14 @@ function results = FPA(time, signal, reference, configuration)
     configuration = setDefault(configuration, 'f0', []);
     configuration = setDefault(configuration, 'f1', []);
     configuration = setDefault(configuration, 'plot', true);
+    
+    if islogical(configuration.plot)
+        if configuration.plot
+            configuration.plot = {'trace', 'power', 'stats', 'trigger'};
+        else
+            configuration.plot = {};
+        end
+    end
     
     percentile = 0.99;
     grow = 0.50;
@@ -159,7 +167,7 @@ function results = FPA(time, signal, reference, configuration)
     else
         rLowpass = reference2;
         sLowpass = signal2;
-        results.warnings{end + 1} = warn('[bleaching-correction] Cannot lowpass to frequencies higher than half of the resampling frequency (%.2f Hz).', configuration.resamplingFrequency / 2);
+        results.warnings{end + 1} = warn('[bleaching-correction] Cannot lowpass to frequencies larger than half of the resampling frequency (%.2f Hz).', configuration.resamplingFrequency / 2);
     end
     
     % Fit exponential decay at given epochs.
@@ -206,7 +214,7 @@ function results = FPA(time, signal, reference, configuration)
         peaksFilter = designfilt('lowpassiir', 'HalfPowerFrequency', configuration.peaksLowpassFrequency, 'SampleRate', configuration.resamplingFrequency, 'DesignMethod', 'butter', 'FilterOrder', 12);
         peaksLowpass = filtfilt(peaksFilter, dff);
     else
-        results.warnings{end + 1} = warn('[peak detection] Cannot lowpass to frequencies smaller than half of the resampling frequency (%.2f Hz).', configuration.resamplingFrequency / 2);
+        results.warnings{end + 1} = warn('[peak detection] Cannot lowpass to frequencies larger than half of the resampling frequency (%.2f Hz).', configuration.resamplingFrequency / 2);
         peaksLowpass = dff;
     end
     
@@ -233,7 +241,7 @@ function results = FPA(time, signal, reference, configuration)
         lowpassFilter = designfilt('lowpassiir', 'HalfPowerFrequency', configuration.dffLowpassFrequency, 'SampleRate', configuration.resamplingFrequency, 'DesignMethod', 'butter', 'FilterOrder', 12);
         dffLowpass = filtfilt(lowpassFilter, dff);
     else
-        results.warnings{end + 1} = warn('[dff lowpass] Cannot lowpass to frequencies smaller than half of the resampling frequency (%.2f Hz).', configuration.resamplingFrequency / 2);
+        results.warnings{end + 1} = warn('[dff lowpass] Cannot lowpass to frequencies larger than half of the resampling frequency (%.2f Hz).', configuration.resamplingFrequency / 2);
         dffLowpass = dff;
     end
     
@@ -294,16 +302,16 @@ function results = FPA(time, signal, reference, configuration)
     cmap = lines();
     xlims = time([1, end]);
     
-    if configuration.plot
-        signalColor = [0 0.4470 0.7410];
-        referenceColor = [0.8500 0.3250 0.0980];
-        lowpassColor = [0.4940 0.1840 0.5560];
-        peaksLineColor = [0.4660 0.6740 0.1880];
-        peaksMarkerColor = [1, 0, 0];
-        dashColor = [0, 0, 0];
-        
-        results.figures = [];
-        
+    signalColor = [0 0.4470 0.7410];
+    referenceColor = [0.8500 0.3250 0.0980];
+    lowpassColor = [0.4940 0.1840 0.5560];
+    peaksLineColor = [0.4660 0.6740 0.1880];
+    peaksMarkerColor = [1, 0, 0];
+    dashColor = [0, 0, 0];
+    results.figures = [];
+    
+    anyMatch = @(choices, pattern) any(~cellfun(@isempty, regexp(choices, pattern, 'start', 'once')));
+    if anyMatch(configuration.plot, '\<trace\>')
         results.figures(end + 1) = figure('name', 'FPA: df/f');
         
         % Plot signal/reference resampled and bleaching model.
@@ -369,7 +377,9 @@ function results = FPA(time, signal, reference, configuration)
 
         xlabel('Time (s)');
         ylabel('df/f');
-
+    end
+    
+    if anyMatch(configuration.plot, '\<power\>')
         % Plot power spectrum.
         results.figures(end + 1) = figure('name', 'FPA: Power spectrum');
         axs = cell(1, nEpochs);
@@ -395,7 +405,9 @@ function results = FPA(time, signal, reference, configuration)
         ylabel('Power');
         xlabel('Frequency (Hz)');
         linkaxes(findobj(gcf(), 'type', 'axes'), 'x');
-
+    end
+    
+    if anyMatch(configuration.plot, '\<stats\>')
         % Boxplot of dff.
         results.figures(end + 1) = figure('name', 'FPA: Boxplot');
         h = axes();
@@ -412,7 +424,9 @@ function results = FPA(time, signal, reference, configuration)
         ylabel('df/f');
         xtickangle(45);
         title('Stats on df/f traces for each condition');
-
+    end
+    
+    if anyMatch(configuration.plot, '\<trigger\>')
         % Plot triggered average.
         results.figures(end + 1) = figure('name', 'FPA: Triggered average');
         ax.trigger = axes();
