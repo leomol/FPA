@@ -13,7 +13,7 @@
 %   title(sprintf('Compare speeds between "%s" and "%s"', labels{1}, labels{2}));
 
 % 2019-08-20. Leonardo Molina.
-% 2020-11-24. Last modified.
+% 2020-12-10. Last modified.
 function varargout = loadCleverSys(filename, sheet)
     [~, sheetNames, tableFormat] = xlsfinfo(filename);
     
@@ -35,40 +35,63 @@ function varargout = loadCleverSys(filename, sheet)
     warning('OFF', 'MATLAB:datetime:AutoConvertStrings');
     data = readcell(filename, readParameters{:});
     warning(state.state, 'MATLAB:table:ModifiedAndSavedVarnames');
-    
+    % Find header.
     [r, c] = find(cellfun(@(c) isequal(c, 'Event'), data));
     titles = data(r, :);
+    % Keep data starting from header.
     valid = cellfun(@isstr, data(:, c));
     valid(1:r) = false;
-    eventNames = data(valid, c);
-    labels = unique(eventNames);
-    nUnique = numel(labels);
-    columns = [...
-        find(cellfun(@(title) startsWith(title, 'From '), titles)), ...
-        find(cellfun(@(title) startsWith(title, 'Length('), titles)), ...
-        find(cellfun(@(title) startsWith(title, 'Dist('), titles)), ...
-        find(cellfun(@(title) startsWith(title, 'V('), titles)) ...
-    ];
-    data = cell2mat(data(valid, columns));
-    start = cell(nUnique, 1);
-    finish = cell(nUnique, 1);
-    distance = cell(nUnique, 1);
-    speed = cell(nUnique, 1);
-    epochs = cell(1, 2 * nUnique);
-    for u = 1:nUnique
-        label = labels{u};
-        k = ismember(eventNames, label);
-        start{u} = data(k, 1);
-        finish{u} = data(k, 1) + data(k, 2);
-        distance{u} = data(k, 3);
-        speed{u} = data(k, 4);
-        epochs{2 * u - 1} = label;
-        epochs{2 * u - 0} = reshape([start{u}, finish{u}]', 1, []);
+    data = data(valid, :);
+    allLabels = data(:, c);
+    uniqueLabels = unique(allLabels);
+    nUniqueLabels = numel(uniqueLabels);
+    % Initialize outputs.
+    start = cell(nUniqueLabels, 1);
+    finish = cell(nUniqueLabels, 1);
+    distance = cell(nUniqueLabels, 1);
+    speed = cell(nUniqueLabels, 1);
+    epochs = cell(1, 2 * nUniqueLabels);
+    % Identify columns.
+    startColumn = getColumn(titles, 'From ');
+    durationColumn = getColumn(titles, 'Length(');
+    distanceColumn = getColumn(titles, 'Dist(');
+    speedColumn = getColumn(titles, 'V(');
+    % Output is populated according to the columns available.
+    if ~isempty(startColumn) && ~isempty(durationColumn)
+        m = cell2mat(data(:, [startColumn, durationColumn]));
+        m = cumsum(m, 2);
+        for u = 1:nUniqueLabels
+            label = uniqueLabels{u};
+            k = ismember(allLabels, label);
+            start{u} = m(k, 1);
+            finish{u} = m(k, 2);
+            epochs{2 * u - 1} = label;
+            epochs{2 * u - 0} = reshape([start{u}, finish{u}]', 1, []);
+        end
     end
-    
+    if ~isempty(distanceColumn)
+        m = cell2mat(data(:, distanceColumn));
+        for u = 1:nUniqueLabels
+            label = uniqueLabels{u};
+            k = ismember(allLabels, label);
+            distance{u} = m(k);
+        end
+    end
+    if ~isempty(speedColumn)
+        m = cell2mat(data(:, speedColumn));
+        for u = 1:nUniqueLabels
+            label = uniqueLabels{u};
+            k = ismember(allLabels, label);
+            speed{u} = m(k);
+        end
+    end
     if nargout == 1
         varargout = {epochs};
     else
-        varargout = {labels, start, finish, distance, speed};
+        varargout = {uniqueLabels, start, finish, distance, speed};
     end
+end
+
+function column = getColumn(titles, pattern)
+    column = find(cellfun(@(title) startsWith(title, pattern), titles));
 end
