@@ -2,7 +2,7 @@
 % see FPA.
 
 % 2020-11-01. Leonardo Molina.
-% 2020-12-02. Last modified.
+% 2020-12-11. Last modified.
 classdef GUI < handle
     properties % (Access = private)
         doricChannelsEntries
@@ -367,13 +367,11 @@ classdef GUI < handle
         function applySettings(obj, settings)
             obj.settings = settings;
             
-            obj.h.epochsTypeDrop.Value = settings.epochsType;
             obj.h.resamplingFrequencyEdit.Value = settings.resamplingFrequency;
             obj.h.behaviorDurationEdit.Value = settings.behaviorDuration;
             obj.h.xcorrLagEdit.Value = settings.xcorrLag;
             
             obj.h.emgBandpassTypeDrop.Value = settings.emgBandpassType;
-            obj.h.emgEnvelopeTypeDrop.Value = settings.emgEnvelopeType;
             obj.h.emgEnvelopeLowpassFrequencyEdit.Value = settings.emgEnvelopeLowpassFrequency;
             obj.h.emgEnvelopeSizeEdit.Value = settings.emgEnvelopeSize;
             obj.h.emgBandpassFrequencyLowEdit.Value = settings.emgBandpassFrequencyLow;
@@ -424,12 +422,12 @@ classdef GUI < handle
             set(obj.h.processButton, 'Enable', false, 'Text', 'Processing...');
             drawnow();
             messages = {};
-
+            
             % Fiber-photometry settings.
             fp = struct();
-            fp.signalChannel = find(cellfun(@(option) isequal(option, 'Signal'), obj.settings.doricChannelsChoices));
-            fp.referenceChannel = find(cellfun(@(option) isequal(option, 'Reference'), obj.settings.doricChannelsChoices));
-            fp.cameraChannel = find(cellfun(@(option) isequal(option, 'Camera'), obj.settings.doricChannelsChoices));
+            fp.signalChannel = getIndex(obj.doricChannelsEntries, obj.settings.doricChannelsChoices, 'Signal');
+            fp.referenceChannel = getIndex(obj.doricChannelsEntries, obj.settings.doricChannelsChoices, 'Reference');
+            fp.cameraChannel = getIndex(obj.doricChannelsEntries, obj.settings.doricChannelsChoices, 'Camera');
             if numel(fp.signalChannel) ~= 1
                 messages = cat(2, messages, 'Select a single Signal channel in Doric Channels.');
             end
@@ -469,19 +467,22 @@ classdef GUI < handle
             fp.f1Window = obj.settings.fpWindowSize;
             
             % LabChart settings.
-            labChart = struct();
-            labChart.emgChannel = find(cellfun(@(option) isequal(option, 'EMG'), obj.settings.labChartChannelsChoices));
-            labChart.block = find(cellfun(@(option) isequal(option, 'Use'), obj.settings.labChartBlocksChoices));
-            if numel(labChart.emgChannel) ~= 1
-                messages = cat(2, messages, 'Select a single EMG channel in LabChart Channels.');
-            end
-            if numel(labChart.block) ~= 1
-                messages = cat(2, messages, 'Select a single Block in LabChart Blocks.');
-            end
-            if numel(messages) > 0
-                errorDialog(messages);
-                set(obj.h.processButton, 'Enable', true, 'Text', 'Process');
-                return;
+            emgAvailable = obj.settings.labChartFilename ~= "";
+            if emgAvailable
+                labChart = struct();
+                labChart.emgChannel = getIndex(obj.labChartChannelsEntries, obj.settings.labChartChannelsChoices, 'EMG');
+                labChart.block = getIndex(obj.labChartBlocksEntries, obj.settings.labChartBlocksChoices, 'Use');
+                if numel(labChart.emgChannel) ~= 1
+                    messages = cat(2, messages, 'Select a single EMG channel in LabChart Channels.');
+                end
+                if numel(labChart.block) ~= 1
+                    messages = cat(2, messages, 'Select a single Block in LabChart Blocks.');
+                end
+                if numel(messages) > 0
+                    errorDialog(messages);
+                    set(obj.h.processButton, 'Enable', true, 'Text', 'Process');
+                    return;
+                end
             end
             
             fprintf('Loading Doric data ... ');
@@ -499,61 +500,104 @@ classdef GUI < handle
             fpSignal = fpData(:, fp.signalChannel);
             fpReference = fpData(:, fp.referenceChannel);
             
-            fprintf('Loading LabChart data ... ');
-            if isequal(obj.settings.labChartFilename, obj.cache.labChartFilename)
-                fprintf('reused cache.\n');
-                labChartTime = obj.cache.labChartTime;
-                labChartData = obj.cache.labChartData;
-            else
-                fprintf('\n');
-                [labChartTime, labChartData] = Aditch.getData(obj.settings.labChartFilename);
-                obj.cache.labChartTime = labChartTime;
-                obj.cache.labChartData = labChartData;
-                obj.cache.labChartFilename = obj.settings.labChartFilename;
+            if emgAvailable
+                fprintf('Loading LabChart data ... ');
+                if isequal(obj.settings.labChartFilename, obj.cache.labChartFilename)
+                    fprintf('reused cache.\n');
+                    labChartTime = obj.cache.labChartTime;
+                    labChartData = obj.cache.labChartData;
+                else
+                    fprintf('\n');
+                    [labChartTime, labChartData] = Aditch.getData(obj.settings.labChartFilename);
+                    obj.cache.labChartTime = labChartTime;
+                    obj.cache.labChartData = labChartData;
+                    obj.cache.labChartFilename = obj.settings.labChartFilename;
+                end
+                emgTime = labChartTime{labChart.emgChannel, labChart.block};
+                emgSignal = labChartData{labChart.emgChannel, labChart.block};
             end
-            emgTime = labChartTime{labChart.emgChannel, labChart.block};
-            emgSignal = labChartData{labChart.emgChannel, labChart.block};
             
             fprintf('Processing data ...\n');
-            [mn1, mx1] = bounds(fpTime);
-            [mn2, mx2] = bounds(emgTime);
-            mn = max(mn1, mn2);
-            mx = min(mx1, mx2);
-            k1 = fpTime >= mn & fpTime <= mx;
-            fpTime = fpTime(k1);
-            fpSignal = fpSignal(k1);
-            fpReference = fpReference(k1);
-            k2 = emgTime >= mn & emgTime <= mx;
-            emgTime = emgTime(k2);
-            emgSignal = emgSignal(k2);
+            if emgAvailable
+                [mn1, mx1] = bounds(fpTime);
+                [mn2, mx2] = bounds(emgTime);
+                mn = max(mn1, mn2);
+                mx = min(mx1, mx2);
+                k1 = fpTime >= mn & fpTime <= mx;
+                fpTime = fpTime(k1);
+                fpSignal = fpSignal(k1);
+                fpReference = fpReference(k1);
+                k2 = emgTime >= mn & emgTime <= mx;
+                emgTime = emgTime(k2);
+                emgSignal = emgSignal(k2);
             
-            switch obj.settings.epochsType
-                case 'Manual'
-                    epochs = eval(obj.settings.conditionEpochs);
-                case 'CleverSys'
-                    fprintf('Loading CleverSys data ... ');
-                    if isequal(obj.settings.cleverSysFilename, obj.cache.cleverSysFilename) && isequal(obj.settings.cleverSysSheet, obj.cache.cleverSysSheet)
-                        fprintf('reused cache.\n');
-                        epochs = obj.cache.cleverSysEpochs;
-                    else
-                        fprintf('\n');
-                        epochs = loadCleverSys(obj.settings.cleverSysFilename, obj.settings.cleverSysSheet);
-                        obj.cache.cleverSysEpochs = epochs;
-                        obj.cache.cleverSysFilename = obj.settings.cleverSysFilename;
-                        obj.cache.cleverSysSheet = obj.settings.cleverSysSheet;
-                    end
-                    k = find(cellfun(@(option) isequal(option, 'Use'), obj.settings.cleverSysEpochsChoices));
-                    k = sort([2 * k, 2 * k - 1]);
-                    epochs = epochs(k);
-                    
-                    fpCameraData = fpData(:, fp.cameraChannel);
-                    behaviorStart = fpTime(find(fpCameraData, 1));
-                    epochs(2:2:end) = cellfun(@(epoch) epoch + behaviorStart, epochs(2:2:end), 'UniformOutput', false);
-                    behaviorEnd = max(cat(2, epochs{2:2:end}, behaviorStart + obj.settings.behaviorDuration));
-                    preBaseline = [-Inf, behaviorStart];
-                    postBaseline = [behaviorEnd, Inf];
-                    epochs = ['pre-baseline', preBaseline, epochs, 'post-baseline', postBaseline];
+                [emgTime, emgSignal] = alignTimestamps(emgTime, 1 / obj.settings.resamplingFrequency, emgSignal);
+                emgSourceFrequency = 1 / median(diff(emgTime));
+                
+                % Bandpass emg to remove artifacts.
+                switch obj.settings.emgBandpassType
+                    case 'zero-phase'
+                        % High-order, butter filter, without phase shift.
+                        bandpassFilter = designfilt('bandpassiir', 'HalfPowerFrequency1', obj.settings.emgBandpassFrequency(1), 'HalfPowerFrequency2', obj.settings.emgBandpassFrequency(2), 'SampleRate', emgSourceFrequency, 'DesignMethod', 'butter', 'FilterOrder', 12);
+                        emgSignal = filtfilt(bandpassFilter, emgSignal);
+                    case 'butter'
+                        % Standard butter filter.
+                        % http://www1.udel.edu/biology/rosewc/kaap686/notes/EMG%20analysis.pdf
+                        fn = emgSourceFrequency / 2;
+                        fl = obj.settings.emgBandpassFrequency(1) / fn;
+                        fh = obj.settings.emgBandpassFrequency(2) / fn;
+                        [b, a] = butter(4, [fl, fh], 'bandpass');
+                        emgSignal = filter(b, a, emgSignal);
+                    case 'window'
+                        % MATLAB's default filter.
+                        bandpassFilter = designfilt('bandpassfir', 'CutoffFrequency1', obj.settings.emgBandpassFrequency(1), 'CutoffFrequency2', obj.settings.emgBandpassFrequency(2), 'SampleRate', emgSourceFrequency, 'DesignMethod', 'window', 'FilterOrder', 12);
+                        emgSignal = filtfilt(bandpassFilter, emgSignal);
+                end
+
+                % Notch filter to remove 60Hz noise.
+                notchFilter = designfilt('bandstopiir', 'FilterOrder', 2, 'HalfPowerFrequency1', 59, 'HalfPowerFrequency2', 61, 'DesignMethod', 'butter', 'SampleRate', emgSourceFrequency);
+                emgSignal = filtfilt(notchFilter, emgSignal);
+                % Detrend.
+                emgSignal = detrend(emgSignal);
+                % Make data have the same sampling rate.
+                if obj.settings.resamplingFrequency < emgSourceFrequency
+                    [p, q] = rat(obj.settings.resamplingFrequency / emgSourceFrequency);
+                    [emgSignal, emgTime] = resample(emgSignal, emgTime, obj.settings.resamplingFrequency, p, q);
+                else
+                    warning('[emg] Cannot resample to frequencies higher than the source frequency (%.2f Hz).', emgSourceFrequency);
+                end
+                switch obj.settings.emgEnvelopeType
+                    case 'Low-pass'
+                        % Rectify then 100Hz low pass filter.
+                        lowpassFilter = designfilt('lowpassiir', 'HalfPowerFrequency', obj.settings.emgEnvelopeLowpassFrequency, 'SampleRate', obj.settings.resamplingFrequency, 'DesignMethod', 'butter', 'FilterOrder', 12);
+                        emgHigh = filtfilt(lowpassFilter, abs(emgSignal));
+                    case 'RMS'
+                        % RMS.
+                        envelopeSamples = max(2, ceil(obj.settings.emgEnvelopeSize * obj.settings.resamplingFrequency));
+                        emgHigh = envelope(abs(emgSignal), envelopeSamples, 'rms');
+                end
             end
+            
+            fprintf('Loading CleverSys data ... ');
+            manualEpochs = eval(obj.settings.conditionEpochs);
+            if isequal(obj.settings.cleverSysFilename, obj.cache.cleverSysFilename) && isequal(obj.settings.cleverSysSheet, obj.cache.cleverSysSheet)
+                fprintf('reused cache.\n');
+                cleverSysEpochs = obj.cache.cleverSysEpochs;
+            else
+                fprintf('\n');
+                cleverSysEpochs = loadCleverSys(obj.settings.cleverSysFilename, obj.settings.cleverSysSheet);
+                obj.cache.cleverSysEpochs = cleverSysEpochs;
+                obj.cache.cleverSysFilename = obj.settings.cleverSysFilename;
+                obj.cache.cleverSysSheet = obj.settings.cleverSysSheet;
+            end
+            k = getIndex(obj.cleverSysEpochsEntries, obj.settings.cleverSysEpochsChoices, 'Use');
+            k = sort([2 * k, 2 * k - 1]);
+            cleverSysEpochs = cleverSysEpochs(k);
+            epochs = [manualEpochs, cleverSysEpochs];
+            
+            fpCameraData = fpData(:, fp.cameraChannel);
+            behaviorStart = fpTime(find(fpCameraData, 1));
+            epochs(2:2:end) = cellfun(@(epoch) epoch + behaviorStart, epochs(2:2:end), 'UniformOutput', false);
             
             fp.conditionEpochs = epochs;
             fp.plot = {'trace', 'power', 'stats', 'trigger'};
@@ -561,52 +605,6 @@ classdef GUI < handle
             [fpTime, fpSignal, fpReference] = alignTimestamps(fpTime, 1 / obj.settings.resamplingFrequency, fpSignal, fpReference);
             fpa = FPA(fpTime, fpSignal, fpReference, fp);
             cellfun(@warning, fpa.warnings);
-            
-            [emgTime, emgSignal] = alignTimestamps(emgTime, 1 / obj.settings.resamplingFrequency, emgSignal);
-            sourceFrequency = 1 / median(diff(emgTime));
-            
-            % Bandpass emg to remove artifacts.
-            switch obj.settings.emgBandpassType
-                case 'zero-phase'
-                    % High-order, butter filter, without phase shift.
-                    bandpassFilter = designfilt('bandpassiir', 'HalfPowerFrequency1', obj.settings.emgBandpassFrequency(1), 'HalfPowerFrequency2', obj.settings.emgBandpassFrequency(2), 'SampleRate', sourceFrequency, 'DesignMethod', 'butter', 'FilterOrder', 12);
-                    emgSignal = filtfilt(bandpassFilter, emgSignal);
-                case 'butter'
-                    % Standard butter filter.
-                    % http://www1.udel.edu/biology/rosewc/kaap686/notes/EMG%20analysis.pdf
-                    fn = sourceFrequency / 2;
-                    fl = obj.settings.emgBandpassFrequency(1) / fn;
-                    fh = obj.settings.emgBandpassFrequency(2) / fn;
-                    [b, a] = butter(4, [fl, fh], 'bandpass');
-                    emgSignal = filter(b, a, emgSignal);
-                case 'window'
-                    % MATLAB's default filter.
-                    bandpassFilter = designfilt('bandpassfir', 'CutoffFrequency1', obj.settings.emgBandpassFrequency(1), 'CutoffFrequency2', obj.settings.emgBandpassFrequency(2), 'SampleRate', sourceFrequency, 'DesignMethod', 'window', 'FilterOrder', 12);
-                    emgSignal = filtfilt(bandpassFilter, emgSignal);
-            end
-
-            % Notch filter to remove 60Hz noise.
-            notchFilter = designfilt('bandstopiir', 'FilterOrder', 2, 'HalfPowerFrequency1', 59, 'HalfPowerFrequency2', 61, 'DesignMethod', 'butter', 'SampleRate', sourceFrequency);
-            emgSignal = filtfilt(notchFilter, emgSignal);
-            % Detrend.
-            emgSignal = detrend(emgSignal);
-            % Make data have the same sampling rate.
-            if obj.settings.resamplingFrequency < sourceFrequency
-                [p, q] = rat(obj.settings.resamplingFrequency / sourceFrequency);
-                [emgSignal, emgTime] = resample(emgSignal, emgTime, obj.settings.resamplingFrequency, p, q);
-            else
-                warning('[emg] Cannot resample to frequencies higher than the source frequency (%.2f Hz).', sourceFrequency);
-            end
-            switch obj.settings.emgEnvelopeType
-                case 'Low-pass'
-                    % Rectify then 100Hz low pass filter.
-                    lowpassFilter = designfilt('lowpassiir', 'HalfPowerFrequency', obj.settings.emgEnvelopeLowpassFrequency, 'SampleRate', obj.settings.resamplingFrequency, 'DesignMethod', 'butter', 'FilterOrder', 12);
-                    emgHigh = filtfilt(lowpassFilter, abs(emgSignal));
-                case 'RMS'
-                    % RMS.
-                    envelopeSamples = max(2, ceil(obj.settings.emgEnvelopeSize * obj.settings.resamplingFrequency));
-                    emgHigh = envelope(abs(emgSignal), envelopeSamples, 'rms');
-            end
             
             percentile = 0.99;
             grow = 0.50;
@@ -618,7 +616,7 @@ classdef GUI < handle
             colorEnvelope = [0.0000, 0.0000, 0.0000];
             xlims = fpa.time([1, end]);
             
-            if obj.settings.plotEmgTrace
+            if emgAvailable && obj.settings.plotEmgTrace
                 figureName = 'Raster plots';
                 figure('name', figureName);
                 
@@ -652,7 +650,7 @@ classdef GUI < handle
                 xlim(xlims);
             end
 
-            if obj.settings.plotXcorr
+            if emgAvailable && obj.settings.plotXcorr
                 figureName = 'Cross-correlation FP to EMG for different behaviors';
                 xcLags = round(obj.settings.xcorrLag * obj.settings.resamplingFrequency);
                 xcTics = (-xcLags:xcLags) / obj.settings.resamplingFrequency;
@@ -676,32 +674,6 @@ classdef GUI < handle
             end
             
             set(obj.h.processButton, 'Enable', true, 'Text', 'Process');
-        end
-        
-        function onEpochsTypeDrop(obj, epochType)
-            obj.h.conditionEpochsPanel.Visible = false;
-            obj.h.cleverSysPanel.Visible = false;
-            switch epochType
-                case 'CleverSys'
-                    obj.h.cleverSysPanel.Visible = true;
-                    obj.h.behaviorDurationEdit.Enable = true;
-                case 'Manual'
-                    obj.h.conditionEpochsPanel.Visible = true;
-                    obj.h.behaviorDurationEdit.Enable = false;
-            end
-            obj.saveSettings('epochsType', epochType);
-        end
-        
-        function onEmgEnvelopeTypeDrop(obj, envelopeType)
-            obj.h.emgEnvelopeLowpassFrequencyEdit.Enable = false;
-            obj.h.emgEnvelopeSizeEdit.Enable = false;
-            switch envelopeType
-                case 'Low-pass'
-                    obj.h.emgEnvelopeLowpassFrequencyEdit.Enable = true;
-                case 'RMS'
-                    obj.h.emgEnvelopeSizeEdit.Enable = true;
-            end
-            obj.saveSettings('emgEnvelopeType', envelopeType);
         end
         
         function onGetFile(obj, target)
@@ -728,116 +700,166 @@ classdef GUI < handle
             end
         end
         
-        function onDoricFilenameEdit(obj)
-            target = obj.h.doricFilenameEdit;
-            filename = target.Value;
-            try
-                channels = csvHeader(filename);
-                channels{1} = 'time';
-                nChannels = numel(channels);
-                for i = 1:nChannels
-                    channels{i} = sprintf('#%i %s', i, channels{i});
-                end
-                success = true;
-            catch
-                success = false;
+        function onEpochsTypeDrop(obj, epochType)
+            obj.h.epochsTypeDrop.Value = epochType;
+            obj.h.conditionEpochsPanel.Visible = false;
+            obj.h.cleverSysPanel.Visible = false;
+            switch epochType
+                case 'CleverSys'
+                    obj.h.cleverSysPanel.Visible = true;
+                    obj.h.behaviorDurationEdit.Enable = true;
+                case 'Manual'
+                    obj.h.conditionEpochsPanel.Visible = true;
+                    obj.h.behaviorDurationEdit.Enable = false;
             end
-            setSuccessColor(target, success);
-            if success
-                obj.doricChannelsEntries = channels;
-                updateList(obj.h.doricChannelsList, obj.doricChannelsEntries, obj.settings.doricChannelsChoices);
-                obj.saveSettings('doricFilename', filename);
-            else
-                updateList(obj.h.doricChannelsList, {}, obj.settings.doricChannelsChoices);
+            obj.saveSettings('epochsType', epochType);
+        end
+        
+        function onEmgEnvelopeTypeDrop(obj, envelopeType)
+            obj.h.emgEnvelopeTypeDrop.Value = envelopeType;
+            obj.h.emgEnvelopeLowpassFrequencyEdit.Enable = false;
+            obj.h.emgEnvelopeSizeEdit.Enable = false;
+            switch envelopeType
+                case 'Low-pass'
+                    obj.h.emgEnvelopeLowpassFrequencyEdit.Enable = true;
+                case 'RMS'
+                    obj.h.emgEnvelopeSizeEdit.Enable = true;
             end
+            obj.saveSettings('emgEnvelopeType', envelopeType);
         end
         
         function onCleverSysSheetDrop(obj, varargin)
             if numel(varargin) == 1
                 sheet = varargin{1};
+                obj.h.cleverSysSheetDrop.Value = sheet;
                 epochs = loadCleverSys(obj.h.cleverSysFilenameEdit.Value, sheet);
                 entries = epochs(1:2:end);
                 obj.cleverSysEpochsEntries = entries;
                 updateList(obj.h.cleverSysEpochsList, obj.cleverSysEpochsEntries, obj.settings.cleverSysEpochsChoices);
                 obj.saveSettings('cleverSysSheet', sheet);
             else
-                updateList(obj.h.doricChannelsList, {}, obj.settings.doricChannelsChoices);
+                updateList(obj.h.cleverSysEpochsList);
             end
         end
         
         function onCleverSysFilenameEdit(obj)
             target = obj.h.cleverSysFilenameEdit;
             filename = target.Value;
-            try
-                [~, sheets, tableFormat] = xlsfinfo(filename);
-                success = true;
-            catch
-                success = false;
-            end
-            setSuccessColor(target, success);
-            if success
-                obj.cleverSysIsCSV = ismember(tableFormat, {'xlHtml', 'xlCSV'});
-                obj.h.cleverSysSheetDrop.Items = sheets;
-                if ismember(obj.settings.cleverSysSheet, sheets)
-                    sheet = obj.settings.cleverSysSheet;
-                else
-                    sheet = sheets{1};
-                end
-                obj.onCleverSysSheetDrop(sheet);
-                obj.saveSettings('cleverSysFilename', filename, 'cleverSysSheet', sheet);
-            else
+            if isempty(filename)
                 obj.h.cleverSysSheetDrop.Items = {};
                 obj.onCleverSysSheetDrop();
+                obj.saveSettings('cleverSysFilename', filename);
+                success = true;
+            else
+                try
+                    [~, sheets, tableFormat] = xlsfinfo(filename);
+                    success = true;
+                catch
+                    success = false;
+                end
+                if success
+                    obj.cleverSysIsCSV = ismember(tableFormat, {'xlHtml', 'xlCSV'});
+                    obj.h.cleverSysSheetDrop.Items = sheets;
+                    if ismember(obj.settings.cleverSysSheet, sheets)
+                        sheet = obj.settings.cleverSysSheet;
+                    else
+                        sheet = sheets{1};
+                    end
+                    obj.onCleverSysSheetDrop(sheet);
+                    obj.saveSettings('cleverSysFilename', filename, 'cleverSysSheet', sheet);
+                else
+                    obj.h.cleverSysSheetDrop.Items = {};
+                    obj.onCleverSysSheetDrop();
+                end
             end
+            setSuccessColor(target, success);
         end
         
         function onLabChartFilenameEdit(obj)
             target = obj.h.labChartFilenameEdit;
             filename = target.Value;
-            try
-                [information, ~, comments] = Aditch.getInformation(filename);
+            if isempty(filename)
+                updateList(obj.h.labChartChannelsList);
+                updateList(obj.h.labChartBlocksList);
+                obj.h.labChartCommentsHtml.HTMLSource = '<div></div>';
+                obj.saveSettings('labChartFilename', filename);
                 success = true;
-            catch
-                success = false;
+            else
+                try
+                    [information, ~, comments] = Aditch.getInformation(filename);
+                    success = true;
+                catch
+                    success = false;
+                end
+                if success
+                    html = '<div style="font-family:monospace">';
+                    nComments = numel(comments);
+                    for i = 1:2:nComments
+                        time = sprintf('%.2f', comments{i});
+                        text = comments{i + 1};
+                        item = sprintf('<span>[%08s] %s</span>', time, text);
+                        html = sprintf('%s%s<br>', html, item);
+                    end
+                    html = sprintf('%s</div>', html);
+
+                    nNames = numel(information.names);
+                    channels = cell(1, nNames);
+                    for i = 1:nNames
+                        channels{i} = sprintf('#%i "%s"', i, information.names{i});
+                    end
+
+                    nBlocks = size(information.period, 2);
+                    blocks = cell(1, nBlocks);
+                    duration = max(information.samples .* information.period, [], 1);
+                    for i = 1:nBlocks
+                        from = sprintf('%.2f', information.offset(i));
+                        to = sprintf('%.2f', information.offset(i) + duration(i));
+                        blocks{i} = sprintf('#%i [%09s .. %09s]', i, from, to);
+                    end
+
+                    obj.h.labChartCommentsHtml.HTMLSource = html;
+                    obj.labChartChannelsEntries = channels;
+                    obj.labChartBlocksEntries = blocks;
+                    updateList(obj.h.labChartChannelsList, obj.labChartChannelsEntries, obj.settings.labChartChannelsChoices);
+                    updateList(obj.h.labChartBlocksList, obj.labChartBlocksEntries, obj.settings.labChartBlocksChoices);
+                    obj.saveSettings('labChartFilename', filename);
+                else
+                    obj.h.labChartCommentsHtml.HTMLSource = '<div></div>';
+                    updateList(obj.h.labChartChannelsList);
+                    updateList(obj.h.labChartBlocksList);
+                end
             end
             setSuccessColor(target, success);
-            if success
-                html = '<div style="font-family:monospace">';
-                nComments = numel(comments);
-                for i = 1:2:nComments
-                    time = sprintf('%.2f', comments{i});
-                    text = comments{i + 1};
-                    item = sprintf('<span>[%08s] %s</span>', time, text);
-                    html = sprintf('%s%s<br>', html, item);
-                end
-                html = sprintf('%s</div>', html);
-                
-                nNames = numel(information.names);
-                channels = cell(1, nNames);
-                for i = 1:nNames
-                    channels{i} = sprintf('#%i "%s"', i, information.names{i});
-                end
-                
-                nBlocks = size(information.period, 2);
-                blocks = cell(1, nBlocks);
-                duration = max(information.samples .* information.period, [], 1);
-                for i = 1:nBlocks
-                    from = sprintf('%.2f', information.offset(i));
-                    to = sprintf('%.2f', information.offset(i) + duration(i));
-                    blocks{i} = sprintf('#%i [%09s .. %09s]', i, from, to);
-                end
-                
-                obj.h.labChartCommentsHtml.HTMLSource = html;
-                obj.labChartChannelsEntries = channels;
-                updateList(obj.h.labChartChannelsList, obj.labChartChannelsEntries, obj.settings.labChartChannelsChoices);
-                obj.labChartBlocksEntries = blocks;
-                updateList(obj.h.labChartBlocksList, obj.labChartBlocksEntries, obj.settings.labChartBlocksChoices);
-                obj.saveSettings('labChartFilename', filename);
+        end
+        
+        function onDoricFilenameEdit(obj)
+            target = obj.h.doricFilenameEdit;
+            filename = target.Value;
+            if isempty(filename)
+                updateList(obj.h.doricChannelsList);
+                obj.saveSettings('doricFilename', filename);
+                success = true;
             else
-                obj.h.labChartCommentsHtml.HTMLSource = '<div></div>';
-                updateList(obj.h.labChartChannelsList, {}, obj.settings.labChartChannelsChoices);
-                updateList(obj.h.labChartBlocksList, {}, obj.settings.labChartBlocksChoices);
+                try
+                    channels = csvHeader(filename);
+                    channels{1} = 'time';
+                    nChannels = numel(channels);
+                    for i = 1:nChannels
+                        channels{i} = sprintf('#%i %s', i, channels{i});
+                    end
+                    success = true;
+                catch
+                    success = false;
+                end
+                if success
+                    obj.doricChannelsEntries = channels;
+                    updateList(obj.h.doricChannelsList, obj.doricChannelsEntries, obj.settings.doricChannelsChoices);
+                    obj.saveSettings('doricFilename', filename);
+                else
+                    updateList(obj.h.doricChannelsList);
+                end
             end
+            setSuccessColor(target, success);
         end
         
         function onBleachingEpochsEdit(obj)
@@ -882,22 +904,21 @@ classdef GUI < handle
         function setChoice(obj, list, choice)
             namesShowing = list.Items;
             index = ismember(namesShowing, list.Value);
-            
             switch list
                 case obj.h.doricChannelsList
-                    [obj.settings.doricChannelsChoices{index}] = deal(choice);
+                    obj.settings.doricChannelsChoices = updateChoices(obj.settings.doricChannelsChoices, obj.doricChannelsEntries(index), choice);
                     updateList(list, obj.doricChannelsEntries, obj.settings.doricChannelsChoices);
                     obj.saveSettings('doricChannelsChoices', obj.settings.doricChannelsChoices);
                 case obj.h.cleverSysEpochsList
-                    [obj.settings.cleverSysEpochsChoices{index}] = deal(choice);
+                    obj.settings.cleverSysEpochsChoices = updateChoices(obj.settings.cleverSysEpochsChoices, obj.cleverSysEpochsEntries(index), choice);
                     updateList(list, obj.cleverSysEpochsEntries, obj.settings.cleverSysEpochsChoices);
                     obj.saveSettings('cleverSysEpochsChoices', obj.settings.cleverSysEpochsChoices);
                 case obj.h.labChartChannelsList
-                    [obj.settings.labChartChannelsChoices{index}] = deal(choice);
+                    obj.settings.labChartChannelsChoices = updateChoices(obj.settings.labChartChannelsChoices, obj.labChartChannelsEntries(index), choice);
                     updateList(list, obj.labChartChannelsEntries, obj.settings.labChartChannelsChoices);
                     obj.saveSettings('labChartChannelsChoices', obj.settings.labChartChannelsChoices);
                 case obj.h.labChartBlocksList
-                    [obj.settings.labChartBlocksChoices{index}] = deal(choice);
+                    obj.settings.labChartBlocksChoices = updateChoices(obj.settings.labChartBlocksChoices, obj.labChartBlocksEntries(index), choice);
                     updateList(list, obj.labChartBlocksEntries, obj.settings.labChartBlocksChoices);
                     obj.saveSettings('labChartBlocksChoices', obj.settings.labChartBlocksChoices);
             end
@@ -969,16 +990,16 @@ function settings = defaults()
     % CleverSys epochs.
     settings.cleverSysFilename = '';
     settings.cleverSysSheet = '';
-    settings.cleverSysEpochsChoices = {};
+    settings.cleverSysEpochsChoices = cell(0, 2);
     
     % Doric.
     settings.doricFilename = '';
-    settings.doricChannelsChoices = {};
+    settings.doricChannelsChoices = cell(0, 2);
     
     % LabChart.
     settings.labChartFilename = '';
-    settings.labChartChannelsChoices = {};
-    settings.labChartBlocksChoices = {};
+    settings.labChartChannelsChoices = cell(0, 2);
+    settings.labChartBlocksChoices = cell(0, 2);
     
     % Plots.
     settings.plotFpTrace = true;
@@ -1001,22 +1022,30 @@ function set(objs, varargin)
     end
 end
         
-function updateList(list, entries, choices)
+function updateList(list, varargin)
+    if numel(varargin) == 0
+        [entries, choices] = deal({}, cell(0, 2));
+    else
+        [entries, choices] = deal(varargin{:});
+    end
     labels = cell(size(entries));
     charCounts = cellfun(@numel, entries);
     tabCounts = max(charCounts) - charCounts + 2;
     nEntries = numel(entries);
+    keys = choices(:, 1);
+    values = choices(:, 2);
     for i = 1:nEntries
         entry = entries{i};
-        if numel(choices) >= i && ischar(choices{i})
-            choice = choices{i};
+        k = ismember(keys, entry);
+        if any(k)
+            value = values{k};
         else
-            choice = 'Unset';
+            value = 'Unset';
         end
-        if isequal(lower(choice), 'unset')
+        if isequal(lower(value), 'unset')
             label = entry;
         else
-            label = sprintf('%s%*s==> %s', entry, tabCounts(i), ' ', choice);
+            label = sprintf('%s%*s==> %s', entry, tabCounts(i), ' ', value);
         end
         labels{i} = label;
     end
@@ -1024,6 +1053,30 @@ function updateList(list, entries, choices)
     index(nEntries + 1:end) = [];
     list.Items = labels;
     list.Value = labels(index);
+end
+
+function choicePairs = updateChoices(choicePairs, updateKeys, updateValue)
+    choiceKeys = choicePairs(:, 1);
+    choiceValues = choicePairs(:, 2);
+    existingKeyMask = ismember(choiceKeys, updateKeys);
+    [~, addKeyIds] = setdiff(updateKeys, choiceKeys);
+    
+    [choiceValues{existingKeyMask}] = deal(updateValue);
+    addKeys = updateKeys(addKeyIds);
+    nAdd = numel(addKeys);
+    choiceKeys(end + 1:end + nAdd) = addKeys;
+    [choiceValues{end + 1:end + nAdd}] = deal(updateValue);
+    choicePairs = [choiceKeys(:), choiceValues(:)];
+end
+
+function indexes = getIndex(entries, choicePairs, value)
+    choiceKeys = choicePairs(:, 1);
+    choiceValues = choicePairs(:, 2);
+    entryKeys = entries;
+    entryValues = repmat({''}, size(entryKeys));
+    [~, e, c] = intersect(entryKeys, choiceKeys);
+    entryValues(e) = choiceValues(c);
+    indexes = find(ismember(entryValues, value));
 end
 
 function setSuccessColor(target, success)

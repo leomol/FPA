@@ -76,7 +76,7 @@
 % See examples
 
 % 2019-02-01. Leonardo Molina.
-% 2020-12-02. Last modified.
+% 2020-12-11. Last modified.
 function results = FPA(time, signal, reference, configuration)
     results.warnings = {};
     if nargin < 4
@@ -387,19 +387,21 @@ function results = FPA(time, signal, reference, configuration)
             axs{e} = subplot(nEpochs, 1, e);
             epochName = configuration.conditionEpochs{2 * e - 1};
             ids = time2id(time, configuration.conditionEpochs{2 * e});
-            d = dff(ids);
             n = numel(ids);
-            halfN = floor(n / 2);
-            f = fft(d);
-            % Two-sided spectrum.
-            p2 = abs(f / n);
-            % Single-sided amplitude spectrum.
-            p1 = p2(1:halfN + 1);
-            p1(2:end-1) = 2 * p1(2:end-1);
-            % Create frequency vector for range.
-            fs = configuration.resamplingFrequency * (0:halfN) / n;
-            plot(fs, p1);
-            ylim(limits(p1, percentile, grow));
+            if n > 2
+                d = dff(ids);
+                halfN = floor(n / 2);
+                f = fft(d);
+                % Two-sided spectrum.
+                p2 = abs(f / n);
+                % Single-sided amplitude spectrum.
+                p1 = p2(1:halfN + 1);
+                p1(2:end-1) = 2 * p1(2:end-1);
+                % Create frequency vector for range.
+                fs = configuration.resamplingFrequency * (0:halfN) / n;
+                plot(fs, p1);
+                ylim(limits(p1, percentile, grow));
+            end
             title(sprintf('%s - Power spectrum', epochName));
         end
         ylabel('Power');
@@ -411,16 +413,22 @@ function results = FPA(time, signal, reference, configuration)
         % Boxplot of dff.
         results.figures(end + 1) = figure('name', 'FPA: Boxplot');
         h = axes();
-        boxplot(dff(epochIds), epochGroups, 'Labels',  configuration.conditionEpochs(1:2:end));
+        % Not all epochs may be available.
+        epochNames = configuration.conditionEpochs(1:2:end);
+        groups = unique(epochGroups);
+        boxplot(dff(epochIds), epochGroups, 'Labels', epochNames(groups));
         hold('all');
         area = zeros(1, nEpochs);
         ylims = ylim();
         for e = 1:nEpochs
             ids = time2id(time, configuration.conditionEpochs{2 * e});
-            area(e) = mean(dff(ids));
-            text(e, ylims(2), epochStatLabels{e}, 'HorizontalAlignment', 'center', 'VerticalAlignment', 'Top');
+            n = numel(ids);
+            if n > 2
+                area(e) = mean(dff(ids));
+                text(e, ylims(2), epochStatLabels{e}, 'HorizontalAlignment', 'center', 'VerticalAlignment', 'Top');
+            end
         end
-        plot(h.XTick, area, 'k.', 'DisplayName', 'Mean');
+        plot(h.XTick, area(groups), 'k.', 'DisplayName', 'Mean');
         ylabel('df/f');
         xtickangle(45);
         title('Stats on df/f traces for each condition');
