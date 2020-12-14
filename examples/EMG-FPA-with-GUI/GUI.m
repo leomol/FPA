@@ -2,7 +2,7 @@
 % see FPA.
 
 % 2020-11-01. Leonardo Molina.
-% 2020-12-14. Last modified.
+% 2020-12-14B. Last modified.
 classdef GUI < handle
     properties % (Access = private)
         doricChannelsEntries
@@ -24,7 +24,6 @@ classdef GUI < handle
             obj.cleverSysEpochsEntries = {};
             obj.labChartChannelsEntries = {};
             obj.labChartBlocksEntries = {};
-            obj.settings.conditionEpochs = [-Inf, Inf];
             obj.cache.doricFilename = '<empty>';
             obj.cache.labChartFilename = '<empty>';
             obj.cache.cleverSysFilename = '<empty>';
@@ -375,7 +374,6 @@ classdef GUI < handle
             obj.h.emgBandpassFrequencyLowEdit.Value = settings.emgBandpassFrequencyLow;
             obj.h.emgBandpassFrequencyHighEdit.Value = settings.emgBandpassFrequencyHigh;
             
-            obj.h.fpBleachingEpochsEdit.Value = settings.fpBleachingEpochs;
             obj.h.fpPeaksBandpassFrequencyLowEdit.Value = settings.fpPeaksBandpassFrequencyLow;
             obj.h.fpPeaksBandpassFrequencyHighEdit.Value = settings.fpPeaksBandpassFrequencyHigh;
             obj.h.fpDffLowpassFrequencyEdit.Value = settings.fpDffLowpassFrequency;
@@ -385,7 +383,8 @@ classdef GUI < handle
             obj.h.fpNormalizationTypeDrop.Value = settings.fpNormalizationType;
             obj.h.fpWindowSizeEdit.Value = settings.fpWindowSize;
             
-            obj.h.conditionEpochsEdit.Value = settings.conditionEpochs;
+            obj.h.conditionEpochsEdit.Value = settings.conditionEpochsText;
+            obj.h.fpBleachingEpochsEdit.Value = settings.fpBleachingEpochsText;
             
             obj.h.cleverSysFilenameEdit.Value = settings.cleverSysFilename;
             obj.h.doricFilenameEdit.Value = settings.doricFilename;
@@ -441,7 +440,10 @@ classdef GUI < handle
                 return;
             end
             
-            fp.bleachingEpochs = eval(obj.settings.fpBleachingEpochs);
+            fp.bleachingEpochs = obj.settings.fpBleachingEpochs;
+            if isempty(fp.bleachingEpochs)
+                fp.bleachingEpochs = [-Inf, Inf];
+            end
             fp.peaksBandpassFrequency = [obj.settings.fpPeaksBandpassFrequencyLow, obj.settings.fpPeaksBandpassFrequencyHigh];
             fp.dffLowpassFrequency = obj.settings.fpDffLowpassFrequency;
             fp.bleachingLowpassFrequency = obj.settings.fpBleachingLowpassFrequency;
@@ -577,7 +579,7 @@ classdef GUI < handle
             end
             
             fprintf('Loading CleverSys data ... ');
-            manualEpochs = eval(obj.settings.conditionEpochs);
+            manualEpochs = obj.settings.conditionEpochs;
             if isequal(obj.settings.cleverSysFilename, obj.cache.cleverSysFilename) && isequal(obj.settings.cleverSysSheet, obj.cache.cleverSysSheet)
                 fprintf('reused cache.\n');
                 cleverSysEpochs = obj.cache.cleverSysEpochs;
@@ -592,6 +594,9 @@ classdef GUI < handle
             k = sort([2 * k, 2 * k - 1]);
             cleverSysEpochs = cleverSysEpochs(k);
             epochs = [manualEpochs, cleverSysEpochs];
+            if isempty(epochs)
+                epochs = {'everything', [-Inf, Inf]};
+            end
             
             fpCameraData = fpData(:, fp.cameraChannel);
             behaviorStart = fpTime(find(fpCameraData, 1));
@@ -873,7 +878,7 @@ classdef GUI < handle
             end
             setSuccessColor(target, success);
             if success
-                obj.saveSettings('fpBleachingEpochs', text);
+                obj.saveSettings('fpBleachingEpochs', epochs, 'fpBleachingEpochsText', text);
             end
         end
         
@@ -893,8 +898,7 @@ classdef GUI < handle
             end
             setSuccessColor(target, success);
             if success
-                obj.settings.conditionEpochs = epochs;
-                obj.saveSettings('conditionEpochs', text);
+                obj.saveSettings('conditionEpochs', epochs, 'conditionEpochsText', text);
             end
         end
         
@@ -971,7 +975,8 @@ function settings = defaults()
     
     % FP.
     settings.fpFilename = '';
-    settings.fpBleachingEpochs = '[-Inf, Inf]';
+    settings.fpBleachingEpochs = [];
+    settings.fpBleachingEpochsText = '';
     settings.fpPeaksBandpassFrequencyLow = 0.02;
     settings.fpPeaksBandpassFrequencyHigh = 0.2;
     settings.fpDffLowpassFrequency = settings.resamplingFrequency;
@@ -982,7 +987,8 @@ function settings = defaults()
     settings.fpWindowSize = 120;
     
     % Epochs.
-    settings.conditionEpochs = '';
+    settings.conditionEpochs = [];
+    settings.conditionEpochsText = '';
     
     % CleverSys epochs.
     settings.cleverSysFilename = '';
