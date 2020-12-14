@@ -2,16 +2,14 @@
 % see FPA.
 
 % 2020-11-01. Leonardo Molina.
-% 2020-12-11. Last modified.
+% 2020-12-14. Last modified.
 classdef GUI < handle
     properties % (Access = private)
         doricChannelsEntries
         cleverSysEpochsEntries
         labChartChannelsEntries
         labChartBlocksEntries
-        conditionEpochs
         settingsFilename
-        cleverSysIsCSV
         settings
         cache
         h
@@ -26,7 +24,7 @@ classdef GUI < handle
             obj.cleverSysEpochsEntries = {};
             obj.labChartChannelsEntries = {};
             obj.labChartBlocksEntries = {};
-            obj.conditionEpochs = [-Inf, Inf];
+            obj.settings.conditionEpochs = [-Inf, Inf];
             obj.cache.doricFilename = '<empty>';
             obj.cache.labChartFilename = '<empty>';
             obj.cache.cleverSysFilename = '<empty>';
@@ -758,7 +756,6 @@ classdef GUI < handle
                     success = false;
                 end
                 if success
-                    obj.cleverSysIsCSV = ismember(tableFormat, {'xlHtml', 'xlCSV'});
                     obj.h.cleverSysSheetDrop.Items = sheets;
                     if ismember(obj.settings.cleverSysSheet, sheets)
                         sheet = obj.settings.cleverSysSheet;
@@ -896,7 +893,7 @@ classdef GUI < handle
             end
             setSuccessColor(target, success);
             if success
-                obj.conditionEpochs = epochs;
+                obj.settings.conditionEpochs = epochs;
                 obj.saveSettings('conditionEpochs', text);
             end
         end
