@@ -2,7 +2,7 @@
 % see FPA.
 
 % 2020-11-01. Leonardo Molina.
-% 2020-12-14B. Last modified.
+% 2020-12-14C. Last modified.
 classdef GUI < handle
     properties % (Access = private)
         doricChannelsEntries
@@ -878,7 +878,7 @@ classdef GUI < handle
             end
             setSuccessColor(target, success);
             if success
-                obj.saveSettings('fpBleachingEpochs', epochs, 'fpBleachingEpochsText', text);
+                obj.saveSettings('fpBleachingEpochs', epochRanges, 'fpBleachingEpochsText', text);
             end
         end
         
