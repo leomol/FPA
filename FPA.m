@@ -316,13 +316,22 @@ function results = FPA(time, signal, reference, configuration)
     peakGroups = zeros(1, nPeaks);
     % Boolean index corresponding to each condition.
     nEpochs = numel(parameters.conditionEpochs) / 2;
-    epochBool = cell(1, nEpochs);
     for e = 1:nEpochs
-        % Epoch index.
+        % Epoch indices:     3 4 5 ... nSamples
         ids = time2id(time, parameters.conditionEpochs{2 * e});
-        epochBool{e} = ismember(allIds, ids);
-        % Assign group.
-        k = epochBool{e}(peaksId);
+        % Epoch flagged: 0 0 1 1 1 ... nSamples
+        epochBool = ismember(allIds, ids);
+        % Flag peaks within epoch: [0 0 1 1 1][peaksId]
+        k = epochBool(peaksId);
+        % Warn about overlaps.
+        overlaps = peakGroups(k);
+        overlaps = unique(overlaps(overlaps > 0));
+        epochName = parameters.conditionEpochs{2 * e - 1};
+        for o = overlaps
+            overlapName = parameters.conditionEpochs{2 * o - 1};
+            results.warnings{end + 1} = warn('[peaks] "%s" overlaps with "%s".', epochName, overlapName);
+        end
+        % Assign group to such peaks. When epochs overlap, the later overrides the group .
         peakGroups(k) = e;
     end
     uniqueGroups = unique(peakGroups);
@@ -509,21 +518,21 @@ function results = FPA(time, signal, reference, configuration)
         hold(ax.trigger, 'all');
         if nGroups > 0
             timeTemplate = windowTemplate / frequency;
-            for e = 1:nGroups
-                group = uniqueGroups(e);
-                triggeredDff = dff(triggeredId(peakGroups == group, :));
+            for g = 1:nGroups
+                e = uniqueGroups(g);
+                triggeredDff = dff(triggeredId(peakGroups == e, :));
                 triggeredDff = reshape(triggeredDff, numel(triggeredDff) / window, window);
                 triggeredMean = mean(triggeredDff, 1);
-                h1 = plot(timeTemplate, triggeredMean, 'HandleVisibility', 'off');
+                plot(timeTemplate, triggeredMean, 'Color', cmap(e, :), 'HandleVisibility', 'off');
                 epochName = parameters.conditionEpochs{2 * e - 1};
                 triggeredSem = std(triggeredDff, [], 1) / sqrt(size(triggeredDff, 1));
                 semAtZero = triggeredSem(ceil(window / 2));
-                nPeaks = sum(peakGroups == group);
+                nPeaks = sum(peakGroups == e);
                 label = sprintf('%s (SEM=%.4f, n = %i)', epochName, semAtZero, nPeaks);
                 vertices = [timeTemplate; triggeredMean + triggeredSem / 2];
                 vertices = cat(2, vertices, [fliplr(timeTemplate); fliplr(triggeredMean - triggeredSem / 2)])';
                 faces = 1:2 * window;
-                patch('Faces', faces, 'Vertices', vertices, 'FaceColor', h1.Color, 'EdgeColor', 'none', 'FaceAlpha', 0.10, 'DisplayName', label);
+                patch('Faces', faces, 'Vertices', vertices, 'FaceColor', cmap(e, :), 'EdgeColor', 'none', 'FaceAlpha', 0.10, 'DisplayName', label);
             end
         else
             text(ax.trigger, 0.5, 0.5, sprintf('No peaks above threshold %.2f (factor:%.2f)', peakThreshold, parameters.thresholdFactor), 'HorizontalAlignment', 'center');

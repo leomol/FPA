@@ -39,7 +39,7 @@ switch option
         %   f0 is calculated sometimes with movmean other times with movmedian.
         configuration.f0Function = @movmedian;
         configuration.f0Window = Inf;
-        configuration.f1Function = @movstd;
+        configuration.f1Function = @movmad;
         configuration.f1Window = Inf;
 end
 data = loadData(inputDataFile);
