@@ -3,13 +3,15 @@ addpath('..');
 addpath(genpath('../common'));
 
 %% Fiber-photometry data recorded with Doric DAQ.
-inputDataFile = 'C:\Users\Molina\Downloads\20201104_LH_K_M46.csv';
+inputDataFile = 'data/20201104_LH_K_M46.csv';
 signalColumn = 2;
 configuration = struct();
 configuration.conditionEpochs = {'Data', [2 * 60, 4 * 60]};
 configuration.bleachingEpochs = [2 * 60, 4 * 60];
+configuration.lowpassFrequency = 2;
+configuration.peaksLowpassFrequency = 0.5;
 configuration.thresholdingFunction = @mad;
-configuration.thresholdFactor = 0.1;
+configuration.thresholdFactor = 2.91;
 data = loadData(inputDataFile);
 time = data(:, 1);
 signal = data(:, signalColumn);

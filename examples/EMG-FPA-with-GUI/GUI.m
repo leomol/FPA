@@ -2,7 +2,7 @@
 % see FPA.
 
 % 2020-11-01. Leonardo Molina.
-% 2020-12-14C. Last modified.
+% 2021-01-15. Last modified.
 classdef GUI < handle
     properties % (Access = private)
         doricChannelsEntries
@@ -58,11 +58,8 @@ classdef GUI < handle
             label = uilabel(panel, 'Text', 'Resampling frequency', 'HorizontalAlignment', 'right');
             label.Layout.Row = 2;
             label.Layout.Column = 1;
-            label = uilabel(panel, 'Text', 'Behavior duration', 'HorizontalAlignment', 'right');
-            label.Layout.Row = 3;
-            label.Layout.Column = 1;
             label = uilabel(panel, 'Text', 'Cross-correlation lag', 'HorizontalAlignment', 'right');
-            label.Layout.Row = 4;
+            label.Layout.Row = 3;
             label.Layout.Column = 1;
             
             % Epochs type.
@@ -74,12 +71,8 @@ classdef GUI < handle
             h.Layout.Row = 2;
             h.Layout.Column = 2;
             obj.h.resamplingFrequencyEdit = h;
-            h = uieditfield(panel, 'numeric', 'Limits', [0, Inf], 'ValueChangedFcn', @(h, ~)obj.saveSettings('behaviorDuration', h.Value));
-            h.Layout.Row = 3;
-            h.Layout.Column = 2;
-            obj.h.behaviorDurationEdit = h;
             h = uieditfield(panel, 'numeric', 'Limits', [1, Inf], 'ValueChangedFcn', @(h, ~)obj.saveSettings('xcorrLag', h.Value));
-            h.Layout.Row = 4;
+            h.Layout.Row = 3;
             h.Layout.Column = 2;
             obj.h.xcorrLagEdit = h;
             
@@ -144,66 +137,68 @@ classdef GUI < handle
             panel.ColumnWidth = {'4x', '1x', '1x'};
             
             % FP settings.
-            label.Layout.Column = 1;
             label = uilabel(panel, 'Text', 'Bleaching epochs', 'HorizontalAlignment', 'right');
             label.Layout.Row = 1;
             label.Layout.Column = 1;
-            label = uilabel(panel, 'Text', 'Peaks bandpass frequency', 'HorizontalAlignment', 'right');
+            label = uilabel(panel, 'Text', 'Artifact epochs', 'HorizontalAlignment', 'right');
             label.Layout.Row = 2;
             label.Layout.Column = 1;
-            label = uilabel(panel, 'Text', 'df/f lowpass frequency', 'HorizontalAlignment', 'right');
+            label = uilabel(panel, 'Text', 'Peaks lowpass frequency', 'HorizontalAlignment', 'right');
             label.Layout.Row = 3;
             label.Layout.Column = 1;
-            label = uilabel(panel, 'Text', 'Bleaching lowpass frequency', 'HorizontalAlignment', 'right');
+            label = uilabel(panel, 'Text', 'df/f lowpass frequency', 'HorizontalAlignment', 'right');
             label.Layout.Row = 4;
             label.Layout.Column = 1;
-            label = uilabel(panel, 'Text', 'Thresholding function', 'HorizontalAlignment', 'right');
+            label = uilabel(panel, 'Text', 'Bleaching lowpass frequency', 'HorizontalAlignment', 'right');
             label.Layout.Row = 5;
             label.Layout.Column = 1;
-            label = uilabel(panel, 'Text', 'Thresholding factor', 'HorizontalAlignment', 'right');
+            label = uilabel(panel, 'Text', 'Thresholding function', 'HorizontalAlignment', 'right');
             label.Layout.Row = 6;
             label.Layout.Column = 1;
-            label = uilabel(panel, 'Text', 'Normalization type', 'HorizontalAlignment', 'right');
+            label = uilabel(panel, 'Text', 'Thresholding factor', 'HorizontalAlignment', 'right');
             label.Layout.Row = 7;
             label.Layout.Column = 1;
-            label = uilabel(panel, 'Text', 'Window size', 'HorizontalAlignment', 'right');
+            label = uilabel(panel, 'Text', 'Normalization type', 'HorizontalAlignment', 'right');
             label.Layout.Row = 8;
+            label.Layout.Column = 1;
+            label = uilabel(panel, 'Text', 'Window size', 'HorizontalAlignment', 'right');
+            label.Layout.Row = 9;
             label.Layout.Column = 1;
             
             h = uieditfield(panel, 'ValueChangedFcn', @(~, ~)obj.onBleachingEpochsEdit);
             h.Layout.Row = 1;
             h.Layout.Column = [2, 3];
             obj.h.fpBleachingEpochsEdit = h;
-            h = uieditfield(panel, 'numeric', 'Limits', [1e-3, Inf], 'ValueChangedFcn', @(h, ~)obj.saveSettings('fpPeaksBandpassFrequencyLow', h.Value));
+            h = uieditfield(panel, 'ValueChangedFcn', @(~, ~)obj.onArtifactEpochsEdit);
             h.Layout.Row = 2;
-            h.Layout.Column = 2;
-            obj.h.fpPeaksBandpassFrequencyLowEdit = h;
-            h = uieditfield(panel, 'numeric', 'Limits', [1e-3, Inf], 'ValueChangedFcn', @(h, ~)obj.saveSettings('fpPeaksBandpassFrequencyHigh', h.Value));
-            h.Layout.Row = 2;
-            h.Layout.Column = 3;
-            obj.h.fpPeaksBandpassFrequencyHighEdit = h;
-            h = uieditfield(panel, 'numeric', 'Limits', [1e-3, Inf], 'ValueChangedFcn', @(h, ~)obj.saveSettings('fpDffLowpassFrequency', h.Value));
-            h.Layout.Row = 3;
             h.Layout.Column = [2, 3];
-            obj.h.fpDffLowpassFrequencyEdit = h;
-            h = uieditfield(panel, 'numeric', 'Limits', [1e-3, Inf], 'ValueChangedFcn', @(h, ~)obj.saveSettings('fpBleachingLowpassFrequency', h.Value));
+            obj.h.fpArtifactEpochsEdit = h;
+            h = uieditfield(panel, 'numeric', 'Limits', [1e-3, Inf], 'ValueChangedFcn', @(h, ~)obj.saveSettings('fpPeaksLowpassFrequency', h.Value));
+            h.Layout.Row = 3;
+            h.Layout.Column = 2;
+            obj.h.fpPeaksLowpassFrequencyEdit = h;
+            h = uieditfield(panel, 'numeric', 'Limits', [1e-3, Inf], 'ValueChangedFcn', @(h, ~)obj.saveSettings('fpLowpassFrequency', h.Value));
             h.Layout.Row = 4;
+            h.Layout.Column = [2, 3];
+            obj.h.fpLowpassFrequencyEdit = h;
+            h = uieditfield(panel, 'numeric', 'Limits', [1e-3, Inf], 'ValueChangedFcn', @(h, ~)obj.saveSettings('fpBleachingLowpassFrequency', h.Value));
+            h.Layout.Row = 5;
             h.Layout.Column = [2, 3];
             obj.h.fpBleachingLowpassFrequencyEdit = h;
             h = uidropdown(panel, 'Items', {'mad', 'std'}, 'ValueChangedFcn', @(h, ~)obj.saveSettings('fpThresholdingFunction', h.Value));
-            h.Layout.Row = 5;
+            h.Layout.Row = 6;
             h.Layout.Column = [2, 3];
             obj.h.fpThresholdingFunctionDrop = h;
             h = uieditfield(panel, 'numeric', 'Limits', [1e-3, Inf], 'ValueChangedFcn', @(h, ~)obj.saveSettings('fpThresholdingFactor', h.Value));
-            h.Layout.Row = 6;
+            h.Layout.Row = 7;
             h.Layout.Column = [2, 3];
             obj.h.fpThresholdingFactorEdit = h;
-            h = uidropdown(panel, 'Items', {'z-score', 'df/f'}, 'ValueChangedFcn', @(h, ~)obj.saveSettings('fpNormalizationType', h.Value));
-            h.Layout.Row = 7;
+            h = uidropdown(panel, 'Items', {'z-score', 'modified z-score', 'df/f'}, 'ValueChangedFcn', @(h, ~)obj.saveSettings('fpNormalizationType', h.Value));
+            h.Layout.Row = 8;
             h.Layout.Column = [2, 3];
             obj.h.fpNormalizationTypeDrop = h;
             h = uieditfield(panel, 'numeric', 'Limits', [1e-3, Inf], 'ValueChangedFcn', @(h, ~)obj.saveSettings('fpWindowSize', h.Value));
-            h.Layout.Row = 8;
+            h.Layout.Row = 9;
             h.Layout.Column = [2, 3];
             obj.h.fpWindowSizeEdit = h;
             
@@ -339,10 +334,11 @@ classdef GUI < handle
                     settings = settings.settings;
                     fprintf('Loaded settings from "%s"\n', obj.settingsFilename);
                 else
-                    settings = defaults();
+                    settings = struct();
                 end
             end
-            obj.applySettings(settings);
+            defaults = getDefaults();
+            obj.applySettings(defaults, settings);
         end
     end
     
@@ -361,48 +357,55 @@ classdef GUI < handle
             save(obj.settingsFilename, 'settings');
         end
         
-        function applySettings(obj, settings)
-            obj.settings = settings;
+        function applySettings(obj, defaults, settings)
+            names = fieldnames(defaults);
+            for i = 1:numel(names)
+                name = names{i};
+                if isfield(settings, name)
+                    obj.settings.(name) = settings.(name);
+                else
+                    obj.settings.(name) = defaults.(name);
+                end
+            end
             
-            obj.h.resamplingFrequencyEdit.Value = settings.resamplingFrequency;
-            obj.h.behaviorDurationEdit.Value = settings.behaviorDuration;
-            obj.h.xcorrLagEdit.Value = settings.xcorrLag;
+            obj.h.resamplingFrequencyEdit.Value = obj.settings.resamplingFrequency;
+            obj.h.xcorrLagEdit.Value = obj.settings.xcorrLag;
             
-            obj.h.emgBandpassTypeDrop.Value = settings.emgBandpassType;
-            obj.h.emgEnvelopeLowpassFrequencyEdit.Value = settings.emgEnvelopeLowpassFrequency;
-            obj.h.emgEnvelopeSizeEdit.Value = settings.emgEnvelopeSize;
-            obj.h.emgBandpassFrequencyLowEdit.Value = settings.emgBandpassFrequencyLow;
-            obj.h.emgBandpassFrequencyHighEdit.Value = settings.emgBandpassFrequencyHigh;
+            obj.h.emgBandpassTypeDrop.Value = obj.settings.emgBandpassType;
+            obj.h.emgEnvelopeLowpassFrequencyEdit.Value = obj.settings.emgEnvelopeLowpassFrequency;
+            obj.h.emgEnvelopeSizeEdit.Value = obj.settings.emgEnvelopeSize;
+            obj.h.emgBandpassFrequencyLowEdit.Value = obj.settings.emgBandpassFrequencyLow;
+            obj.h.emgBandpassFrequencyHighEdit.Value = obj.settings.emgBandpassFrequencyHigh;
             
-            obj.h.fpPeaksBandpassFrequencyLowEdit.Value = settings.fpPeaksBandpassFrequencyLow;
-            obj.h.fpPeaksBandpassFrequencyHighEdit.Value = settings.fpPeaksBandpassFrequencyHigh;
-            obj.h.fpDffLowpassFrequencyEdit.Value = settings.fpDffLowpassFrequency;
-            obj.h.fpBleachingLowpassFrequencyEdit.Value = settings.fpBleachingLowpassFrequency;
-            obj.h.fpThresholdingFunctionDrop.Value = settings.fpThresholdingFunction;
-            obj.h.fpThresholdingFactorEdit.Value = settings.fpThresholdingFactor;
-            obj.h.fpNormalizationTypeDrop.Value = settings.fpNormalizationType;
-            obj.h.fpWindowSizeEdit.Value = settings.fpWindowSize;
+            obj.h.fpPeaksLowpassFrequencyLowEdit.Value = obj.settings.fpPeaksLowpassFrequency;
+            obj.h.fpLowpassFrequencyEdit.Value = obj.settings.fpLowpassFrequency;
+            obj.h.fpBleachingLowpassFrequencyEdit.Value = obj.settings.fpBleachingLowpassFrequency;
+            obj.h.fpThresholdingFunctionDrop.Value = obj.settings.fpThresholdingFunction;
+            obj.h.fpThresholdingFactorEdit.Value = obj.settings.fpThresholdingFactor;
+            obj.h.fpNormalizationTypeDrop.Value = obj.settings.fpNormalizationType;
+            obj.h.fpWindowSizeEdit.Value = obj.settings.fpWindowSize;
             
-            obj.h.conditionEpochsEdit.Value = settings.conditionEpochsText;
-            obj.h.fpBleachingEpochsEdit.Value = settings.fpBleachingEpochsText;
+            obj.h.conditionEpochsEdit.Value = obj.settings.conditionEpochsText;
+            obj.h.fpBleachingEpochsEdit.Value = obj.settings.fpBleachingEpochsText;
+            obj.h.fpArtifactEpochsEdit.Value = obj.settings.fpArtifactEpochsText;
             
-            obj.h.cleverSysFilenameEdit.Value = settings.cleverSysFilename;
-            obj.h.doricFilenameEdit.Value = settings.doricFilename;
-            obj.h.labChartFilenameEdit.Value = settings.labChartFilename;
+            obj.h.cleverSysFilenameEdit.Value = obj.settings.cleverSysFilename;
+            obj.h.doricFilenameEdit.Value = obj.settings.doricFilename;
+            obj.h.labChartFilenameEdit.Value = obj.settings.labChartFilename;
             
-            obj.h.fpPlots(1).Value = settings.plotFpTrace;
-            obj.h.fpPlots(2).Value = settings.plotFpPower;
-            obj.h.fpPlots(3).Value = settings.plotFpStats;
-            obj.h.fpPlots(4).Value = settings.plotFpTrigger;
-            obj.h.emgPlots(1).Value = settings.plotEmgTrace;
-            obj.h.generalPlots(1).Value = settings.plotXcorr;
+            obj.h.fpPlots(1).Value = obj.settings.plotFpTrace;
+            obj.h.fpPlots(2).Value = obj.settings.plotFpPower;
+            obj.h.fpPlots(3).Value = obj.settings.plotFpStats;
+            obj.h.fpPlots(4).Value = obj.settings.plotFpTrigger;
+            obj.h.emgPlots(1).Value = obj.settings.plotEmgTrace;
+            obj.h.generalPlots(1).Value = obj.settings.plotXcorr;
             
             % Cascade calls.
             obj.onDoricFilenameEdit();
             obj.onCleverSysFilenameEdit();
             obj.onLabChartFilenameEdit();
-            obj.onEpochsTypeDrop(settings.epochsType);
-            obj.onEmgEnvelopeTypeDrop(settings.emgEnvelopeType);
+            obj.onEpochsTypeDrop(obj.settings.epochsType);
+            obj.onEmgEnvelopeTypeDrop(obj.settings.emgEnvelopeType);
         end
         
         function onProcess(obj)
@@ -421,17 +424,16 @@ classdef GUI < handle
             messages = {};
             
             % Fiber-photometry settings.
-            fp = struct();
-            fp.signalChannel = getIndex(obj.doricChannelsEntries, obj.settings.doricChannelsChoices, 'Signal');
-            fp.referenceChannel = getIndex(obj.doricChannelsEntries, obj.settings.doricChannelsChoices, 'Reference');
-            fp.cameraChannel = getIndex(obj.doricChannelsEntries, obj.settings.doricChannelsChoices, 'Camera');
-            if numel(fp.signalChannel) ~= 1
+            fpSignalChannel = getIndex(obj.doricChannelsEntries, obj.settings.doricChannelsChoices, 'Signal');
+            fpReferenceChannel = getIndex(obj.doricChannelsEntries, obj.settings.doricChannelsChoices, 'Reference');
+            fpCameraChannel = getIndex(obj.doricChannelsEntries, obj.settings.doricChannelsChoices, 'Camera');
+            if numel(fpSignalChannel) ~= 1
                 messages = cat(2, messages, 'Select a single Signal channel in Doric Channels.');
             end
-            if numel(fp.referenceChannel) ~= 1
+            if numel(fpReferenceChannel) ~= 1
                 messages = cat(2, messages, 'Select a single Reference channel in Doric Channels.');
             end
-            if numel(fp.cameraChannel) ~= 1
+            if numel(fpCameraChannel) ~= 1
                 messages = cat(2, messages, 'Select a single Camera channel in Doric Channels.');
             end
             if numel(messages) > 0
@@ -440,12 +442,17 @@ classdef GUI < handle
                 return;
             end
             
+            fp = struct();
             fp.bleachingEpochs = obj.settings.fpBleachingEpochs;
             if isempty(fp.bleachingEpochs)
                 fp.bleachingEpochs = [-Inf, Inf];
             end
-            fp.peaksBandpassFrequency = [obj.settings.fpPeaksBandpassFrequencyLow, obj.settings.fpPeaksBandpassFrequencyHigh];
-            fp.dffLowpassFrequency = obj.settings.fpDffLowpassFrequency;
+            fp.artifactEpochs = obj.settings.fpArtifactEpochs;
+            if isempty(fp.artifactEpochs)
+                fp.artifactEpochs = [-Inf, Inf];
+            end
+            fp.peaksLowpassFrequency = obj.settings.fpPeaksLowpassFrequency;
+            fp.lowpassFrequency = obj.settings.fpLowpassFrequency;
             fp.bleachingLowpassFrequency = obj.settings.fpBleachingLowpassFrequency;
             fp.resamplingFrequency = obj.settings.resamplingFrequency;
             switch obj.settings.fpThresholdingFunction
@@ -462,6 +469,9 @@ classdef GUI < handle
                 case 'df/f'
                     fp.f0Function = @movmean;
                     fp.f1Function = @movmean;
+                case 'modified z-score'
+                    fp.f0Function = @movmedian;
+                    fp.f1Function = @movmad;
             end
             fp.f0Window = obj.settings.fpWindowSize;
             fp.f1Window = obj.settings.fpWindowSize;
@@ -497,8 +507,8 @@ classdef GUI < handle
             end
             
             fpTime = fpData(:, 1);
-            fpSignal = fpData(:, fp.signalChannel);
-            fpReference = fpData(:, fp.referenceChannel);
+            fpSignal = fpData(:, fpSignalChannel);
+            fpReference = fpData(:, fpReferenceChannel);
             
             if emgAvailable
                 fprintf('Loading LabChart data ... ');
@@ -578,27 +588,32 @@ classdef GUI < handle
                 end
             end
             
-            fprintf('Loading CleverSys data ... ');
             manualEpochs = obj.settings.conditionEpochs;
-            if isequal(obj.settings.cleverSysFilename, obj.cache.cleverSysFilename) && isequal(obj.settings.cleverSysSheet, obj.cache.cleverSysSheet)
-                fprintf('reused cache.\n');
-                cleverSysEpochs = obj.cache.cleverSysEpochs;
+            if ~isempty(obj.settings.cleverSysFilename)
+                fprintf('Loading CleverSys data ... ');
+                if isequal(obj.settings.cleverSysFilename, obj.cache.cleverSysFilename) && isequal(obj.settings.cleverSysSheet, obj.cache.cleverSysSheet)
+                    fprintf('reused cache.\n');
+                    cleverSysEpochs = obj.cache.cleverSysEpochs;
+                else
+                    fprintf('\n');
+                    cleverSysEpochs = loadCleverSys(obj.settings.cleverSysFilename, obj.settings.cleverSysSheet);
+                    obj.cache.cleverSysEpochs = cleverSysEpochs;
+                    obj.cache.cleverSysFilename = obj.settings.cleverSysFilename;
+                    obj.cache.cleverSysSheet = obj.settings.cleverSysSheet;
+                end
+                k = getIndex(obj.cleverSysEpochsEntries, obj.settings.cleverSysEpochsChoices, 'Use');
+                k = sort([2 * k, 2 * k - 1]);
+                cleverSysEpochs = cleverSysEpochs(k);
+                epochs = [manualEpochs, cleverSysEpochs];
             else
-                fprintf('\n');
-                cleverSysEpochs = loadCleverSys(obj.settings.cleverSysFilename, obj.settings.cleverSysSheet);
-                obj.cache.cleverSysEpochs = cleverSysEpochs;
-                obj.cache.cleverSysFilename = obj.settings.cleverSysFilename;
-                obj.cache.cleverSysSheet = obj.settings.cleverSysSheet;
+                epochs = manualEpochs;
             end
-            k = getIndex(obj.cleverSysEpochsEntries, obj.settings.cleverSysEpochsChoices, 'Use');
-            k = sort([2 * k, 2 * k - 1]);
-            cleverSysEpochs = cleverSysEpochs(k);
-            epochs = [manualEpochs, cleverSysEpochs];
             if isempty(epochs)
                 epochs = {'everything', [-Inf, Inf]};
             end
             
-            fpCameraData = fpData(:, fp.cameraChannel);
+            % FP and EMG alignment.
+            fpCameraData = fpData(:, fpCameraChannel);
             behaviorStart = fpTime(find(fpCameraData, 1));
             epochs(2:2:end) = cellfun(@(epoch) epoch + behaviorStart, epochs(2:2:end), 'UniformOutput', false);
             
@@ -710,10 +725,8 @@ classdef GUI < handle
             switch epochType
                 case 'CleverSys'
                     obj.h.cleverSysPanel.Visible = true;
-                    obj.h.behaviorDurationEdit.Enable = true;
                 case 'Manual'
                     obj.h.conditionEpochsPanel.Visible = true;
-                    obj.h.behaviorDurationEdit.Enable = false;
             end
             obj.saveSettings('epochsType', epochType);
         end
@@ -755,7 +768,7 @@ classdef GUI < handle
                 success = true;
             else
                 try
-                    [~, sheets, tableFormat] = xlsfinfo(filename);
+                    [~, sheets] = xlsfinfo(filename);
                     success = true;
                 catch
                     success = false;
@@ -882,6 +895,24 @@ classdef GUI < handle
             end
         end
         
+        function onArtifactEpochsEdit(obj)
+            target = obj.h.fpArtifactEpochsEdit;
+            text = target.Value;
+            % Turn contents into a matrix.
+            text = ['[', regexprep(text, '^\s*\[|]\s*$', ''), ']'];
+            try
+                epochRanges = eval(text);
+                target.Value = text;
+                success = validateEpochRanges(epochRanges);
+            catch
+                success = false;
+            end
+            setSuccessColor(target, success);
+            if success
+                obj.saveSettings('fpArtifactEpochs', epochRanges, 'fpArtifactEpochsText', text);
+            end
+        end
+        
         function onConditionEpochsEdit(obj)
             target = obj.h.conditionEpochsEdit;
             % Merge lines.
@@ -944,7 +975,7 @@ classdef GUI < handle
     end
 end
 
-function settings = defaults()
+function settings = getDefaults()
     % Internal.
     settings.lastFolder = fullfile(getenv('USERPROFILE'), 'Documents');
     
@@ -953,8 +984,6 @@ function settings = defaults()
             
     % Frequency to resample EMG and FP.
     settings.resamplingFrequency = 100;
-    % Duration of behavior after first camera pulse.
-    settings.behaviorDuration = 1800;
     % Maximum cross-correlation lag between EMG and FP.
     settings.xcorrLag = 5;
     
@@ -962,11 +991,11 @@ function settings = defaults()
     % How to filter EMG.
     settings.emgBandpassType = 'Zero-phase';
     % How to calculate envelope.
-    settings.emgEnvelopeType = 'Low-pass';
+    settings.emgEnvelopeType = 'rms';
     % Frequency of the envelope filter when choice is low-pass.
-    settings.emgEnvelopeLowpassFrequency = 5;
+    settings.emgEnvelopeLowpassFrequency = 1;
     % Duration of the envelope window when choice is rms.
-    settings.emgEnvelopeSize = 0.9;
+    settings.emgEnvelopeSize = 1;
     % Burden et al 2003. Muscles: vastus lateralis, vastus medialis, semitendinosus, biceps femoris.
     %   Under 20Hz: noise.
     %   Under 450Hz: still clearly identifiable rapid on-off bursts of the EMG.
@@ -977,14 +1006,15 @@ function settings = defaults()
     settings.fpFilename = '';
     settings.fpBleachingEpochs = [];
     settings.fpBleachingEpochsText = '';
-    settings.fpPeaksBandpassFrequencyLow = 0.02;
-    settings.fpPeaksBandpassFrequencyHigh = 0.2;
-    settings.fpDffLowpassFrequency = settings.resamplingFrequency;
+    settings.fpArtifactEpochs = [];
+    settings.fpArtifactEpochsText = '';
+    settings.fpLowpassFrequency = 2;
+    settings.fpPeaksLowpassFrequency = 0.5;
     settings.fpBleachingLowpassFrequency = 0.1;
     settings.fpThresholdingFunction = 'mad';
-    settings.fpThresholdingFactor = 2;
-    settings.fpNormalizationType = 'z-score';
-    settings.fpWindowSize = 120;
+    settings.fpThresholdingFactor = 2.91;
+    settings.fpNormalizationType = 'modified z-score';
+    settings.fpWindowSize = Inf;
     
     % Epochs.
     settings.conditionEpochs = [];
