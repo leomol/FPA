@@ -327,7 +327,7 @@ function results = FPA(time, signal, reference, configuration)
         overlaps = peakGroups(k);
         overlaps = unique(overlaps(overlaps > 0));
         epochName = parameters.conditionEpochs{2 * e - 1};
-        for o = overlaps
+        for o = overlaps(:)'
             overlapName = parameters.conditionEpochs{2 * o - 1};
             results.warnings{end + 1} = warn('[peaks] "%s" overlaps with "%s".', epochName, overlapName);
         end
