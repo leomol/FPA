@@ -1,28 +1,30 @@
 % [data, names] = loadData(filename)
 % Load one of several formats of data expected from a recording with either:
-% Doric (csv), Inscopix (xls), or Axon (abf).
+% Doric (csv), Multifiber (csv), Inscopix (csv), XLS files, or Axon (abf).
 % 
 % [data, names] = loadData(filename, sheetName)
 % [data, names, sheetName] = loadData(filename, sheetNumber)
 % If the file has multiple sheets, use sheetName or sheetNumber to select one.
 
 % 2019-05-07. Leonardo Molina.
-% 2020-06-08. Last modified.
-function [data, names, sheetName] = loadData(filename, sheet)
+% 2021-01-28. Last modified.
+function [data, names, sheetName] = loadData(filename, varargin)
     [~, ~, extension] = fileparts(filename);
     if ismember(lower(extension), {'.xls', '.xlsx'})
-        if nargin == 1
-            sheet = 1;
-        end
-        [data, names, sheetName] = loadXLS(filename, sheet);
+        [data, names, sheetName] = loadXLS(filename, varargin{:});
     elseif ismember(lower(extension), '.abf')
-        [data, ~, names] = loadABF(filename);
+        [data, ~, names] = loadABF(filename, varargin{:});
+        sheetName = '';
     else
-        [data, names] = loadCSV(filename);
+        [data, names] = loadCSV(filename, varargin{:});
+        sheetName = '';
     end
 end
 
 function [data, names, sheetName] = loadXLS(filename, sheet)
+    if nargin == 1
+        sheet = 1;
+    end
     if isnumeric(sheet)
         [~, sheetNames] = xlsfinfo(filename);
         sheetName = sheetNames{sheet};
@@ -37,7 +39,7 @@ function [data, names, sheetName] = loadXLS(filename, sheet)
     names = table.Properties.VariableNames;
 end
 
-function [data, names] = loadCSV(filename)
+function [data, names] = loadCSV(filename, nRows)
     %  <                    , cell1   , cell2 , ... , cellN   >
     %  <Time(s)/Cell Status , accepted,  ...  , ... , accepted>
     %   00.00               , 10.00   ,       , ... , 100.00
@@ -47,6 +49,10 @@ function [data, names] = loadCSV(filename)
     %   Time(s), channelName1,  channelName2  , ... , channelNameN>
     %   00.00                , 10.00   ,       , ... , 100.00
     %   00.10                , ..
+    
+    if nargin == 1
+        nRows = Inf;
+    end
     
     fid = fopen(filename, 'r');
     tmp = fgetl(fid);
@@ -67,7 +73,9 @@ function [data, names] = loadCSV(filename)
         names = arrayfun(@num2str, -1:numel(names), 'UniformOutput', false);
         nHeaderLines = 0;
     end
-    names{1} = 'time';
+    if isempty(names{1})
+        names{1} = 'time';
+    end
     keep = fgetl(fid);
     keep = textscan(keep, '%s', 'Delimiter', ',');
     keep = keep{1};
@@ -77,11 +85,14 @@ function [data, names] = loadCSV(filename)
         keep = [true; ismember(keep(2:end), 'accepted')];
         data = textscan(fid, repmat('%f', 1, numel(names)), 'Delimiter', ',', 'HeaderLines', nHeaderLines);
     else
-        keep = true(size(names));
-        data = textscan(fid, repmat('%f', 1, numel(names)), 'Delimiter', ',', 'HeaderLines', nHeaderLines);
+        keep = ~isnan(str2double(keep));
+        format = cell(1, numel(keep));
+        [format{ keep}] = deal('%f');
+        [format{~keep}] = deal('%s');
+        format = cat(2, format{:});
+        data = textscan(fid, format, nRows, 'Delimiter', ',', 'HeaderLines', nHeaderLines);
     end
-    data = cat(2, data{:});
-    data = data(:, keep);
+    data = cat(2, data{keep});
     names = names(keep);
     fclose(fid);
 end

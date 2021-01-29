@@ -7,15 +7,44 @@ inputDataFile = '../data/Doric.csv';
 % Columns corresponding to 465nm and 405nm.
 signalColumn = 5;
 referenceColumn = 3;
-configuration = struct();
-configuration.thresholdingFunction = @mad;
-configuration.thresholdFactor = 2.91;
 data = loadData(inputDataFile);
 time = data(:, 1);
 signal = data(:, signalColumn);
 reference = data(:, referenceColumn);
 % Call FPA with given configuration.
-results = FPA(time, signal, reference, configuration);
+configuration = struct();
+FPA(time, signal, reference, configuration);
+
+%% Example 2 - Same as above with updated configuration.
+inputDataFile = '../data/Doric.csv';
+% Columns corresponding to 465nm and 405nm.
+signalColumn = 5;
+referenceColumn = 3;
+data = loadData(inputDataFile);
+time = data(:, 1);
+signal = data(:, signalColumn);
+reference = data(:, referenceColumn);
+
+configuration = struct();
+configuration.conditionEpochs = {'Data', [-Inf, Inf]};
+configuration.artifactEpochs = [];
+configuration.resamplingFrequency = 20;
+configuration.baselineEpochs = [-Inf, Inf];
+configuration.baselineLowpassFrequency = 0.1;
+configuration.airPLS = false;
+configuration.lowpassFrequency = 2;
+configuration.peaksLowpassFrequency = 0.5;
+configuration.fitReference = true;
+configuration.f0 = @median;
+configuration.f1 = @mad;
+configuration.thresholdingFunction = @mad;
+configuration.thresholdFactor = 2.91;
+configuration.triggeredWindow = 10;
+configuration.plot = {'trace', 'power', 'stats', 'trigger'};
+% Call FPA with given configuration.
+FPA(time, signal, reference, configuration);
+cellfun(@warning, results.warnings);
+
 % Save dff for statistical analysis.
 [folder, basename] = fileparts(inputDataFile);
 output = fullfile(folder, sprintf('%s dff.csv', basename));
@@ -23,14 +52,10 @@ fid = fopen(output, 'w');
 fprintf(fid, 'Time (s), df/f, epoch\n');
 fprintf(fid, '%.4f, %.4f, %d\n', [results.time(results.epochIds), results.dff(results.epochIds), results.epochGroups]');
 fclose(fid);
-cellfun(@warning, results.warnings);
 
 %% Example 2 - Fiber-photometry data with stimuli recorded with Inscopix.
 inputDataFile = '../data/Inscopix.csv';
 inputEventFile = '../data/InscopixTTL.csv';
-configuration = struct();
-configuration.thresholdingFunction = @mad;
-configuration.thresholdFactor = 2.91;
 data = loadData(inputDataFile);
 time = data(:, 1);
 signal = data(:, 2);
@@ -40,6 +65,7 @@ baselineOffset = -4;
 events = loadInscopixTTL(inputEventFile);
 events = [events, events + eventDuration]';
 epochs = {'Baseline', events + baselineOffset, 'Stimulation', events};
+configuration = struct();
 configuration.conditionEpochs = epochs;
 results = FPA(time, signal, [], configuration);
 cellfun(@warning, results.warnings);
@@ -51,16 +77,17 @@ inputDataFile = '../data/Doric.csv';
 inputEventFile = {'../data/CleverSys.xlsx', 'Trial 1'};
 signalColumn = 5;
 referenceColumn = 3;
+data = loadData(inputDataFile);
+time = data(:, 1);
+signal = data(:, signalColumn);
+reference = data(:, referenceColumn);
 configuration = struct();
 configuration.thresholdingFunction = @mad;
 configuration.thresholdFactor = 2.91;
 % Extract epochs from CleverSys output.
 configuration.conditionEpochs = loadCleverSys(inputEventFile{:});
-data = loadData(inputDataFile);
-time = data(:, 1);
-signal = data(:, signalColumn);
-reference = data(:, referenceColumn);
 results = FPA(time, signal, reference, configuration);
+cellfun(@warning, results.warnings);
 % Save peak times to file.
 [folder, basename] = fileparts(inputDataFile);
 output = fullfile(folder, sprintf('%s peak-time.csv', basename));
@@ -74,17 +101,14 @@ fid = fopen(output, 'w');
 fprintf(fid, 'Time (s), df/f, epoch\n');
 fprintf(fid, '%.4f, %.4f, %d\n', [results.time(results.epochIds), results.dff(results.epochIds), results.epochGroups]');
 fclose(fid);
-cellfun(@warning, results.warnings);
 
 %% Example 4 - Fiber-photometry data recorded with Doric DAQ - baseline from another file.
 inputDataFile1 = '../data/Doric.csv';
-inputDataFile2 = '../data/Doric2.csv';
+inputDataFile2 = '../data/Doric.csv';
 % Columns corresponding to 465nm and 405nm.
 signalColumn = 5;
 referenceColumn = 3;
 configuration = struct();
-configuration.thresholdingFunction = @mad;
-configuration.thresholdFactor = 2.91;
 configuration.plot = false;
 % Parse file with baseline data.
 data = loadData(inputDataFile1);
@@ -101,6 +125,7 @@ configuration.f0 = baseline.f0;
 configuration.f1 = baseline.f1;
 configuration.plot = true;
 results = FPA(time, signal, reference, configuration);
+cellfun(@warning, results.warnings);
 % Save dff for statistical analysis.
 [folder, basename] = fileparts(inputDataFile2);
 output = fullfile(folder, sprintf('%s dff.csv', basename));
@@ -108,19 +133,16 @@ fid = fopen(output, 'w');
 fprintf(fid, 'Time (s), df/f, epoch\n');
 fprintf(fid, '%.4f, %.4f, %d\n', [results.time(results.epochIds), results.dff(results.epochIds), results.epochGroups]');
 fclose(fid);
-cellfun(@warning, results.warnings);
 
 %% Example 5 - Fiber-photometry data recorded with TDT DAQ.
-inputFolder = '../data/GP_PVN_13a-190531-122516';
+inputFolder = '../data/TDT';
 signalTitle = 'Dv1A';
 referenceTitle = 'Dv2A';
-configuration = struct();
-configuration.thresholdingFunction = @mad;
-configuration.thresholdFactor = 2.91;
 data = loadTDT(inputFolder, {signalTitle, referenceTitle});
 time = data(:, 1);
 signal = data(:, 2);
 reference = data(:, 3);
+configuration = struct();
 FPA(time, signal, reference, configuration);
 cellfun(@warning, results.warnings);
 
@@ -131,11 +153,9 @@ signalColumn = 5;
 referenceColumn = 3;
 ttlColumn = 6;
 homeCageEpoch = [0, 10];
-configuration = struct();
-configuration.thresholdingFunction = @mad;
-configuration.thresholdFactor = 2.91;
 [lowEpochs, highEpochs] = loadTTLEpochs(inputDataFile, ttlColumn);
 lowEpochs(1) = max(homeCageEpoch(2), lowEpochs(1));
+configuration = struct();
 configuration.conditionEpochs = {'No stimulation', lowEpochs, 'Stimulation', highEpochs};
 data = loadData(inputDataFile);
 time = data(:, 1);
@@ -143,6 +163,7 @@ signal = data(:, signalColumn);
 reference = data(:, referenceColumn);
 % Call FPA with given configuration.
 results = FPA(time, signal, reference, configuration);
+cellfun(@warning, results.warnings);
 % Save dff for statistical analysis.
 [folder, basename] = fileparts(inputDataFile);
 output = fullfile(folder, sprintf('%s dff.csv', basename));
@@ -150,4 +171,3 @@ fid = fopen(output, 'w');
 fprintf(fid, 'Time (s), df/f, epoch\n');
 fprintf(fid, '%.4f, %.4f, %d\n', [results.time(results.epochIds), results.dff(results.epochIds), results.epochGroups]');
 fclose(fid);
-cellfun(@warning, results.warnings);

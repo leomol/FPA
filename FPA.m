@@ -1,24 +1,25 @@
 % results = FPA(time, signal, reference, configuration)
 % 
-% Correct data from photobleaching and motion artifacts; normalize, filter,
-% and detect peaks of spontaneous activity in different epochs.
+% Remove baseline from data, correct from motion artifacts; normalize, filter,
+% and detect peaks of spontaneous activity in user defined epochs.
 % 
 % Time, signal, and reference are column vectors.
 % 
 % Processing steps:
-%   -Resample data to target frequency.
+%   -Resample signal and reference to target frequency.
 %   -Replace artifacts with linear interpolation in flagged regions.
-% 	-Correct for photobleaching by modeling an exponential decay in low-pass filtered data.
+% 	-Baseline correction modeled as an exponential decay of the low-pass
+%    filtered data or using airPLS.
 % 	-Correct for motion artifacts by subtracting reference to signal, after a polynomial fit.
 %   -Remove fast oscillations with a low-pass filter.
 % 	-Normalize data as df/f or z-score according to settings.
 % 	-Find peaks of spontaneous activity in low-pass filtered data.
 %   -Plot 1:
-%     -Raw signal and reference, and photobleaching model.
-%     -Signal and reference corrected for photobleaching.
-%     -Baseline correction.
+%     -Raw signal, reference, and baseline model.
+%     -Baseline corrected signal and reference.
+%     -Motion correction.
 %     -Normalization.
-%     -Peaks.
+%     -Peak detection.
 %   -Plot 2:
 %     -Power spectrum for each epoch.
 %   -Plot 3:
@@ -28,61 +29,63 @@
 % 
 % configuration is a struct with the following fields (defaults are used for missing fields):
 %     conditionEpochs - Epochs for different conditions: {'epoch1', [start1, end1, start2, end2, ...], 'epoch2', ...}
-%     bleachingEpochs - Time epochs (s) to include for bleaching correction.
+%     baselineEpochs - Time epochs (s) to include for baseline correction.
+%     baselineLowpassFrequency - Frequency representative of baseline.
+%     airPLS - Baseline correction for all data using airPLS (true, false, or airPLS inputs).
 %     artifactEpochs - Time epochs (s) to remove.
 %     resamplingFrequency - Resampling frequency (Hz).
-%     lowpassFrequency - Lowest frequency permitted in signal.
+%     lowpassFrequency - Lowest frequency permitted in normalized signal.
 %     peaksLowpassFrequency - Lowest frequency to detect peaks.
-%     bleachingLowpassFrequency - Lowest frequency to detect bleaching decay.
-%     thresholdingFunction - One of @mad, @std.
+%     thresholdingFunction - @mad, @std, ...
 %     thresholdFactor - Threshold cut-off.
 %     triggeredWindow - Length of time to capture around each peak of spontaneous activity.
 %     fitReference - Shift and scale reference to fit signal.
-%     dffEpochs - Time epochs (s) to include for normalization.
-%     f0Function - One of @movmean, @movmedian, @movmin.
-%     f0Window - Length of the moving window to calculate f0.
-%     f1Function - One of @movmean, @movmedian, @movmin, @movstd.
-%     f1Window - Length of the moving window to calculate f1.
 % 
-% Normalization recipes:
-%     df/f is calculated as (f - f0) / f1, where f0 and f1 are computed for
-%       each time point using a function over a (moving) window.
-%     Recipe for df/f:
-%         configuration.f0Function = @movmean;
-%         configuration.f1Function = @movmean;
-%     Recipe for z-score:
-%         configuration.f0Function = @movmean;
-%         configuration.f1Function = @movstd;
-%     
-%     Example 1:
-%         Use the first minute as the baseline for the rest of the data.
-%         configuration.f0Function = @movmean;
-%         configuration.f1Function = @movstd;
-%         configuration.dffEpochs = [0, 60]
-%         >>> f0Window and f1Window are ignored because dffEpochs takes precedence.
-%     Example 2:
-%         Compute a moving baseline that is 1min wide.
-%         configuration.f0Function = @movmean;
-%         configuration.f1Function = @movstd;
-%         configuration.f0Window = 60;
-%         configuration.f1Window = 60;
-%         >>> dffEpochs must be empty (configuration.dffEpochs = [];) which is the default.
-%     Example 3:
-%         Compute a common baseline from the entire recording.
-%         configuration.f0Function = @movmean;
-%         configuration.f1Function = @movstd;
-%         configuration.f0Window = Inf;
-%         configuration.f1Window = Inf;
-%         >>> dffEpochs must be empty.
+% Normalization is calculated as (f - f0) / f1 where f0 and f1 can be data provided by the
+% user or calculated using given functions:
 % 
-% results contain processed data, including df/f.
+%     Normalization from given functions:
+%         f0 and f1 are common to all datapoints and calculated from all data:
+%             df/f:
+%                 configuration.f0 = @mean;
+%                 configuration.f1 = @mean;
+%             z-score:
+%                 configuration.f0 = @mean;
+%                 configuration.f1 = @std;
+%             z-score - alternative 1 (default):
+%                 configuration.f0 = @median;
+%                 configuration.f1 = @mad;
+%             z-score - alternative 2:
+%                 configuration.f0 = @median;
+%                 configuration.f1 = @std;
+% 
+%         f0 and f1 are common to all data points and calculated at given epochs:
+%             df/f:
+%                 epochs = [0, 100, 500, 550, 1000, Inf]
+%                 configuration.f0 = {@mean, epochs};
+%                 configuration.f1 = {@mean, epochs};
+% 
+%         f0 and f1 are calculated for each data point based on a moving window:
+%             df/f:
+%                 window = 60;
+%                 configuration.f0 = {@movmean, window};
+%                 configuration.f1 = {@movmean, window};
+%             (further combinations possible with @movmean, @movmedian, @movstd, @movmad, @mov...).
+% 
+%     Normalization from given data:
+%         f0 = ones(size(time));
+%         f1 = ones(size(time)) * 10;
+%         configuration.f0 = f0;
+%         configuration.f1 = f1;
+% 
+% results contain processed data.
 % 
 % See examples
 % See source code for detailed analysis steps and default parameters.
 % Units for time and frequency are seconds and hertz respectively.
-
+% 
 % 2019-02-01. Leonardo Molina.
-% 2021-01-14. Last modified.
+% 2021-01-29. Last modified.
 function results = FPA(time, signal, reference, configuration)
     results.warnings = {};
     if nargin < 4
@@ -91,23 +94,19 @@ function results = FPA(time, signal, reference, configuration)
     
     % Read input configuration. Use defaults for missing parameters.
     parameters.conditionEpochs = {'Data', [-Inf, Inf]};
-    parameters.bleachingEpochs = [-Inf, Inf];
     parameters.artifactEpochs = [];
     parameters.resamplingFrequency = NaN;
+    parameters.baselineEpochs = [-Inf, Inf];
+    parameters.baselineLowpassFrequency = 0.1;
+    parameters.airPLS = false;
     parameters.lowpassFrequency = 2;
     parameters.peaksLowpassFrequency = 0.5;
-    parameters.bleachingLowpassFrequency = 0.1;
     parameters.fitReference = true;
-    parameters.dffEpochs = [];
-    parameters.f0Function = @movmedian;
-    parameters.f0Window = Inf;
-    parameters.f1Function = @movstd;
-    parameters.f1Window = Inf;
+    parameters.f0 = @median;
+    parameters.f1 = @mad;
     parameters.thresholdingFunction = @mad;
     parameters.thresholdFactor = 2.91;
     parameters.triggeredWindow = 10;
-    parameters.f0 = [];
-    parameters.f1 = [];
     parameters.plot = true;
     
     parameterNames = fieldnames(parameters);
@@ -121,13 +120,17 @@ function results = FPA(time, signal, reference, configuration)
         end
     end
     
+    % Settings for visualization.
+    percentile = 0.99;
+    grow = 0.50;
+    
     % Sampling frequency defaults.
     sourceFrequency = 1 / median(diff(time));
     if ~ismember('resamplingFrequency', configurationNames)
         parameters.resamplingFrequency = min(100, sourceFrequency);
     end
     
-    % Plot: true | false | cell array of options.
+    % Plot: true | false | cell array of choices.
     if islogical(parameters.plot)
         if parameters.plot
             parameters.plot = {'trace', 'power', 'stats', 'trigger'};
@@ -136,9 +139,13 @@ function results = FPA(time, signal, reference, configuration)
         end
     end
     
-    % Settings for visualization.
-    percentile = 0.99;
-    grow = 0.50;
+    if islogical(parameters.airPLS)
+        useAirPLS = parameters.airPLS;
+        parameters.airPLS = [5e9, 2, 0.1, 0.5, 50];
+    else
+        useAirPLS = true;
+    end
+    parameters.airPLS = num2cell(parameters.airPLS);
     
     % Make vectors of equal size.
     if isempty(reference)
@@ -196,98 +203,93 @@ function results = FPA(time, signal, reference, configuration)
     % Define clean epochs for fitting and peak detection.
     excludeWindow =  ceil(parameters.peaksLowpassFrequency * frequency);
     excludeIds = union(badId, [1:excludeWindow, numel(time) - excludeWindow + 1]');
-    cleanIds = setdiff(time2id(time, cat(2, parameters.conditionEpochs{2:2:end})), excludeIds);
+    cleanIds = setdiff(allIds, excludeIds);
     
-    % Model photo-bleaching with an exponential decay at given epochs.
-    bleachingCorrectionId = time2id(time, parameters.bleachingEpochs);
-    % Remove high-frequency oscillations to detect bleaching decay.
-    if parameters.bleachingLowpassFrequency <= frequency / 2
-        bleachingFilter = designfilt('lowpassiir', 'HalfPowerFrequency', parameters.bleachingLowpassFrequency, 'SampleRate', frequency, 'DesignMethod', 'butter', 'FilterOrder', 12);
-        sLowpass = NaN(size(signal2));
-        sLowpass(bleachingCorrectionId) = filtfilt(bleachingFilter, signal2(bleachingCorrectionId));
-        rLowpass = NaN(size(reference2));
+    baselineCorrectionId = time2id(time, parameters.baselineEpochs);
+    
+    % Remove high-frequency oscillations to detect baseline (where indicated).
+    signalSmooth = signal2;
+    referenceSmooth = reference2;
+    if parameters.baselineLowpassFrequency <= frequency / 2
+        baselineFilter = designfilt('lowpassiir', 'HalfPowerFrequency', parameters.baselineLowpassFrequency, 'SampleRate', frequency, 'DesignMethod', 'butter', 'FilterOrder', 12);
+        signalSmooth(baselineCorrectionId) = filtfilt(baselineFilter, signal2(baselineCorrectionId));
         if referenceProvided
-            rLowpass(bleachingCorrectionId) = filtfilt(bleachingFilter, reference2(bleachingCorrectionId));
+            referenceSmooth(baselineCorrectionId) = filtfilt(baselineFilter, reference2(baselineCorrectionId));
         end
     else
-        rLowpass = reference2;
-        sLowpass = signal2;
-        results.warnings{end + 1} = warn('[bleaching-correction] Cannot lowpass to frequencies larger than half of the sampling frequency (%.2f Hz).', frequency / 2);
+        results.warnings{end + 1} = warn('[baseline-correction] Cannot lowpass to frequencies larger than half of the sampling frequency (%.2f Hz).', frequency / 2);
     end
     
-    % Correct photobleaching on signal and reference.
-    sFit = fit(time(bleachingCorrectionId), sLowpass(bleachingCorrectionId), fittype('exp1'));
-    sBleaching = sFit(time);
-    sCorrected = signal2 - sBleaching;
-    if referenceProvided
-        rFit = fit(time(bleachingCorrectionId), rLowpass(bleachingCorrectionId), fittype('exp1'));
-        rBleaching = rFit(time);
-        rCorrected = reference2 - rBleaching;
+    if useAirPLS
+        % Model baseline with airPLS (everywhere).
+        [~, signalBaseline] = airPLS(signalSmooth', parameters.airPLS{:});
+        signalBaseline = signalBaseline';
+        signalCorrected = signal2 - signalBaseline;
+        if referenceProvided
+            [~, referenceBaseline] = airPLS(referenceSmooth', parameters.airPLS{:});
+            referenceBaseline = referenceBaseline';
+            referenceCorrected = reference2 - referenceBaseline;
+        else
+            referenceBaseline = zeros(size(signalCorrected));
+            referenceCorrected = zeros(size(signalCorrected));
+        end
     else
-        rCorrected = zeros(size(signal2));
+        % Model baseline with an exponential decay at given epochs (where indicated).
+        signalFit = fit(time(baselineCorrectionId), signalSmooth(baselineCorrectionId), fittype('exp1'));
+        signalBaseline = signalFit(time);
+        signalCorrected = signal2 - signalBaseline;
+        if referenceProvided
+            referenceFit = fit(time(baselineCorrectionId), referenceSmooth(baselineCorrectionId), fittype('exp1'));
+            referenceBaseline = referenceFit(time);
+            referenceCorrected = reference2 - referenceBaseline;
+        else
+            referenceBaseline = zeros(size(signalCorrected));
+            referenceCorrected = zeros(size(signalCorrected));
+        end
     end
     
-    % Fit reference to signal.
+    % Fit reference to signal (where indicated).
     if referenceProvided && parameters.fitReference
-        r2sFit = fit(rCorrected(cleanIds), sCorrected(cleanIds), fittype('poly1'), 'Robust', 'on');
-        rCorrected = r2sFit.p1 * rCorrected + r2sFit.p2;
+        r2sFit = fit(referenceCorrected(baselineCorrectionId), signalCorrected(baselineCorrectionId), fittype('poly1'), 'Robust', 'on');
+        referenceCorrected = r2sFit.p1 * referenceCorrected + r2sFit.p2;
     end
     
     % Correct for movement artifacts.
-    f = sCorrected - rCorrected;
+    f = signalCorrected - referenceCorrected;
     
     % Low-pass filter.
-    lowpassFilter = designfilt('lowpassiir', 'HalfPowerFrequency', parameters.lowpassFrequency, 'SampleRate', frequency, 'DesignMethod', 'butter', 'FilterOrder', 12);
-    fLowpass = filtfilt(lowpassFilter, f);
+    fFilter = designfilt('lowpassiir', 'HalfPowerFrequency', parameters.lowpassFrequency, 'SampleRate', frequency, 'DesignMethod', 'butter', 'FilterOrder', 12);
+    fSmooth = f;
+    fSmooth(cleanIds) = filtfilt(fFilter, f(cleanIds));
     
     % Normalize.
-    if isempty(parameters.f0) && isempty(parameters.f1)
-        dffIds = time2id(time, parameters.dffEpochs);
-        if isempty(dffIds)
-            % For each data point, compute a baseline from its neighbors.
-            n0 = nanmin(round(parameters.f0Window * frequency), numel(fLowpass));
-            f0 = parameters.f0Function(fLowpass, n0);
-            n1 = nanmin(round(parameters.f1Window * frequency), numel(fLowpass));
-            f1 = parameters.f1Function(fLowpass, n1);
-        else
-            % For all points, compute a common baseline from the given epochs.
-            f0 = parameters.f0Function(fLowpass(dffIds), numel(dffIds), 'Endpoints', 'discard');
-            f1 = parameters.f1Function(fLowpass(dffIds), numel(dffIds), 'Endpoints', 'discard');
-        end
-    else
-        f0 = parameters.f0;
-        f1 = parameters.f1;
-        if isempty(f0)
-            f1 = f0;
-        elseif isempty(f1)
-            f0 = f1;
-        end
-    end
-    dff = (fLowpass - f0) ./ f1;
+    f0 = parseNormalization(parameters.f0, fSmooth, time);
+    f1 = parseNormalization(parameters.f1, fSmooth, time);
+    dff = (fSmooth - f0) ./ f1;
     
     % Low-pass filter to detect peaks.
+    peaksSmooth = dff;
     if parameters.peaksLowpassFrequency <= frequency / 2
         peaksFilter = designfilt('lowpassiir', 'HalfPowerFrequency', parameters.peaksLowpassFrequency, 'SampleRate', frequency, 'DesignMethod', 'butter', 'FilterOrder', 12);
-        peaksLowpass = filtfilt(peaksFilter, dff);
+        peaksSmooth(cleanIds) = filtfilt(peaksFilter, dff(cleanIds));
     else
         results.warnings{end + 1} = warn('[peak detection] Cannot lowpass to frequencies larger than half of the sampling frequency (%.2f Hz).', frequency / 2);
-        peaksLowpass = dff;
     end
     
     % Get peak threshold.
-    peakThreshold = mean(peaksLowpass(cleanIds)) + parameters.thresholdFactor * parameters.thresholdingFunction(peaksLowpass(cleanIds));
+    peakThreshold = mean(peaksSmooth(cleanIds)) + parameters.thresholdFactor * parameters.thresholdingFunction(peaksSmooth(cleanIds));
     valleyThreshold = -peakThreshold;
     
     state = warning('Query', 'signal:findpeaks:largeMinPeakHeight');
     warning('Off', 'signal:findpeaks:largeMinPeakHeight');
-    if any(peaksLowpass >= peakThreshold)
-        [~, peaksId] = findpeaks(+peaksLowpass, 'MinPeakHeight', peakThreshold);
+    if any(peaksSmooth >= peakThreshold)
+        [~, peaksId] = findpeaks(+peaksSmooth, 'MinPeakHeight', peakThreshold);
         peaksId = intersect(peaksId, cleanIds);
     else
         peaksId = [];
     end
-    if any(-peaksLowpass >= peakThreshold)
-        [~, valleysId] = findpeaks(-peaksLowpass, 'MinPeakHeight', peakThreshold);
+    if any(-peaksSmooth >= peakThreshold)
+        [~, valleysId] = findpeaks(-peaksSmooth, 'MinPeakHeight', peakThreshold);
         valleysId = intersect(valleysId, cleanIds);
     else
         valleysId = [];
@@ -372,78 +374,78 @@ function results = FPA(time, signal, reference, configuration)
     if anyMatch(parameters.plot, '\<trace\>')
         results.figures(end + 1) = figure('name', 'FPA: df/f');
         
-        % Plot signal/reference resampled and bleaching model.
+        % Plot raw signal, reference, and baseline model.
         ax.raw = subplot(5, 1, 1);
         ax.raw.XTick = [];
         hold(ax.raw, 'all');
-        yy = [signal(:); reference(:); sBleaching(:)];
+        yy = [signal(:); reference(:); signalBaseline(:)];
         ylims = limits(yy, percentile, grow);
         plotEpochs(parameters.conditionEpochs, xlims, ylims, cmap, true);
         plot(ax.raw, time, signal, 'Color', signalColor, 'DisplayName', 'Signal');
         if referenceProvided
             plot(ax.raw, time, reference, 'Color', referenceColor, 'DisplayName', 'Reference');
         end
-        plot(ax.raw, time, sBleaching, 'Color', dashColor, 'LineStyle', '--', 'DisplayName', 'Photobleaching');
+        plot(ax.raw, time, signalBaseline, 'Color', dashColor, 'LineStyle', '--', 'DisplayName', 'Baseline');
         ylim(ax.raw, ylims);
         title(ax.raw, 'Raw data');
         legend(ax.raw, 'show');
         
-        % Plot signal/reference resampled and corrected for bleaching.
+        % Plot baseline corrected signal and reference.
         ax.corrected = subplot(5, 1, 2);
         ax.corrected.XTick = [];
         hold(ax.corrected, 'all');
-        yy = [sCorrected(:); rCorrected(:);];
+        yy = [signalCorrected(:); referenceCorrected(:);];
         ylims = limits(yy, percentile, grow);
         plotEpochs(parameters.conditionEpochs, xlims, ylims, cmap, false);
-        plot(ax.corrected, time, sCorrected, 'Color', signalColor, 'DisplayName', 'Signal');
+        plot(ax.corrected, time, signalCorrected, 'Color', signalColor, 'DisplayName', 'Signal');
         if referenceProvided
-            plot(ax.corrected, time, rCorrected, 'Color', referenceColor, 'DisplayName', 'Reference');
+            plot(ax.corrected, time, referenceCorrected, 'Color', referenceColor, 'DisplayName', 'Reference');
         end
         ylim(ax.corrected, ylims);
-        title(ax.corrected, 'Photobleaching correction');
+        title(ax.corrected, 'Baseline correction');
         legend(ax.corrected, 'show');
         
-        % Plot f and lowpass f.
+        % Plot motion correction (f and lowpass f).
         ax.f = subplot(5, 1, 3);
         ax.f.XTick = [];
         hold(ax.f, 'all');
-        yy = [f(cleanIds); fLowpass(cleanIds)];
+        yy = [f(cleanIds); fSmooth(cleanIds)];
         ylims = limits(yy, percentile, grow);
         plotEpochs(parameters.conditionEpochs, xlims, ylims, cmap, false);
         plot(ax.f, time, f, 'Color', signalColor, 'DisplayName', 'f');
-        plot(ax.f, time, fLowpass, 'Color', alternateColor, 'DisplayName', sprintf('f (<%.2fHz)', parameters.lowpassFrequency));
+        plot(ax.f, time, fSmooth, 'Color', alternateColor, 'DisplayName', sprintf('f (<%.2fHz)', parameters.lowpassFrequency));
         ylim(ax.f, ylims);
-        title(ax.f, 'Baseline correction');
+        title(ax.f, 'Motion correction');
         legend(ax.f, 'show');
         
-        % Plot df/f.
+        % Plot normalization (e.g. df/f).
         ax.filtered = subplot(5, 1, 4);
         ax.filtered.XTick = [];
         hold(ax.filtered, 'all');
-        yy = [dff(cleanIds); peaksLowpass(cleanIds)];
+        yy = [dff(cleanIds); peaksSmooth(cleanIds)];
         ylims = limits(yy, percentile, grow);
         epochs = parameters.conditionEpochs;
         epochs(1:2:end) = arrayfun(@(e) sprintf('area:%.2f', area(e)), 1:nEpochs, 'UniformOutput', false);
         plotEpochs(epochs, xlims, ylims, cmap, true);
         plot(ax.filtered, time, dff, 'Color', signalColor, 'DisplayName', 'df/f');
-        plot(ax.filtered, time, peaksLowpass, 'Color', peaksLineColor, 'DisplayName', sprintf('df/f (<%.2fHz)', parameters.peaksLowpassFrequency));
+        plot(ax.filtered, time, peaksSmooth, 'Color', peaksLineColor, 'DisplayName', sprintf('df/f (<%.2fHz)', parameters.peaksLowpassFrequency));
         ylim(ax.filtered, ylims);
         title(ax.filtered, 'Normalization');
         legend(ax.filtered, 'show');
 
-        % Plot df/f and peaks.
+        % Plot peak detection.
         ax.processed = subplot(5, 1, 5);
         hold(ax.processed, 'all');
-        yy = peaksLowpass(cleanIds);
+        yy = peaksSmooth(cleanIds);
         ylims = limits(yy, percentile, grow);
         epochs = parameters.conditionEpochs;
         epochs(1:2:end) = arrayfun(@(e) sprintf('%i peaks / %i valleys', peaksCount(e), valleysCount(e)), 1:nEpochs, 'UniformOutput', false);
         plotEpochs(epochs, xlims, ylims, cmap, true);
-        plot(ax.processed, time, peaksLowpass, 'Color', peaksLineColor, 'DisplayName', sprintf('df/f (<%.2fHz)', parameters.peaksLowpassFrequency));
+        plot(ax.processed, time, peaksSmooth, 'Color', peaksLineColor, 'DisplayName', sprintf('df/f (<%.2fHz)', parameters.peaksLowpassFrequency));
         plot(ax.processed, time([1, end]), peakThreshold([1, 1]), 'Color', dashColor, 'LineStyle', '--', 'DisplayName', 'threshold');
         plot(ax.processed, time([1, end]), valleyThreshold([1, 1]), 'Color', dashColor, 'LineStyle', '--', 'HandleVisibility', 'off');
-        plot(ax.processed, time(peaksId), peaksLowpass(peaksId), 'Color', peaksMarkerColor, 'LineStyle', 'none', 'Marker', 'o', 'HandleVisibility', 'off');
-        plot(ax.processed, time(valleysId), peaksLowpass(valleysId), 'Color', peaksMarkerColor, 'LineStyle', 'none', 'Marker', 'o', 'HandleVisibility', 'off');
+        plot(ax.processed, time(peaksId), peaksSmooth(peaksId), 'Color', peaksMarkerColor, 'LineStyle', 'none', 'Marker', 'o', 'HandleVisibility', 'off');
+        plot(ax.processed, time(valleysId), peaksSmooth(valleysId), 'Color', peaksMarkerColor, 'LineStyle', 'none', 'Marker', 'o', 'HandleVisibility', 'off');
         ylim(ylims);
         title(ax.processed, 'Peak detection');
         legend(ax.processed, 'show');
@@ -543,20 +545,70 @@ function results = FPA(time, signal, reference, configuration)
         ylabel('df/f');
         axis(ax.trigger, 'tight');
     end
-
+    
     results.time = time;
-    results.reference = reference2;
-    results.signal = signal2;
+    results.epochIds = epochIds;
+    results.epochGroups = epochGroups;
+
+    % Filtered, uncorrected.
+    results.signalBaseline = signalBaseline;
+    results.referenceBaseline = referenceBaseline;
+    
+    % Unfiltered, corrected.
+    results.signal = signalCorrected;
+    results.reference = referenceCorrected;
+    
+    % Unfiltered, motion corrected.
     results.f = f;
-    results.fLowpass = fLowpass;
+    
+    % Filtered, motion corrected.
+    results.fSmooth = fSmooth;
+    
+    % From fSmooth.
     results.f0 = f0;
     results.f1 = f1;
     results.dff = dff;
-    results.peaksLowpass = peaksLowpass;
+    results.area = area;
+    
+    % fSmooth filtered again.
+    results.peaks = peaksSmooth;
     results.peaksId = peaksId;
     results.valleysId = valleysId;
-    results.epochIds = epochIds;
-    results.epochGroups = epochGroups;
+end
+
+function output = parseNormalization(parameters, f, time)
+    if iscell(parameters)
+        fcn = parameters{1};
+        if numel(parameters) == 1
+            parameters{2} = [-Inf, Inf];
+        end
+        if isscalar(parameters{2})
+            % Produce a vector from moving window.
+            if numel(parameters) <= 2
+                options = {'EndPoints', 'shrink'};
+            else
+                options = parameters(3:end);
+            end
+            frequency = 1 / median(diff(time));
+            nSamples = numel(time);
+            window = parameters{2};
+            window = min(round(window * frequency), nSamples);
+            output = fcn(f, window, options{:});
+        else
+            % Produce a value from all data (or epochs).
+            epochs = parameters{2};
+            ids = time2id(time, epochs);
+            output = fcn(f(ids));
+        end
+    elseif isa(parameters, 'function_handle')
+        % Produce a value from all data (or epochs).
+        fcn = parameters;
+        epochs = [-Inf, Inf];
+        ids = time2id(time, epochs);
+        output = fcn(f(ids));
+    else
+        output = parameters;
+    end
 end
 
 function plotEpochs(epochs, xlims, ylims, cmap, show)

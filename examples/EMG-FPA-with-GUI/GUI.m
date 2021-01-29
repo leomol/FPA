@@ -2,7 +2,7 @@
 % see FPA.
 
 % 2020-11-01. Leonardo Molina.
-% 2021-01-15. Last modified.
+% 2021-01-29. Last modified.
 classdef GUI < handle
     properties % (Access = private)
         doricChannelsEntries
@@ -36,7 +36,7 @@ classdef GUI < handle
             nRows = floor(targetSize(2) / uiHeight) - 2;
             
             % Create main figure.
-            obj.h.control = uifigure('Name', 'EMG * FP analysis', 'MenuBar', 'none', 'NumberTitle', 'off', 'ToolBar', 'none', 'WindowState', 'maximized'); % , 'CloseRequestFcn', @(~, ~)obj.onClose
+            obj.h.control = uifigure('Name', 'EMG * FP analysis', 'MenuBar', 'none', 'NumberTitle', 'off', 'ToolBar', 'none', 'WindowState', 'maximized');
             obj.h.control.Position = [(screenSize(1) - targetSize(1)) / 2, (screenSize(2) - targetSize(2)) / 2, targetSize(1), targetSize(2)];
             
             % 3x3 layout.
@@ -63,7 +63,7 @@ classdef GUI < handle
             label.Layout.Column = 1;
             
             % Epochs type.
-            h = uidropdown(panel, 'Items', {'CleverSys', 'Manual'}, 'ValueChangedFcn', @(h, ~)obj.onEpochsTypeDrop(h.Value));
+            h = uidropdown(panel, 'Items', GUI.enumerate('epochsType'), 'ValueChangedFcn', @(h, ~)obj.onEpochsTypeDrop(h.Value));
             h.Layout.Row = 1;
             h.Layout.Column = 2;
             obj.h.epochsTypeDrop = h;
@@ -105,11 +105,11 @@ classdef GUI < handle
             label.Layout.Row = 5;
             label.Layout.Column = 1;
             
-            h = uidropdown(panel, 'Items', {'Zero-phase', 'Butter', 'Window'}, 'ValueChangedFcn', @(h, ~)obj.saveSettings('emgBandpassType', h.Value));
+            h = uidropdown(panel, 'Items', GUI.enumerate('emgBandpassType'), 'ValueChangedFcn', @(h, ~)obj.saveSettings('emgBandpassType', h.Value));
             h.Layout.Row = 1;
             h.Layout.Column = [2, 3];
             obj.h.emgBandpassTypeDrop = h;
-            h = uidropdown(panel, 'Items', {'Low-pass', 'RMS'}, 'ValueChangedFcn', @(h, ~)obj.onEmgEnvelopeTypeDrop(h.Value));
+            h = uidropdown(panel, 'Items', GUI.enumerate('emgEnvelopeType'), 'ValueChangedFcn', @(h, ~)obj.onEmgEnvelopeTypeDrop(h.Value));
             h.Layout.Row = 2;
             h.Layout.Column = [2, 3];
             obj.h.emgEnvelopeTypeDrop = h;
@@ -134,73 +134,82 @@ classdef GUI < handle
             panel = uipanel(mainLayout, 'Title', 'Fiber-photometry');
             panel = uigridlayout(panel, [1, 1]);
             panel.RowHeight = repmat({'1x'}, 1, rowCount);
-            panel.ColumnWidth = {'4x', '1x', '1x'};
+            panel.ColumnWidth = {'4x', '2x'};
             
             % FP settings.
-            label = uilabel(panel, 'Text', 'Bleaching epochs', 'HorizontalAlignment', 'right');
+            label = uilabel(panel, 'Text', 'Baseline correction type', 'HorizontalAlignment', 'right');
             label.Layout.Row = 1;
             label.Layout.Column = 1;
-            label = uilabel(panel, 'Text', 'Artifact epochs', 'HorizontalAlignment', 'right');
+            label = uilabel(panel, 'Text', 'Baseline lowpass frequency', 'HorizontalAlignment', 'right');
             label.Layout.Row = 2;
             label.Layout.Column = 1;
-            label = uilabel(panel, 'Text', 'Peaks lowpass frequency', 'HorizontalAlignment', 'right');
+            label = uilabel(panel, 'Text', 'Baseline epochs', 'HorizontalAlignment', 'right');
             label.Layout.Row = 3;
             label.Layout.Column = 1;
-            label = uilabel(panel, 'Text', 'df/f lowpass frequency', 'HorizontalAlignment', 'right');
+            label = uilabel(panel, 'Text', 'Fit reference', 'HorizontalAlignment', 'right');
             label.Layout.Row = 4;
             label.Layout.Column = 1;
-            label = uilabel(panel, 'Text', 'Bleaching lowpass frequency', 'HorizontalAlignment', 'right');
+            
+            label = uilabel(panel, 'Text', 'Artifact epochs', 'HorizontalAlignment', 'right');
             label.Layout.Row = 5;
             label.Layout.Column = 1;
-            label = uilabel(panel, 'Text', 'Thresholding function', 'HorizontalAlignment', 'right');
+            label = uilabel(panel, 'Text', 'Peaks lowpass frequency', 'HorizontalAlignment', 'right');
             label.Layout.Row = 6;
             label.Layout.Column = 1;
-            label = uilabel(panel, 'Text', 'Thresholding factor', 'HorizontalAlignment', 'right');
+            label = uilabel(panel, 'Text', 'df/f lowpass frequency', 'HorizontalAlignment', 'right');
             label.Layout.Row = 7;
             label.Layout.Column = 1;
-            label = uilabel(panel, 'Text', 'Normalization type', 'HorizontalAlignment', 'right');
+            label = uilabel(panel, 'Text', 'Thresholding function', 'HorizontalAlignment', 'right');
             label.Layout.Row = 8;
             label.Layout.Column = 1;
-            label = uilabel(panel, 'Text', 'Window size', 'HorizontalAlignment', 'right');
+            label = uilabel(panel, 'Text', 'Thresholding factor', 'HorizontalAlignment', 'right');
             label.Layout.Row = 9;
             label.Layout.Column = 1;
+            label = uilabel(panel, 'Text', 'Normalization type', 'HorizontalAlignment', 'right');
+            label.Layout.Row = 10;
+            label.Layout.Column = 1;
             
-            h = uieditfield(panel, 'ValueChangedFcn', @(~, ~)obj.onBleachingEpochsEdit);
+            h = uidropdown(panel, 'Items', GUI.enumerate('fpBaselineType'), 'ValueChangedFcn', @(h, ~)obj.onFPBaselineTypeDrop(h.Value));
             h.Layout.Row = 1;
-            h.Layout.Column = [2, 3];
-            obj.h.fpBleachingEpochsEdit = h;
-            h = uieditfield(panel, 'ValueChangedFcn', @(~, ~)obj.onArtifactEpochsEdit);
+            h.Layout.Column = 2;
+            obj.h.fpBaselineTypeDrop = h;
+            h = uieditfield(panel, 'numeric', 'Limits', [1e-3, Inf], 'ValueChangedFcn', @(h, ~)obj.saveSettings('fpBaselineLowpassFrequency', h.Value));
             h.Layout.Row = 2;
-            h.Layout.Column = [2, 3];
+            h.Layout.Column = 2;
+            obj.h.fpBaselineLowpassFrequencyEdit = h;
+            h = uieditfield(panel, 'ValueChangedFcn', @(~, ~)obj.onBaselineEpochsEdit);
+            h.Layout.Row = 3;
+            h.Layout.Column = 2;
+            obj.h.fpBaselineEpochsEdit = h;
+            h = uidropdown(panel, 'Items', GUI.enumerate('fpFitReference'), 'ValueChangedFcn', @(h, ~)obj.saveSettings('fpFitReference', h.Value));
+            h.Layout.Row = 4;
+            h.Layout.Column = 2;
+            obj.h.fpFitReferenceDrop = h;
+            
+            h = uieditfield(panel, 'ValueChangedFcn', @(~, ~)obj.onArtifactEpochsEdit);
+            h.Layout.Row = 5;
+            h.Layout.Column = 2;
             obj.h.fpArtifactEpochsEdit = h;
             h = uieditfield(panel, 'numeric', 'Limits', [1e-3, Inf], 'ValueChangedFcn', @(h, ~)obj.saveSettings('fpPeaksLowpassFrequency', h.Value));
-            h.Layout.Row = 3;
+            h.Layout.Row = 6;
             h.Layout.Column = 2;
             obj.h.fpPeaksLowpassFrequencyEdit = h;
             h = uieditfield(panel, 'numeric', 'Limits', [1e-3, Inf], 'ValueChangedFcn', @(h, ~)obj.saveSettings('fpLowpassFrequency', h.Value));
-            h.Layout.Row = 4;
-            h.Layout.Column = [2, 3];
+            h.Layout.Row = 7;
+            h.Layout.Column = 2;
             obj.h.fpLowpassFrequencyEdit = h;
-            h = uieditfield(panel, 'numeric', 'Limits', [1e-3, Inf], 'ValueChangedFcn', @(h, ~)obj.saveSettings('fpBleachingLowpassFrequency', h.Value));
-            h.Layout.Row = 5;
-            h.Layout.Column = [2, 3];
-            obj.h.fpBleachingLowpassFrequencyEdit = h;
-            h = uidropdown(panel, 'Items', {'mad', 'std'}, 'ValueChangedFcn', @(h, ~)obj.saveSettings('fpThresholdingFunction', h.Value));
-            h.Layout.Row = 6;
-            h.Layout.Column = [2, 3];
+            h = uidropdown(panel, 'Items', GUI.enumerate('fpThresholdingFunction'), 'ValueChangedFcn', @(h, ~)obj.saveSettings('fpThresholdingFunction', h.Value));
+            h.Layout.Row = 8;
+            h.Layout.Column = 2;
             obj.h.fpThresholdingFunctionDrop = h;
             h = uieditfield(panel, 'numeric', 'Limits', [1e-3, Inf], 'ValueChangedFcn', @(h, ~)obj.saveSettings('fpThresholdingFactor', h.Value));
-            h.Layout.Row = 7;
-            h.Layout.Column = [2, 3];
-            obj.h.fpThresholdingFactorEdit = h;
-            h = uidropdown(panel, 'Items', {'z-score', 'modified z-score', 'df/f'}, 'ValueChangedFcn', @(h, ~)obj.saveSettings('fpNormalizationType', h.Value));
-            h.Layout.Row = 8;
-            h.Layout.Column = [2, 3];
-            obj.h.fpNormalizationTypeDrop = h;
-            h = uieditfield(panel, 'numeric', 'Limits', [1e-3, Inf], 'ValueChangedFcn', @(h, ~)obj.saveSettings('fpWindowSize', h.Value));
             h.Layout.Row = 9;
-            h.Layout.Column = [2, 3];
-            obj.h.fpWindowSizeEdit = h;
+            h.Layout.Column = 2;
+            obj.h.fpThresholdingFactorEdit = h;
+            h = uidropdown(panel, 'Items', GUI.enumerate('fpNormalizationType'), 'ValueChangedFcn', @(h, ~)obj.saveSettings('fpNormalizationType', h.Value));
+            h.Layout.Row = 10;
+            h.Layout.Column = 2;
+            obj.h.fpNormalizationTypeDrop = h;
             
             % Epochs panel.
             panel = uipanel(mainLayout, 'Title', 'Manual Epoch definitions');
@@ -259,7 +268,7 @@ classdef GUI < handle
             h = uilistbox(panel, 'Items', {}, 'Multiselect', false, 'FontName', 'Monospaced');
             h.Layout.Row = [2, rowCount];
             h.Layout.Column = [1, 2];
-            obj.addMenu(h, {'Set as signal', 'Signal', 'Set as reference', 'Reference', 'Set as camera', 'Camera', 'Unset', 'Unset'}, @obj.setChoice);
+            obj.addMenu(h, {'Set as time', 'Time', 'Set as signal', 'Signal', 'Set as reference', 'Reference', 'Set as camera', 'Camera', 'Unset', 'Unset'}, @obj.setChoice);
             obj.h.doricChannelsList = h;
             
             % LabChart filename edit, button and channel list.
@@ -334,7 +343,7 @@ classdef GUI < handle
                     settings = settings.settings;
                     fprintf('Loaded settings from "%s"\n', obj.settingsFilename);
                 else
-                    settings = struct();
+                    settings = getDefaults();
                 end
             end
             defaults = getDefaults();
@@ -358,14 +367,36 @@ classdef GUI < handle
         end
         
         function applySettings(obj, defaults, settings)
-            names = fieldnames(defaults);
-            for i = 1:numel(names)
-                name = names{i};
+            expectedNames = fieldnames(defaults);
+            for i = 1:numel(expectedNames)
+                name = expectedNames{i};
                 if isfield(settings, name)
-                    obj.settings.(name) = settings.(name);
+                    options = GUI.enumerate(name);
+                    missingValue = false;
+                    if isempty(options) || ismember(settings.(name), options)
+                        wrongValue = false;
+                    else
+                        wrongValue = true;
+                    end
                 else
-                    obj.settings.(name) = defaults.(name);
+                    missingValue = true;
+                    wrongValue = false;
                 end
+                if missingValue
+                    value = defaults.(name);
+                    warning('[GUI] "%s" is missing, using default:\n%s\n\n', name, strtrim(evalc('disp(value)')));
+                elseif wrongValue
+                    value = defaults.(name);
+                    warning('[GUI] Provided value for "%s" is incorrect, using default:\n%s\n\n', name, strtrim(evalc('disp(value)')));
+                else
+                    value = settings.(name);
+                end
+                obj.settings.(name) = value;
+            end
+            
+            unexpectedNames = setdiff(fieldnames(settings), expectedNames);
+            if numel(unexpectedNames) > 0
+                warning('[GUI] Unexpected settings in "%s":%s', obj.settingsFilename, sprintf(' "%s"', unexpectedNames{:}));
             end
             
             obj.h.resamplingFrequencyEdit.Value = obj.settings.resamplingFrequency;
@@ -377,16 +408,18 @@ classdef GUI < handle
             obj.h.emgBandpassFrequencyLowEdit.Value = obj.settings.emgBandpassFrequencyLow;
             obj.h.emgBandpassFrequencyHighEdit.Value = obj.settings.emgBandpassFrequencyHigh;
             
+            obj.h.fpBaselineTypeDrop.Value = obj.settings.fpBaselineType;
+            obj.h.fpBaselineLowpassFrequencyEdit.Value = obj.settings.fpBaselineLowpassFrequency;
+            obj.h.fpBaselineEpochsEdit.Value = obj.settings.fpBaselineEpochsText;
+            obj.h.fpFitReferenceDrop.Value = obj.settings.fpFitReference;
+            
             obj.h.fpPeaksLowpassFrequencyLowEdit.Value = obj.settings.fpPeaksLowpassFrequency;
             obj.h.fpLowpassFrequencyEdit.Value = obj.settings.fpLowpassFrequency;
-            obj.h.fpBleachingLowpassFrequencyEdit.Value = obj.settings.fpBleachingLowpassFrequency;
             obj.h.fpThresholdingFunctionDrop.Value = obj.settings.fpThresholdingFunction;
             obj.h.fpThresholdingFactorEdit.Value = obj.settings.fpThresholdingFactor;
             obj.h.fpNormalizationTypeDrop.Value = obj.settings.fpNormalizationType;
-            obj.h.fpWindowSizeEdit.Value = obj.settings.fpWindowSize;
             
             obj.h.conditionEpochsEdit.Value = obj.settings.conditionEpochsText;
-            obj.h.fpBleachingEpochsEdit.Value = obj.settings.fpBleachingEpochsText;
             obj.h.fpArtifactEpochsEdit.Value = obj.settings.fpArtifactEpochsText;
             
             obj.h.cleverSysFilenameEdit.Value = obj.settings.cleverSysFilename;
@@ -404,6 +437,7 @@ classdef GUI < handle
             obj.onDoricFilenameEdit();
             obj.onCleverSysFilenameEdit();
             obj.onLabChartFilenameEdit();
+            obj.onFPBaselineTypeDrop(obj.settings.fpBaselineType);
             obj.onEpochsTypeDrop(obj.settings.epochsType);
             obj.onEmgEnvelopeTypeDrop(obj.settings.emgEnvelopeType);
         end
@@ -419,21 +453,27 @@ classdef GUI < handle
             % Camera trigger: Once at the start.
             % TTL sync input: 10min after start, Square wave (20 pulses, for 9.5s)
             
-            set(obj.h.processButton, 'Enable', false, 'Text', 'Processing...');
+            set(obj.h.processButton, 'Text', 'Processing...');
+            set(obj.h.processButton, 'Enable', false);
             drawnow();
             messages = {};
+            emgRequired = obj.settings.labChartFilename ~= "";
             
             % Fiber-photometry settings.
+            fpTimeChannel = getIndex(obj.doricChannelsEntries, obj.settings.doricChannelsChoices, 'Time');
             fpSignalChannel = getIndex(obj.doricChannelsEntries, obj.settings.doricChannelsChoices, 'Signal');
             fpReferenceChannel = getIndex(obj.doricChannelsEntries, obj.settings.doricChannelsChoices, 'Reference');
             fpCameraChannel = getIndex(obj.doricChannelsEntries, obj.settings.doricChannelsChoices, 'Camera');
+            if numel(fpTimeChannel) ~= 1
+                messages = cat(2, messages, 'Select a single Time channel in Doric Channels.');
+            end
             if numel(fpSignalChannel) ~= 1
                 messages = cat(2, messages, 'Select a single Signal channel in Doric Channels.');
             end
             if numel(fpReferenceChannel) ~= 1
                 messages = cat(2, messages, 'Select a single Reference channel in Doric Channels.');
             end
-            if numel(fpCameraChannel) ~= 1
+            if emgRequired && numel(fpCameraChannel) ~= 1
                 messages = cat(2, messages, 'Select a single Camera channel in Doric Channels.');
             end
             if numel(messages) > 0
@@ -443,17 +483,20 @@ classdef GUI < handle
             end
             
             fp = struct();
-            fp.bleachingEpochs = obj.settings.fpBleachingEpochs;
-            if isempty(fp.bleachingEpochs)
-                fp.bleachingEpochs = [-Inf, Inf];
+            fp.baselineEpochs = obj.settings.fpBaselineEpochs;
+            if isempty(fp.baselineEpochs)
+                fp.baselineEpochs = [-Inf, Inf];
             end
             fp.artifactEpochs = obj.settings.fpArtifactEpochs;
             if isempty(fp.artifactEpochs)
-                fp.artifactEpochs = [-Inf, Inf];
+                fp.artifactEpochs = [];
             end
+            
+            fp.airPLS = obj.settings.fpBaselineType == "airPLS";
+            fp.fitReference = obj.settings.fpFitReference == "true";
+            fp.baselineLowpassFrequency = obj.settings.fpBaselineLowpassFrequency;
             fp.peaksLowpassFrequency = obj.settings.fpPeaksLowpassFrequency;
             fp.lowpassFrequency = obj.settings.fpLowpassFrequency;
-            fp.bleachingLowpassFrequency = obj.settings.fpBleachingLowpassFrequency;
             fp.resamplingFrequency = obj.settings.resamplingFrequency;
             switch obj.settings.fpThresholdingFunction
                 case 'mad'
@@ -461,24 +504,28 @@ classdef GUI < handle
                 case 'std'
                     fp.thresholdingFunction = @std;
             end
+            
             fp.thresholdFactor = obj.settings.fpThresholdingFactor;
             switch obj.settings.fpNormalizationType
                 case 'z-score'
-                    fp.f0Function = @movmean;
-                    fp.f1Function = @movstd;
+                    fp.f0 = @mean;
+                    fp.f1 = @std;
                 case 'df/f'
-                    fp.f0Function = @movmean;
-                    fp.f1Function = @movmean;
-                case 'modified z-score'
-                    fp.f0Function = @movmedian;
-                    fp.f1Function = @movmad;
+                    fp.f0 = @mean;
+                    fp.f1 = @mean;
+                case 'median:mad'
+                    fp.f0 = @median;
+                    fp.f1 = @mad;
+                case 'median:std'
+                    fp.f0 = @median;
+                    fp.f1 = @std;
+                case 'mean:mad'
+                    fp.f0 = @mean;
+                    fp.f1 = @mad;
             end
-            fp.f0Window = obj.settings.fpWindowSize;
-            fp.f1Window = obj.settings.fpWindowSize;
             
             % LabChart settings.
-            emgAvailable = obj.settings.labChartFilename ~= "";
-            if emgAvailable
+            if emgRequired
                 labChart = struct();
                 labChart.emgChannel = getIndex(obj.labChartChannelsEntries, obj.settings.labChartChannelsChoices, 'EMG');
                 labChart.block = getIndex(obj.labChartBlocksEntries, obj.settings.labChartBlocksChoices, 'Use');
@@ -506,11 +553,11 @@ classdef GUI < handle
                 obj.cache.doricFilename = obj.settings.doricFilename;
             end
             
-            fpTime = fpData(:, 1);
+            fpTime = fpData(:, fpTimeChannel);
             fpSignal = fpData(:, fpSignalChannel);
             fpReference = fpData(:, fpReferenceChannel);
             
-            if emgAvailable
+            if emgRequired
                 fprintf('Loading LabChart data ... ');
                 if isequal(obj.settings.labChartFilename, obj.cache.labChartFilename)
                     fprintf('reused cache.\n');
@@ -528,7 +575,7 @@ classdef GUI < handle
             end
             
             fprintf('Processing data ...\n');
-            if emgAvailable
+            if emgRequired
                 [mn1, mx1] = bounds(fpTime);
                 [mn2, mx2] = bounds(emgTime);
                 mn = max(mn1, mn2);
@@ -613,9 +660,11 @@ classdef GUI < handle
             end
             
             % FP and EMG alignment.
-            fpCameraData = fpData(:, fpCameraChannel);
-            behaviorStart = fpTime(find(fpCameraData, 1));
-            epochs(2:2:end) = cellfun(@(epoch) epoch + behaviorStart, epochs(2:2:end), 'UniformOutput', false);
+            if emgRequired
+                fpCameraData = fpData(:, fpCameraChannel);
+                behaviorStart = fpTime(find(fpCameraData, 1));
+                epochs(2:2:end) = cellfun(@(epoch) epoch + behaviorStart, epochs(2:2:end), 'UniformOutput', false);
+            end
             
             fp.conditionEpochs = epochs;
             fp.plot = {'trace', 'power', 'stats', 'trigger'};
@@ -634,7 +683,7 @@ classdef GUI < handle
             colorEnvelope = [0.0000, 0.0000, 0.0000];
             xlims = fpa.time([1, end]);
             
-            if emgAvailable && obj.settings.plotEmgTrace
+            if emgRequired && obj.settings.plotEmgTrace
                 figureName = 'Raster plots';
                 figure('name', figureName);
                 
@@ -668,7 +717,7 @@ classdef GUI < handle
                 xlim(xlims);
             end
 
-            if emgAvailable && obj.settings.plotXcorr
+            if emgRequired && obj.settings.plotXcorr
                 figureName = 'Cross-correlation FP to EMG for different behaviors';
                 xcLags = round(obj.settings.xcorrLag * obj.settings.resamplingFrequency);
                 xcTics = (-xcLags:xcLags) / obj.settings.resamplingFrequency;
@@ -676,6 +725,7 @@ classdef GUI < handle
                 figure('name', figureName);
                 hold('all');
                 for e = 1:nEpochs
+                    % !! Not all epochs have peaks.
                     epochName = epochs{2 * e - 1};
                     ranges = epochs{2 * e};
                     mask = time2id(fpa.time, ranges);
@@ -716,6 +766,19 @@ classdef GUI < handle
                 target.Value = sprintf('%s/%s', folder, file);
                 callback();
             end
+        end
+        
+        function onFPBaselineTypeDrop(obj, fpBaselineType)
+            obj.h.fpBaselineTypeDrop.Value = fpBaselineType;
+            switch fpBaselineType
+                case 'exponential decay'
+                    %obj.h.fpBaselineLowpassFrequencyEdit.Enable = true;
+                    %obj.h.fpBaselineEpochsEdit.Enable = true;
+                case 'airPLS'
+                    %obj.h.fpBaselineLowpassFrequencyEdit.Enable = false;
+                    %obj.h.fpBaselineEpochsEdit.Enable = false;
+            end
+            obj.saveSettings('fpBaselineType', fpBaselineType);
         end
         
         function onEpochsTypeDrop(obj, epochType)
@@ -856,8 +919,7 @@ classdef GUI < handle
                 success = true;
             else
                 try
-                    channels = csvHeader(filename);
-                    channels{1} = 'time';
+                    [~, channels] = loadData(filename, 0);
                     nChannels = numel(channels);
                     for i = 1:nChannels
                         channels{i} = sprintf('#%i %s', i, channels{i});
@@ -877,8 +939,8 @@ classdef GUI < handle
             setSuccessColor(target, success);
         end
         
-        function onBleachingEpochsEdit(obj)
-            target = obj.h.fpBleachingEpochsEdit;
+        function onBaselineEpochsEdit(obj)
+            target = obj.h.fpBaselineEpochsEdit;
             text = target.Value;
             % Turn contents into a matrix.
             text = ['[', regexprep(text, '^\s*\[|]\s*$', ''), ']'];
@@ -891,7 +953,7 @@ classdef GUI < handle
             end
             setSuccessColor(target, success);
             if success
-                obj.saveSettings('fpBleachingEpochs', epochRanges, 'fpBleachingEpochsText', text);
+                obj.saveSettings('fpBaselineEpochs', epochRanges, 'fpBaselineEpochsText', text);
             end
         end
         
@@ -973,6 +1035,29 @@ classdef GUI < handle
             delete(obj.h.control);
         end
     end
+    
+    methods (Static)
+        function options = enumerate(type, varargin)
+            switch type
+                case 'epochsType'
+                    options = {'CleverSys', 'Manual'};
+                case 'emgBandpassType'
+                    options = {'Zero-phase', 'Butter', 'Window'};
+                case 'emgEnvelopeType'
+                    options = {'Low-pass', 'RMS'};
+                case 'fpBaselineType'
+                    options = {'exponential decay', 'airPLS'};
+                case 'fpFitReference'
+                    options = {'true', 'false'};
+                case 'fpThresholdingFunction'
+                    options = {'mad', 'std'};
+                case 'fpNormalizationType'
+                    options = {'z-score', 'df/f', 'median:mad', 'median:std', 'mean:mad'};
+                otherwise
+                    options = {};
+            end
+        end
+    end
 end
 
 function settings = getDefaults()
@@ -991,7 +1076,7 @@ function settings = getDefaults()
     % How to filter EMG.
     settings.emgBandpassType = 'Zero-phase';
     % How to calculate envelope.
-    settings.emgEnvelopeType = 'rms';
+    settings.emgEnvelopeType = 'RMS';
     % Frequency of the envelope filter when choice is low-pass.
     settings.emgEnvelopeLowpassFrequency = 1;
     % Duration of the envelope window when choice is rms.
@@ -1004,20 +1089,21 @@ function settings = getDefaults()
     
     % FP.
     settings.fpFilename = '';
-    settings.fpBleachingEpochs = [];
-    settings.fpBleachingEpochsText = '';
+    settings.fpBaselineType = 'exponential decay';
+    settings.fpBaselineEpochs = [];
+    settings.fpBaselineEpochsText = '';
+    settings.fpBaselineLowpassFrequency = 0.1;
+    settings.fpFitReference = 'true';
     settings.fpArtifactEpochs = [];
     settings.fpArtifactEpochsText = '';
     settings.fpLowpassFrequency = 2;
     settings.fpPeaksLowpassFrequency = 0.5;
-    settings.fpBleachingLowpassFrequency = 0.1;
     settings.fpThresholdingFunction = 'mad';
     settings.fpThresholdingFactor = 2.91;
-    settings.fpNormalizationType = 'modified z-score';
-    settings.fpWindowSize = Inf;
+    settings.fpNormalizationType = 'median:mad';
     
     % Epochs.
-    settings.conditionEpochs = [];
+    settings.conditionEpochs = {};
     settings.conditionEpochsText = '';
     
     % CleverSys epochs.
@@ -1118,14 +1204,6 @@ function setSuccessColor(target, success)
     else
         target.BackgroundColor = [1.0, 0.5, 0.5];
     end
-end
-
-function header = csvHeader(filename)
-    fid = fopen(filename, 'r');
-    line = fgetl(fid);
-    header = textscan(line, '%s', 'Delimiter', ',');
-    header = header{1};
-    fclose(fid);
 end
 
 function text = escape(text)
