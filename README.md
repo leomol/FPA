@@ -2,7 +2,7 @@
 MATLAB scripts to plot data from a fiber-photometry recording.
 
 ## Prerequisites
-* [MATLAB][MATLAB] (last tested with R2020a)
+* [MATLAB][MATLAB] (last tested with R2020b)
 
 ## Installation
 * Install MATLAB with the following toolboxes:
@@ -26,21 +26,21 @@ The GUI is under development and has limitted functionality compared to the scri
 GUI();
 ```
 
-Correct signal from bleaching and artifacts, normalize and detect peaks of spontaneous activity based on the given parameters. Signal and reference are column vectors.
+Remove baseline from data, correct from motion artifacts; normalize, filter, and detect peaks of spontaneous activity in user defined epochs.
 
 ## Analysis
 Processing steps:
 - Resample data to target frequency.
 - Replace artifacts with linear interpolation in flagged regions.
-- Correct for photobleaching by modeling an exponential decay in low-pass filtered data.
+- Baseline correction modeled as an exponential decay of the low-pass filtered data.
 - Correct for motion artifacts by subtracting reference to signal, after a polynomial fit.
 - Remove fast oscillations with a low-pass filter.
 - Normalize data as df/f or z-score according to settings.
 - Find peaks of spontaneous activity in low-pass filtered data.
 - Plot 1:
-  - Raw signal and reference, and photobleaching model.
-  - Signal and reference corrected for photobleaching.
-  - Baseline correction.
+  - Raw signal and reference, and baseline model.
+  - Baseline corrected signal and reference.
+  - Motion correction.
   - Normalization.
   - Peaks.
 - Plot 2:
@@ -54,36 +54,17 @@ Processing steps:
 
 `configuration` is a struct with the following fields (defaults are used for missing fields):
 - `conditionEpochs` - Epochs for different conditions: `{'epoch1', [start1, end1, start2, end2, ...], 'epoch2', ...}`
-- `bleachingEpochs` - Time epochs (s) to include for bleaching correction.
+- `baselineEpochs` - Time epochs (s) to include for baseline correction.
+- `baselineLowpassFrequency` - Frequency representative of baseline.
+- `airPLS` - Baseline correction for all data using airPLS (true, false, or airPLS inputs).
 - `artifactEpochs` - Time epochs (s) to remove.
 - `resamplingFrequency` - Resampling frequency (Hz).
-- `dffLowpassFrequency` - Lowpass frequency to filter `df/f`.
-- `peaksLowpassFrequency` - Low/High frequencies to compute peaks.
-- `bleachingLowpassFrequency` - Lowpass frequency to detect bleaching decay.
-- `thresholdingFunction` - One of `@mad`, `@std`.
+- `lowpassFrequency` - Lowest frequency permitted in normalized signal.
+- `peaksLowpassFrequency` - Lowest frequency to detect peaks.
+- `thresholdingFunction` - `@mad`, `@std`, ...
 - `thresholdFactor` - Thresholding cut-off.
 - `triggeredWindow` - Length of time to capture around each peak of spontaneous activity.
-- `dffEpochs` - Time epochs (s) to include for `df/f` normalization.
-- `f0Function` - One of `@movmean`, `@movmedian`, `@movmin`.
-- `f0Window` - Length of the moving window to calculate `f0`.
-- `f1Function` - One of `@movmean`, `@movmedian`, `@movmin`, `@movstd`.
-- `f1Window` - Length of the moving window to calculate `f1`.
-
-- `conditionEpochs` -  Epochs for different conditions: `{'epoch1', [start1, end1, start2, end2, ...], 'epoch2', ...}`
-- `bleachingEpochs` -  Time epochs (s) to include for bleaching correction.
-- `artifactEpochs` -  Time epochs (s) to remove.
-- `resamplingFrequency` -  Resampling frequency (Hz).
-- `lowpassFrequency` -  Lowest frequency permitted in signal.
-- `peaksLowpassFrequency` -  Lowest frequency to detect peaks.
-- `bleachingLowpassFrequency` -  Lowest frequency to detect bleaching decay.
-- `thresholdingFunction` -  One of @mad, @std.
-- `thresholdFactor` -  Threshold cut-off.
-- `triggeredWindow` -  Length of time to capture around each peak of spontaneous activity.
-- `dffEpochs` -  Time epochs (s) to include for normalization.
-- `f0Function` -  One of @movmean, @movmedian, @movmin.
-- `f0Window` -  Length of the moving window to calculate f0.
-- `f1Function` -  One of @movmean, @movmedian, @movmin, @movstd.
-- `f1Window` -  Length of the moving window to calculate f1.
+- `fitReference` - Shift and scale reference to fit signal.
 
 See source code for default values:
 ```matlab
@@ -94,55 +75,61 @@ Units for time and frequency are seconds and hertz respectively.
 
 ## Normalization recipes
 
-`df/f` is calculated as `(f - f0) / f1`, where `f0` and `f1` change according to the configuration.
+Normalization is calculated as `(f - f0) / f1` where `f0` and `f1` can be data provided by the user or calculated using given functions:
 
-For example, you may want to see changes relative to a 10s moving window:
+### f0 and f1 are common to all datapoints and calculated from all data:
+#### df/f:
 ```matlab
-configuration.f0Function = @movmean;
-configuration.f1Function = @movmean;
-configuration.f0Window = 10;
-configuration.f1Window = 10;
+configuration.f0 = @mean;
+configuration.f1 = @mean;
 ```
 
-... or you may want to see changes from the standard deviation of the whole recording:
+#### z-score:
 ```matlab
-configuration.f0Function = @movmean;
-configuration.f1Function = @movstd;
-configuration.f0Window = Inf;
-configuration.f1Window = Inf;
+configuration.f0 = @mean;
+configuration.f1 = @std;
 ```
 
-### Example case 1:
-Use the first minute as the baseline for the rest of the data.
+#### z-score - alternative 1 (default):
 ```matlab
-configuration.f0Function = @movmean;
-configuration.f1Function = @movstd;
-configuration.dffEpochs = [0, 60]
+configuration.f0 = @median;
+configuration.f1 = @mad;
 ```
-`f0Window` and `f1Window` are ignored because `dffEpochs` takes precedence.
 
-### Example case 2:
-Compute a moving baseline that is 1min wide.
+#### z-score - alternative 2:
 ```matlab
-configuration.f0Function = @movmean;
-configuration.f1Function = @movstd;
-configuration.f0Window = 60;
-configuration.f1Window = 60;
+configuration.f0 = @median;
+configuration.f1 = @std;
 ```
-`dffEpochs` must be empty (`configuration.dffEpochs = [];`) which is the default.
 
-### Example case 3:
-Compute a common baseline from the entire recording.
+### f0 and f1 are common to all data points and calculated at given epochs:
+#### df/f:
 ```matlab
-configuration.f0Function = @movmean;
-configuration.f1Function = @movstd;
-configuration.f0Window = Inf;
-configuration.f1Window = Inf;
+epochs = [0, 100, 500, 550, 1000, Inf]
+configuration.f0 = {@mean, epochs};
+configuration.f1 = {@mean, epochs};
 ```
-`dffEpochs` must be empty.
+
+### f0 and f1 are calculated for each data point based on a moving window:
+#### df/f:
+```matlab
+window = 60;
+configuration.f0 = {@movmean, window};
+configuration.f1 = {@movmean, window};
+```
+
+[further combinations possible with `@movmean`, `@movmedian`, `@movstd`, `@movmad`, `@mov`...].
+
+### Normalization from given data:
+```matlab
+f0 = ones(size(time));
+f1 = ones(size(time)) * 10;
+configuration.f0 = f0;
+configuration.f1 = f1;
+```
 
 ## Data loaders
-### Load a CSV file (e.g. data acquired with Doric or Inscopix DAQ)
+### Load a CSV file (e.g. data acquired with Doric, Multifiber, or Inscopix DAQ)
 ```matlab
 [data, names] = loadData(filename)
 ```
