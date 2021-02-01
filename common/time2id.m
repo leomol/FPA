@@ -1,14 +1,14 @@
-% id = time2id(timeVector, epochs)
-% Returns the index in timeVector where timeVector is enclosed by the given
-% epochs (from1, to1, from2, to2).
+% id = time2id(time, epochs)
+% Returns the index in time where time is enclosed by the given epochs
+% (from1, to1, from2, to2, ...).
 
 % 2019-02-01. Leonardo Molina.
-% 2020-11-24. Last modified.
-function id = time2id(timeVector, epochs)
+% 2021-01-02. Last modified.
+function id = time2id(time, epochs)
     epochs = epochs(:);
     % timeLimits = zeros(2, nEpochs);
-    a = arrayfun(@(k) find(timeVector >= k, 1, 'first'), epochs(1:2:end), 'UniformOutput', false);
-    b = arrayfun(@(k) find(timeVector <= k, 1, 'last'), epochs(2:2:end), 'UniformOutput', false);
+    a = arrayfun(@(k) find(time >= k, 1, 'first'), epochs(1:2:end), 'UniformOutput', false);
+    b = arrayfun(@(k) find(time <= k, 1, 'last'), epochs(2:2:end), 'UniformOutput', false);
     k = cellfun(@isempty, a) | cellfun(@isempty, b);
     a(k) = [];
     b(k) = [];

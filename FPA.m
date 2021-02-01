@@ -85,7 +85,7 @@
 % Units for time and frequency are seconds and hertz respectively.
 % 
 % 2019-02-01. Leonardo Molina.
-% 2021-01-29. Last modified.
+% 2021-02-01. Last modified.
 function results = FPA(time, signal, reference, configuration)
     results.warnings = {};
     if nargin < 4
@@ -547,8 +547,6 @@ function results = FPA(time, signal, reference, configuration)
     end
     
     results.time = time;
-    results.epochIds = epochIds;
-    results.epochGroups = epochGroups;
 
     % Filtered, uncorrected.
     results.signalBaseline = signalBaseline;
