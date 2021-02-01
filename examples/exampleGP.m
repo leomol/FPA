@@ -52,5 +52,5 @@ title('dff/f - AUC');
 figure();
 bar(1:nEpochs, area ./ duration);
 h = gca();
-h.XTickLabel = configuration.conditionEpochs(1:2:2 * nEpochs);
+h.XTickLabel = epochNames;
 title('dff/f - normalized AUC');
