@@ -45,14 +45,6 @@ configuration.plot = {'trace', 'power', 'stats', 'trigger'};
 FPA(time, signal, reference, configuration);
 cellfun(@warning, results.warnings);
 
-% Save dff for statistical analysis.
-[folder, basename] = fileparts(inputDataFile);
-output = fullfile(folder, sprintf('%s dff.csv', basename));
-fid = fopen(output, 'w');
-fprintf(fid, 'Time (s), df/f, epoch\n');
-fprintf(fid, '%.4f, %.4f, %d\n', [results.time(results.epochIds), results.dff(results.epochIds), results.epochGroups]');
-fclose(fid);
-
 %% Example 2 - Fiber-photometry data with stimuli recorded with Inscopix.
 inputDataFile = '../data/Inscopix.csv';
 inputEventFile = '../data/InscopixTTL.csv';
@@ -93,13 +85,7 @@ cellfun(@warning, results.warnings);
 output = fullfile(folder, sprintf('%s peak-time.csv', basename));
 fid = fopen(output, 'w');
 fprintf(fid, 'Peak Time (s)\n');
-fprintf(fid, '%.4f\n', results.time(results.peaksId));
-fclose(fid);
-% Save dff for statistical analysis.
-output = fullfile(folder, sprintf('%s dff.csv', basename));
-fid = fopen(output, 'w');
-fprintf(fid, 'Time (s), df/f, epoch\n');
-fprintf(fid, '%.4f, %.4f, %d\n', [results.time(results.epochIds), results.dff(results.epochIds), results.epochGroups]');
+fprintf(fid, '%.4f\n', results.time(results.peakIds));
 fclose(fid);
 
 %% Example 4 - Fiber-photometry data recorded with Doric DAQ - baseline from another file.
@@ -126,13 +112,6 @@ configuration.f1 = baseline.f1;
 configuration.plot = true;
 results = FPA(time, signal, reference, configuration);
 cellfun(@warning, results.warnings);
-% Save dff for statistical analysis.
-[folder, basename] = fileparts(inputDataFile2);
-output = fullfile(folder, sprintf('%s dff.csv', basename));
-fid = fopen(output, 'w');
-fprintf(fid, 'Time (s), df/f, epoch\n');
-fprintf(fid, '%.4f, %.4f, %d\n', [results.time(results.epochIds), results.dff(results.epochIds), results.epochGroups]');
-fclose(fid);
 
 %% Example 5 - Fiber-photometry data recorded with TDT DAQ.
 inputFolder = '../data/TDT';
@@ -164,10 +143,3 @@ reference = data(:, referenceColumn);
 % Call FPA with given configuration.
 results = FPA(time, signal, reference, configuration);
 cellfun(@warning, results.warnings);
-% Save dff for statistical analysis.
-[folder, basename] = fileparts(inputDataFile);
-output = fullfile(folder, sprintf('%s dff.csv', basename));
-fid = fopen(output, 'w');
-fprintf(fid, 'Time (s), df/f, epoch\n');
-fprintf(fid, '%.4f, %.4f, %d\n', [results.time(results.epochIds), results.dff(results.epochIds), results.epochGroups]');
-fclose(fid);

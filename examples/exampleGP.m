@@ -47,10 +47,12 @@ end
 bar(1:nEpochs, area);
 h = gca();
 h.XTickLabel = epochNames;
+xtickangle(h, 45);
 title('dff/f - AUC');
 
 figure();
 bar(1:nEpochs, area ./ duration);
 h = gca();
 h.XTickLabel = epochNames;
+xtickangle(h, 45);
 title('dff/f - normalized AUC');

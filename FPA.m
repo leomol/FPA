@@ -85,7 +85,7 @@
 % Units for time and frequency are seconds and hertz respectively.
 % 
 % 2019-02-01. Leonardo Molina.
-% 2021-02-01. Last modified.
+% 2021-02-12. Last modified.
 function results = FPA(time, signal, reference, configuration)
     results.warnings = {};
     if nargin < 4
@@ -99,7 +99,7 @@ function results = FPA(time, signal, reference, configuration)
     parameters.baselineEpochs = [-Inf, Inf];
     parameters.baselineLowpassFrequency = 0.1;
     parameters.airPLS = false;
-    parameters.lowpassFrequency = 2;
+    parameters.lowpassFrequency = 5;
     parameters.peaksLowpassFrequency = 0.5;
     parameters.fitReference = true;
     parameters.f0 = @median;
@@ -133,7 +133,7 @@ function results = FPA(time, signal, reference, configuration)
     % Plot: true | false | cell array of choices.
     if islogical(parameters.plot)
         if parameters.plot
-            parameters.plot = {'trace', 'power', 'stats', 'trigger'};
+            parameters.plot = {'trace', 'power', 'stats', 'trigger', 'AUC'};
         else
             parameters.plot = {};
         end
@@ -184,7 +184,11 @@ function results = FPA(time, signal, reference, configuration)
     else
         frequency = sourceFrequency;
     end
+    
+    % Setup.
     nSamples = numel(time);
+    nConditions = numel(parameters.conditionEpochs) / 2;
+    epochNames = parameters.conditionEpochs(1:2:end);
     
     % Replace artifacts with straight lines.
     % Index of all points.
@@ -283,79 +287,71 @@ function results = FPA(time, signal, reference, configuration)
     state = warning('Query', 'signal:findpeaks:largeMinPeakHeight');
     warning('Off', 'signal:findpeaks:largeMinPeakHeight');
     if any(peaksSmooth >= peakThreshold)
-        [~, peaksId] = findpeaks(+peaksSmooth, 'MinPeakHeight', peakThreshold);
-        peaksId = intersect(peaksId, cleanIds);
+        [~, peakIds] = findpeaks(+peaksSmooth, 'MinPeakHeight', peakThreshold);
+        peakIds = intersect(peakIds, cleanIds);
     else
-        peaksId = [];
+        peakIds = [];
     end
     if any(-peaksSmooth >= peakThreshold)
-        [~, valleysId] = findpeaks(-peaksSmooth, 'MinPeakHeight', peakThreshold);
-        valleysId = intersect(valleysId, cleanIds);
+        [~, valleyIds] = findpeaks(-peaksSmooth, 'MinPeakHeight', peakThreshold);
+        valleyIds = intersect(valleyIds, cleanIds);
     else
-        valleysId = [];
+        valleyIds = [];
     end
     warning(state.state, 'signal:findpeaks:largeMinPeakHeight');
     
-    % Split peaks/traces by conditions.
     % Number of samples in a triggered window.
-    window = round(parameters.triggeredWindow * frequency);
+    triggeredWindow = parameters.triggeredWindow * frequency;
     % Force odd count.
-    if mod(window, 2) == 0
-        window = window - 1;
-    end
-    % Index template to apply around each peak.
-    windowTemplate = -(window - 1) / 2:(window - 1) / 2;
+    triggeredWindow = round(triggeredWindow) + (mod(round(triggeredWindow), 2) == 0);
     % Filter out out-of-range traces.
-    peaksId = peaksId(peaksId > (window - 1) / 2 & peaksId + (window - 1) / 2 < nSamples);
-    nPeaks = numel(peaksId);
-    % Index of all triggered traces; one per row.
-    if nPeaks > 0
-        triggeredId = bsxfun(@plus, windowTemplate, peaksId);
-    else
-        triggeredId = [];
-    end
-    % Assign a group to each trace (rows in triggeredId) according to the epoch they are.
-    peakGroups = zeros(1, nPeaks);
-    % Boolean index corresponding to each condition.
-    nEpochs = numel(parameters.conditionEpochs) / 2;
-    for e = 1:nEpochs
-        % Epoch indices:     3 4 5 ... nSamples
-        ids = time2id(time, parameters.conditionEpochs{2 * e});
-        % Epoch flagged: 0 0 1 1 1 ... nSamples
-        epochBool = ismember(allIds, ids);
-        % Flag peaks within epoch: [0 0 1 1 1][peaksId]
-        k = epochBool(peaksId);
-        % Warn about overlaps.
-        overlaps = peakGroups(k);
-        overlaps = unique(overlaps(overlaps > 0));
-        epochName = parameters.conditionEpochs{2 * e - 1};
-        for o = overlaps(:)'
-            overlapName = parameters.conditionEpochs{2 * o - 1};
-            results.warnings{end + 1} = warn('[peaks] "%s" overlaps with "%s".', epochName, overlapName);
-        end
-        % Assign group to such peaks. When epochs overlap, the later overrides the group .
-        peakGroups(k) = e;
-    end
-    uniqueGroups = unique(peakGroups);
-    % Epochs may not have peaks.
-    uniqueGroups = uniqueGroups(uniqueGroups > 0);
-    nGroups = numel(uniqueGroups);
+    peakIds = peakIds(peakIds > (triggeredWindow - 1) / 2 & peakIds + (triggeredWindow - 1) / 2 < nSamples);
+    % Index template to apply around each peak.
+    windowTemplate = -(triggeredWindow - 1) / 2:(triggeredWindow - 1) / 2;
     
+    % Index epochs.
     epochIds = zeros(0, 1);
-    epochGroups = zeros(0, 1);
-    epochStatLabels = cell(1, nEpochs);
-    area = zeros(1, nEpochs);
-    peaksCount = zeros(1, nEpochs);
-    valleysCount = zeros(1, nEpochs);
-    for e = 1:nEpochs
-        ids = time2id(time, parameters.conditionEpochs{2 * e});
-        area(e) = sum(dff(ids));
-        peaksCount(e) = sum(ismember(ids, peaksId));
-        valleysCount(e) = sum(ismember(ids, valleysId));
+    epochLabels = zeros(0, 1);
+    area = zeros(nConditions, 1);
+    duration = zeros(nConditions, 1);
+    normalizedArea = zeros(nConditions, 1);
+    peakCount = zeros(nConditions, 1);
+    valleyCount = zeros(nConditions, 1);
+    windowIds = zeros(0, triggeredWindow);
+    windowLabels = zeros(0, 1);
+    windowDff = zeros(0, triggeredWindow);
+    
+    for c = 1:nConditions
+        % Epoch indices:  3 4 5 ...
+        ids = time2id(time, parameters.conditionEpochs{2 * c});
+        
+        % Triggered windows and condition labels (overlapping is possible and allowed).
+        % Peaks in epoch: 3   5 ...
+        epochPeakIds = intersect(ids, peakIds);
+        nPeaks = numel(epochPeakIds);
+        if nPeaks > 0
+            epochwindowLabels = repmat(c, nPeaks, 1);
+            windowLabels = cat(1, windowLabels, epochwindowLabels);
+            epochWindowIds = bsxfun(@plus, windowTemplate, epochPeakIds);
+            epochWindowIds = reshape(epochWindowIds, [], triggeredWindow);
+            windowIds = cat(1, windowIds, epochWindowIds);
+            epochAverageDff = mean(dff(windowIds), 1);
+            windowDff = cat(1, windowDff, epochAverageDff);
+        end
+        
+        area(c) = sum(dff(ids));
+        if numel(ids) > 0
+            normalizedArea(c) = area(c) / numel(ids);
+        else
+            normalizedArea(c) = 0;
+        end
+        duration(c) = numel(ids) * frequency;
+        
+        peakCount(c) = sum(ismember(ids, peakIds));
+        valleyCount(c) = sum(ismember(ids, valleyIds));
         epochIds = cat(1, epochIds, ids);
-        thisEpochGroups = repmat(e, [numel(ids), 1]);
-        epochGroups = cat(1, epochGroups, thisEpochGroups);
-        epochStatLabels{e} = sprintf('\nmean:%.2f\nstd:%.2f', mean(dff(ids)), std(dff(ids)));
+        thisEpochLabels = repmat(c, [numel(ids), 1]);
+        epochLabels = cat(1, epochLabels, thisEpochLabels);
     end
     
     % Style.
@@ -425,7 +421,7 @@ function results = FPA(time, signal, reference, configuration)
         yy = [dff(cleanIds); peaksSmooth(cleanIds)];
         ylims = limits(yy, percentile, grow);
         epochs = parameters.conditionEpochs;
-        epochs(1:2:end) = arrayfun(@(e) sprintf('area:%.2f', area(e)), 1:nEpochs, 'UniformOutput', false);
+        epochs(1:2:end) = arrayfun(@(e) sprintf('area:%.2f', area(e)), 1:nConditions, 'UniformOutput', false);
         plotEpochs(epochs, xlims, ylims, cmap, true);
         plot(ax.filtered, time, dff, 'Color', signalColor, 'DisplayName', 'df/f');
         plot(ax.filtered, time, peaksSmooth, 'Color', peaksLineColor, 'DisplayName', sprintf('df/f (<%.2fHz)', parameters.peaksLowpassFrequency));
@@ -439,13 +435,13 @@ function results = FPA(time, signal, reference, configuration)
         yy = peaksSmooth(cleanIds);
         ylims = limits(yy, percentile, grow);
         epochs = parameters.conditionEpochs;
-        epochs(1:2:end) = arrayfun(@(e) sprintf('%i peaks / %i valleys', peaksCount(e), valleysCount(e)), 1:nEpochs, 'UniformOutput', false);
+        epochs(1:2:end) = arrayfun(@(e) sprintf('%i peaks / %i valleys', peakCount(e), valleyCount(e)), 1:nConditions, 'UniformOutput', false);
         plotEpochs(epochs, xlims, ylims, cmap, true);
         plot(ax.processed, time, peaksSmooth, 'Color', peaksLineColor, 'DisplayName', sprintf('df/f (<%.2fHz)', parameters.peaksLowpassFrequency));
         plot(ax.processed, time([1, end]), peakThreshold([1, 1]), 'Color', dashColor, 'LineStyle', '--', 'DisplayName', 'threshold');
         plot(ax.processed, time([1, end]), valleyThreshold([1, 1]), 'Color', dashColor, 'LineStyle', '--', 'HandleVisibility', 'off');
-        plot(ax.processed, time(peaksId), peaksSmooth(peaksId), 'Color', peaksMarkerColor, 'LineStyle', 'none', 'Marker', 'o', 'HandleVisibility', 'off');
-        plot(ax.processed, time(valleysId), peaksSmooth(valleysId), 'Color', peaksMarkerColor, 'LineStyle', 'none', 'Marker', 'o', 'HandleVisibility', 'off');
+        plot(ax.processed, time(peakIds), peaksSmooth(peakIds), 'Color', peaksMarkerColor, 'LineStyle', 'none', 'Marker', 'o', 'HandleVisibility', 'off');
+        plot(ax.processed, time(valleyIds), peaksSmooth(valleyIds), 'Color', peaksMarkerColor, 'LineStyle', 'none', 'Marker', 'o', 'HandleVisibility', 'off');
         ylim(ylims);
         title(ax.processed, 'Peak detection');
         legend(ax.processed, 'show');
@@ -461,11 +457,11 @@ function results = FPA(time, signal, reference, configuration)
     if anyMatch(parameters.plot, '\<power\>')
         % Plot power spectrum.
         results.figures(end + 1) = figure('name', 'FPA: Power spectrum');
-        axs = cell(1, nEpochs);
-        for e = 1:nEpochs
-            axs{e} = subplot(nEpochs, 1, e);
-            epochName = parameters.conditionEpochs{2 * e - 1};
-            ids = time2id(time, parameters.conditionEpochs{2 * e});
+        axs = cell(1, nConditions);
+        for c = 1:nConditions
+            axs{c} = subplot(nConditions, 1, c);
+            epochName = parameters.conditionEpochs{2 * c - 1};
+            ids = time2id(time, parameters.conditionEpochs{2 * c});
             n = numel(ids);
             if n > 2
                 d = dff(ids);
@@ -491,50 +487,52 @@ function results = FPA(time, signal, reference, configuration)
     if anyMatch(parameters.plot, '\<stats\>')
         % Boxplot of dff.
         results.figures(end + 1) = figure('name', 'FPA: Boxplot');
-        h = axes();
+        ax.boxplot = axes();
         % Not all epochs may be available.
-        epochNames = parameters.conditionEpochs(1:2:end);
-        groups = unique(epochGroups);
-        boxplot(dff(epochIds), epochGroups, 'Labels', epochNames(groups));
+        boxplot(dff(epochIds), epochLabels, 'Labels', epochNames);
         hold('all');
-        area = zeros(1, nEpochs);
         ylims = ylim();
-        for e = 1:nEpochs
-            ids = time2id(time, parameters.conditionEpochs{2 * e});
+        for c = 1:nConditions
+            ids = time2id(time, parameters.conditionEpochs{2 * c});
             n = numel(ids);
             if n > 2
-                area(e) = mean(dff(ids));
-                text(e, ylims(2), epochStatLabels{e}, 'HorizontalAlignment', 'center', 'VerticalAlignment', 'Top');
+                epochStatLabel = sprintf('\nmean:%.2f\nstd:%.2f', normalizedArea(c), std(dff(ids)));
+                text(c, ylims(2), epochStatLabel, 'HorizontalAlignment', 'center', 'VerticalAlignment', 'Top');
             end
         end
-        plot(h.XTick, area(groups), 'k.', 'DisplayName', 'Mean');
+        plot(normalizedArea, 'k.', 'DisplayName', 'Mean');
         ylabel('df/f');
         xtickangle(45);
         title('Stats on df/f traces for each condition');
     end
     
     if anyMatch(parameters.plot, '\<trigger\>')
+        % Split peaks/traces by conditions.
+        
         % Plot triggered average.
         results.figures(end + 1) = figure('name', 'FPA: Triggered average');
         ax.trigger = axes();
         hold(ax.trigger, 'all');
-        if nGroups > 0
+        if numel(peakIds) > 0
             timeTemplate = windowTemplate / frequency;
-            for g = 1:nGroups
-                e = uniqueGroups(g);
-                triggeredDff = dff(triggeredId(peakGroups == e, :));
-                triggeredDff = reshape(triggeredDff, numel(triggeredDff) / window, window);
-                triggeredMean = mean(triggeredDff, 1);
-                plot(timeTemplate, triggeredMean, 'Color', cmap(e, :), 'HandleVisibility', 'off');
-                epochName = parameters.conditionEpochs{2 * e - 1};
-                triggeredSem = std(triggeredDff, [], 1) / sqrt(size(triggeredDff, 1));
-                semAtZero = triggeredSem(ceil(window / 2));
-                nPeaks = sum(peakGroups == e);
-                label = sprintf('%s (SEM=%.4f, n = %i)', epochName, semAtZero, nPeaks);
-                vertices = [timeTemplate; triggeredMean + triggeredSem / 2];
-                vertices = cat(2, vertices, [fliplr(timeTemplate); fliplr(triggeredMean - triggeredSem / 2)])';
-                faces = 1:2 * window;
-                patch('Faces', faces, 'Vertices', vertices, 'FaceColor', cmap(e, :), 'EdgeColor', 'none', 'FaceAlpha', 0.10, 'DisplayName', label);
+                
+            for c = 1:nConditions
+                nPeaks = sum(windowLabels == c);
+                if nPeaks > 0
+                    epochWindowIds = windowIds(windowLabels == c, :);
+                    triggeredDff = dff(epochWindowIds);
+                    triggeredMean = mean(triggeredDff, 1);
+                    % Plot.
+                    plot(timeTemplate, triggeredMean, 'Color', cmap(c, :), 'HandleVisibility', 'off');
+                    epochName = parameters.conditionEpochs{2 * c - 1};
+                    sem = std(triggeredDff, [], 1) / sqrt(size(triggeredDff, 1));
+                    sem0 = sem(ceil(triggeredWindow / 2));
+                    label = sprintf('%s (SEM=%.4f, n = %i)', epochName, sem0, nPeaks);
+                    vertices = [timeTemplate; triggeredMean + sem / 2];
+                    vertices = cat(2, vertices, [fliplr(timeTemplate); fliplr(triggeredMean - sem / 2)])';
+                    faces = 1:2 * triggeredWindow;
+                    patch('Faces', faces, 'Vertices', vertices, 'FaceColor', cmap(c, :), 'EdgeColor', 'none', 'FaceAlpha', 0.10, 'DisplayName', label);
+                end
             end
         else
             text(ax.trigger, 0.5, 0.5, sprintf('No peaks above threshold %.2f (factor:%.2f)', peakThreshold, parameters.thresholdFactor), 'HorizontalAlignment', 'center');
@@ -546,8 +544,30 @@ function results = FPA(time, signal, reference, configuration)
         axis(ax.trigger, 'tight');
     end
     
+    if anyMatch(parameters.plot, '\<AUC\>')
+        % Plot normalized area under the curve.
+        nConditions = numel(parameters.conditionEpochs) / 2;
+        results.figures(end + 1) = figure('name', 'FPA: Normalized area under the curve');
+        ax.auc = axes();
+        bar(1:nConditions, normalizedArea);
+        set(ax.auc, 'XTickLabel', epochNames);
+        xtickangle(45);
+        title('dff/f - normalized AUC');
+    end
+    
     results.time = time;
-
+    results.frequency = frequency;
+    
+    % Triggered windows and condition labels.
+    % Order depends on epoch definitions. Overlapping is possible and allowed.
+    results.windowIds = windowIds;
+    results.windowLabels = windowLabels;
+    results.windowDff = windowDff;
+    
+    % Peak location. Order is chronological and does not depend on epoch definitions.
+    results.peakIds = peakIds;
+    results.valleyIds = valleyIds;
+    
     % Filtered, uncorrected.
     results.signalBaseline = signalBaseline;
     results.referenceBaseline = referenceBaseline;
@@ -567,11 +587,49 @@ function results = FPA(time, signal, reference, configuration)
     results.f1 = f1;
     results.dff = dff;
     results.area = area;
+    results.duration = duration;
     
-    % fSmooth filtered again.
-    results.peaks = peaksSmooth;
-    results.peaksId = peaksId;
-    results.valleysId = valleysId;
+    % Save data for post-processing.
+    folder = pwd();
+    basename = sprintf('FPA %s', datestr(now, 'yyyymmddHHMMSS'));
+    
+    % File #1: time vs dff.
+    % Rows represent increasing values of time with corresponding dff values.
+    output = fullfile(folder, sprintf('%s - dff.csv', basename));
+    fid = fopen(output, 'w');
+    fprintf(fid, '# time, dff\n');
+    fprintf(fid, '%.4f, %.4f\n', [time, dff]');
+    fclose(fid);
+
+    % File #2: AUC.
+    output = fullfile(folder, sprintf('%s - AUC.csv', basename));
+    fid = fopen(output, 'w');
+    fprintf(fid, '# condition, area, duration\n');
+    fprintf(fid, '%i, %.4f, %d\n', [(1:nConditions)', area, duration]');
+    fclose(fid);
+
+    % File #3: triggered windows with corresponding epoch label.
+    % Order depends on epoch definitions. Overlapping is possible.
+    % Rows represent a single peak:
+    % First column is the condition label of the peak and is followed by the trace around each peak, with each peak at the center column (n / 2 + 1) labeled with c.
+    output = fullfile(folder, sprintf('%s - peaks.csv', basename));
+    fid = fopen(output, 'w');
+    halfSize = (size(windowIds, 2) - 1) / 2;
+    windowIdsText = [repmat('n, ', 1, halfSize), 'c', repmat(', p', 1, halfSize)];
+    format = ['%i', repmat(', %.4f', 1, 2 * halfSize + 1), '\n'];
+    fprintf(fid, '# condition, %s\n', windowIdsText);
+    fprintf(fid, format, [windowLabels, dff(windowIds)]');
+    fclose(fid);
+
+    % File #4: Average of the above.
+    output = fullfile(folder, sprintf('%s - average peaks.csv', basename));
+    fid = fopen(output, 'w');
+    halfSize = (size(windowIds, 2) - 1) / 2;
+    windowIdsText = [repmat('n, ', 1, halfSize), 'c', repmat(', p', 1, halfSize)];
+    format = ['%i', repmat(', %.4f', 1, 2 * halfSize + 1), '\n'];
+    fprintf(fid, '# condition, %s\n', windowIdsText);
+    fprintf(fid, format, [unique(windowLabels, 'stable'), windowDff]');
+    fclose(fid);
 end
 
 function output = parseNormalization(parameters, f, time)

@@ -2,7 +2,7 @@
 % see FPA.
 
 % 2020-11-01. Leonardo Molina.
-% 2021-01-29. Last modified.
+% 2021-02-12. Last modified.
 classdef GUI < handle
     properties % (Access = private)
         doricChannelsEntries
@@ -318,11 +318,12 @@ classdef GUI < handle
             panel.RowHeight = repmat({'1x'}, 1, rowCount);
             panel.ColumnWidth = {'1x'};
             
-            savePlotSelection = @()obj.saveSettings('plotFpTrace', obj.h.fpPlots(1).Value, 'plotFpPower', obj.h.fpPlots(2).Value, 'plotFpStats', obj.h.fpPlots(3).Value, 'plotFpTrigger', obj.h.fpPlots(4).Value, 'plotEmgTrace', obj.h.emgPlots(1).Value, 'plotXcorr', obj.h.generalPlots(1).Value);
+            savePlotSelection = @()obj.saveSettings('plotFpTrace', obj.h.fpPlots(1).Value, 'plotFpPower', obj.h.fpPlots(2).Value, 'plotFpStats', obj.h.fpPlots(3).Value, 'plotFpTrigger', obj.h.fpPlots(4).Value, 'plotFpAUC', obj.h.fpPlots(5).Value, 'plotEmgTrace', obj.h.emgPlots(1).Value, 'plotXcorr', obj.h.generalPlots(1).Value);
             obj.h.fpPlots(1) = uicheckbox(panel, 'Text', 'df/f trace and peaks', 'ValueChangedFcn', @(~, ~)savePlotSelection());
             obj.h.fpPlots(2) = uicheckbox(panel, 'Text', 'df/f power spectrum', 'ValueChangedFcn', @(~, ~)savePlotSelection());
             obj.h.fpPlots(3) = uicheckbox(panel, 'Text', 'df/f stats boxplot', 'ValueChangedFcn', @(~, ~)savePlotSelection());
             obj.h.fpPlots(4) = uicheckbox(panel, 'Text', 'df/f triggered average', 'ValueChangedFcn', @(~, ~)savePlotSelection());
+            obj.h.fpPlots(5) = uicheckbox(panel, 'Text', 'df/f normalized AUC', 'ValueChangedFcn', @(~, ~)savePlotSelection());
             obj.h.emgPlots(1) = uicheckbox(panel, 'Text', 'EMG trace and envelope', 'ValueChangedFcn', @(~, ~)savePlotSelection());
             obj.h.generalPlots(1) = uicheckbox(panel, 'Text', 'Cross-correlation df/f to EMG', 'ValueChangedFcn', @(~, ~)savePlotSelection());
             
@@ -430,6 +431,7 @@ classdef GUI < handle
             obj.h.fpPlots(2).Value = obj.settings.plotFpPower;
             obj.h.fpPlots(3).Value = obj.settings.plotFpStats;
             obj.h.fpPlots(4).Value = obj.settings.plotFpTrigger;
+            obj.h.fpPlots(5).Value = obj.settings.plotFpAUC;
             obj.h.emgPlots(1).Value = obj.settings.plotEmgTrace;
             obj.h.generalPlots(1).Value = obj.settings.plotXcorr;
             
@@ -667,8 +669,8 @@ classdef GUI < handle
             end
             
             fp.conditionEpochs = epochs;
-            fp.plot = {'trace', 'power', 'stats', 'trigger'};
-            fp.plot = fp.plot([obj.settings.plotFpTrace, obj.settings.plotFpPower, obj.settings.plotFpStats, obj.settings.plotFpTrigger]);
+            fp.plot = {'trace', 'power', 'stats', 'trigger', 'AUC'};
+            fp.plot = fp.plot([obj.settings.plotFpTrace, obj.settings.plotFpPower, obj.settings.plotFpStats, obj.settings.plotFpTrigger, obj.settings.plotFpAUC]);
             [fpTime, fpSignal, fpReference] = alignTimestamps(fpTime, 1 / obj.settings.resamplingFrequency, fpSignal, fpReference);
             fpa = FPA(fpTime, fpSignal, fpReference, fp);
             cellfun(@warning, fpa.warnings);
@@ -703,7 +705,7 @@ classdef GUI < handle
                 plot(fpa.time, fpa.dff, 'Color', colorDff, 'DisplayName', 'df/f');
                 legend('show');
                 ylim(ylims);
-
+                
                 subplot(3, 1, 3);
                 hold('all');
                 ylims = limits([emgSignal; emgHigh], percentile, grow);
@@ -712,7 +714,7 @@ classdef GUI < handle
                 plot(emgTime, emgHigh, 'Color', colorEnvelope, 'DisplayName', 'EMG envelope');
                 legend('show');
                 ylim(ylims);
-
+                
                 linkaxes(findobj(gcf(), 'type', 'axes'), 'x');
                 xlim(xlims);
             end
@@ -725,7 +727,6 @@ classdef GUI < handle
                 figure('name', figureName);
                 hold('all');
                 for e = 1:nEpochs
-                    % !! Not all epochs have peaks.
                     epochName = epochs{2 * e - 1};
                     ranges = epochs{2 * e};
                     mask = time2id(fpa.time, ranges);
@@ -1125,6 +1126,7 @@ function settings = getDefaults()
     settings.plotFpPower = true;
     settings.plotFpStats = true;
     settings.plotFpTrigger = true;
+    settings.plotFpAUC = true;
     settings.plotEmgTrace = true;
     settings.plotXcorr = true;
 end
