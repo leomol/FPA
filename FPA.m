@@ -332,8 +332,7 @@ function results = FPA(time, signal, reference, configuration)
         if nPeaks > 0
             epochwindowLabels = repmat(c, nPeaks, 1);
             windowLabels = cat(1, windowLabels, epochwindowLabels);
-            epochWindowIds = bsxfun(@plus, windowTemplate, epochPeakIds);
-            epochWindowIds = reshape(epochWindowIds, [], triggeredWindow);
+            epochWindowIds = epochPeakIds + windowTemplate;
             windowIds = cat(1, windowIds, epochWindowIds);
             epochAverageDff = mean(dff(windowIds), 1);
             windowDff = cat(1, windowDff, epochAverageDff);
@@ -341,9 +340,7 @@ function results = FPA(time, signal, reference, configuration)
         
         area(c) = sum(dff(ids));
         if numel(ids) > 0
-            normalizedArea(c) = area(c) / numel(ids);
-        else
-            normalizedArea(c) = 0;
+            normalizedArea(c) = mean(dff(ids));
         end
         duration(c) = numel(ids) * frequency;
         
@@ -521,6 +518,7 @@ function results = FPA(time, signal, reference, configuration)
                 if nPeaks > 0
                     epochWindowIds = windowIds(windowLabels == c, :);
                     triggeredDff = dff(epochWindowIds);
+                    triggeredDff = reshape(triggeredDff, size(epochWindowIds));
                     triggeredMean = mean(triggeredDff, 1);
                     % Plot.
                     plot(timeTemplate, triggeredMean, 'Color', cmap(c, :), 'HandleVisibility', 'off');
