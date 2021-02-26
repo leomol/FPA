@@ -85,7 +85,7 @@
 % Units for time and frequency are seconds and hertz respectively.
 % 
 % 2019-02-01. Leonardo Molina.
-% 2021-02-12. Last modified.
+% 2021-02-25. Last modified.
 function results = FPA(time, signal, reference, configuration)
     results.warnings = {};
     if nargin < 4
@@ -300,7 +300,7 @@ function results = FPA(time, signal, reference, configuration)
     end
     warning(state.state, 'signal:findpeaks:largeMinPeakHeight');
     
-    % Number of samples in a triggered window.
+    % Number of samples in a triggered window (whole length, left to right).
     triggeredWindow = parameters.triggeredWindow * frequency;
     % Force odd count.
     triggeredWindow = round(triggeredWindow) + (mod(round(triggeredWindow), 2) == 0);
@@ -334,15 +334,19 @@ function results = FPA(time, signal, reference, configuration)
             windowLabels = cat(1, windowLabels, epochwindowLabels);
             epochWindowIds = epochPeakIds + windowTemplate;
             windowIds = cat(1, windowIds, epochWindowIds);
-            epochAverageDff = mean(dff(windowIds), 1);
+            if isvector(epochWindowIds)
+                epochAverageDff = dff(epochWindowIds)';
+            else
+                epochAverageDff = mean(dff(epochWindowIds), 1);
+            end
             windowDff = cat(1, windowDff, epochAverageDff);
         end
         
-        area(c) = sum(dff(ids));
+        duration(c) = numel(ids) / frequency;
+        area(c) = trapz(dff(ids)) / frequency;
         if numel(ids) > 0
-            normalizedArea(c) = mean(dff(ids));
+            normalizedArea(c) = area(c) / duration(c);
         end
-        duration(c) = numel(ids) * frequency;
         
         peakCount(c) = sum(ismember(ids, peakIds));
         valleyCount(c) = sum(ismember(ids, valleyIds));
@@ -586,48 +590,6 @@ function results = FPA(time, signal, reference, configuration)
     results.dff = dff;
     results.area = area;
     results.duration = duration;
-    
-    % Save data for post-processing.
-    folder = pwd();
-    basename = sprintf('FPA %s', datestr(now, 'yyyymmddHHMMSS'));
-    
-    % File #1: time vs dff.
-    % Rows represent increasing values of time with corresponding dff values.
-    output = fullfile(folder, sprintf('%s - dff.csv', basename));
-    fid = fopen(output, 'w');
-    fprintf(fid, '# time, dff\n');
-    fprintf(fid, '%.4f, %.4f\n', [time, dff]');
-    fclose(fid);
-
-    % File #2: AUC.
-    output = fullfile(folder, sprintf('%s - AUC.csv', basename));
-    fid = fopen(output, 'w');
-    fprintf(fid, '# condition, area, duration\n');
-    fprintf(fid, '%i, %.4f, %d\n', [(1:nConditions)', area, duration]');
-    fclose(fid);
-
-    % File #3: triggered windows with corresponding epoch label.
-    % Order depends on epoch definitions. Overlapping is possible.
-    % Rows represent a single peak:
-    % First column is the condition label of the peak and is followed by the trace around each peak, with each peak at the center column (n / 2 + 1) labeled with c.
-    output = fullfile(folder, sprintf('%s - peaks.csv', basename));
-    fid = fopen(output, 'w');
-    halfSize = (size(windowIds, 2) - 1) / 2;
-    windowIdsText = [repmat('n, ', 1, halfSize), 'c', repmat(', p', 1, halfSize)];
-    format = ['%i', repmat(', %.4f', 1, 2 * halfSize + 1), '\n'];
-    fprintf(fid, '# condition, %s\n', windowIdsText);
-    fprintf(fid, format, [windowLabels, dff(windowIds)]');
-    fclose(fid);
-
-    % File #4: Average of the above.
-    output = fullfile(folder, sprintf('%s - average peaks.csv', basename));
-    fid = fopen(output, 'w');
-    halfSize = (size(windowIds, 2) - 1) / 2;
-    windowIdsText = [repmat('n, ', 1, halfSize), 'c', repmat(', p', 1, halfSize)];
-    format = ['%i', repmat(', %.4f', 1, 2 * halfSize + 1), '\n'];
-    fprintf(fid, '# condition, %s\n', windowIdsText);
-    fprintf(fid, format, [unique(windowLabels, 'stable'), windowDff]');
-    fclose(fid);
 end
 
 function output = parseNormalization(parameters, f, time)

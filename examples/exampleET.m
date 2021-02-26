@@ -13,7 +13,7 @@ signal = data(:, signalColumn);
 reference = data(:, referenceColumn);
 
 configuration = struct();
-configuration.conditionEpochs = {'Pre', [0, 300], 'During', [300, 550], 'Post', [1010, 1310]};
+configuration.conditionEpochs = {'Pre', [600, 700], 'During', [750, 850], 'Post', [900, 1000]};
 configuration.baselineEpochs = [0, 300, 1010, Inf];
 configuration.thresholdingFunction = @mad;
 configuration.thresholdFactor = 2.91;
