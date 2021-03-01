@@ -742,9 +742,11 @@ function saveEventTrigger(output1, output2, header, format, data, ids, labels, w
     nSamples = numel(data);
     triggeredWindow = numel(window);
     halfWindow = (triggeredWindow - 1) / 2;
-    ids = ids(ids > halfWindow & ids + halfWindow < nSamples);
-    data = data(window + ids);
+    k = ids > halfWindow & ids + halfWindow < nSamples;
+    labels = labels(k);
+    ids = ids(k);
     time = window / frequency;
+    data = data(window + ids);
     
     % All triggered windows with corresponding epoch label.
     % Order depends on epoch definitions. Overlapping is possible.
