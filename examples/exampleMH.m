@@ -15,5 +15,5 @@ configuration.conditionEpochs = {'Data', [2 * 60, 4 * 60]};
 configuration.baselineEpochs = [2 * 60, 4 * 60];
 
 % Call FPA with given configuration.
-results = FPA(time, signal, reference, configuration);
-cellfun(@warning, results.warnings);
+fpa = FPA(time, signal, reference, configuration);
+cellfun(@warning, fpa.warnings);

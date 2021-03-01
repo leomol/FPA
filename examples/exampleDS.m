@@ -49,5 +49,5 @@ switch option
 end
 
 % Call FPA with given configuration.
-results = FPA(time, signal, reference, configuration);
-cellfun(@warning, results.warnings);
+fpa = FPA(time, signal, reference, configuration);
+cellfun(@warning, fpa.warnings);

@@ -2,8 +2,12 @@
 % see FPA.
 
 % 2020-11-01. Leonardo Molina.
-% 2021-02-12. Last modified.
+% 2021-03-01. Last modified.
 classdef GUI < handle
+    properties
+        fpa
+    end
+    
     properties % (Access = private)
         doricChannelsEntries
         cleverSysEpochsEntries
@@ -42,7 +46,7 @@ classdef GUI < handle
             % 3x3 layout.
             rowCount = floor(nRows / 3);
             mainLayout = uigridlayout(obj.h.control);
-            mainLayout.RowHeight = repmat({'1x'}, 1, 3);
+            mainLayout.RowHeight = {'1x', '1x', '0.5x'};
             mainLayout.ColumnWidth = repmat({'1x'}, 1, 3);
             
             % General panel.
@@ -221,7 +225,7 @@ classdef GUI < handle
             obj.h.conditionEpochsEdit = h;
             
             % CleverSys epochs panel.
-            panel = uipanel(mainLayout, 'Title', 'CleverSys Epoch definitions');
+            panel = uipanel(mainLayout, 'Title', 'Epoch definitions');
             panel.Layout = obj.h.conditionEpochsPanel.Layout;
             obj.h.cleverSysPanel = panel;
             panel = uigridlayout(panel, [1, 1]);
@@ -315,8 +319,8 @@ classdef GUI < handle
             % Plots panel.
             panel = uipanel(mainLayout, 'Title', 'Plots');
             panel = uigridlayout(panel, [1, 1]);
-            panel.RowHeight = repmat({'1x'}, 1, rowCount);
-            panel.ColumnWidth = {'1x'};
+            panel.RowHeight = repmat({'1x'}, 1, ceil(rowCount / 2));
+            panel.ColumnWidth = {'1x', '1x'};
             
             savePlotSelection = @()obj.saveSettings('plotFpTrace', obj.h.fpPlots(1).Value, 'plotFpPower', obj.h.fpPlots(2).Value, 'plotFpStats', obj.h.fpPlots(3).Value, 'plotFpTrigger', obj.h.fpPlots(4).Value, 'plotFpAUC', obj.h.fpPlots(5).Value, 'plotEmgTrace', obj.h.emgPlots(1).Value, 'plotXcorr', obj.h.generalPlots(1).Value);
             obj.h.fpPlots(1) = uicheckbox(panel, 'Text', 'df/f trace and peaks', 'ValueChangedFcn', @(~, ~)savePlotSelection());
@@ -352,7 +356,7 @@ classdef GUI < handle
         end
     end
     
-    methods
+    methods % (Access = private)
         function saveSettings(obj, varargin)
             keys = varargin(1:2:end);
             values = varargin(2:2:end);
@@ -456,7 +460,7 @@ classdef GUI < handle
             % TTL sync input: 10min after start, Square wave (20 pulses, for 9.5s)
             
             set(obj.h.processButton, 'Text', 'Processing...');
-            set(obj.h.processButton, 'Enable', false);
+            % !! set(obj.h.processButton, 'Enable', false);
             drawnow();
             messages = {};
             emgRequired = obj.settings.labChartFilename ~= "";
@@ -639,13 +643,13 @@ classdef GUI < handle
             
             manualEpochs = obj.settings.conditionEpochs;
             if ~isempty(obj.settings.cleverSysFilename)
-                fprintf('Loading CleverSys data ... ');
+                fprintf('Loading epochs data ... ');
                 if isequal(obj.settings.cleverSysFilename, obj.cache.cleverSysFilename) && isequal(obj.settings.cleverSysSheet, obj.cache.cleverSysSheet)
                     fprintf('reused cache.\n');
                     cleverSysEpochs = obj.cache.cleverSysEpochs;
                 else
                     fprintf('\n');
-                    cleverSysEpochs = loadCleverSys(obj.settings.cleverSysFilename, obj.settings.cleverSysSheet);
+                    cleverSysEpochs = loadCleverSysOrBoris(obj.settings.cleverSysFilename, obj.settings.cleverSysSheet);
                     obj.cache.cleverSysEpochs = cleverSysEpochs;
                     obj.cache.cleverSysFilename = obj.settings.cleverSysFilename;
                     obj.cache.cleverSysSheet = obj.settings.cleverSysSheet;
@@ -672,8 +676,8 @@ classdef GUI < handle
             fp.plot = {'trace', 'power', 'stats', 'trigger', 'AUC'};
             fp.plot = fp.plot([obj.settings.plotFpTrace, obj.settings.plotFpPower, obj.settings.plotFpStats, obj.settings.plotFpTrigger, obj.settings.plotFpAUC]);
             [fpTime, fpSignal, fpReference] = alignTimestamps(fpTime, 1 / obj.settings.resamplingFrequency, fpSignal, fpReference);
-            fpa = FPA(fpTime, fpSignal, fpReference, fp);
-            cellfun(@warning, fpa.warnings);
+            obj.fpa = FPA(fpTime, fpSignal, fpReference, fp);
+            cellfun(@warning, obj.fpa.warnings);
             
             percentile = 0.99;
             grow = 0.50;
@@ -683,7 +687,7 @@ classdef GUI < handle
             colorDff = color465;
             colorEmg = [1.0000, 0.2500, 0.2500];
             colorEnvelope = [0.0000, 0.0000, 0.0000];
-            xlims = fpa.time([1, end]);
+            xlims = obj.fpa.time([1, end]);
             
             if emgRequired && obj.settings.plotEmgTrace
                 figureName = 'Raster plots';
@@ -691,18 +695,18 @@ classdef GUI < handle
                 
                 subplot(3, 1, 1);
                 hold('all');
-                ylims = limits([fpa.signal; fpa.reference], percentile, grow);
+                ylims = limits([obj.fpa.signal; obj.fpa.reference], percentile, grow);
                 plotEpochs(epochs, xlims, ylims, cmap, true);
-                plot(fpa.time, fpa.signal, 'Color', color465, 'DisplayName', '465');
-                plot(fpa.time, fpa.reference, 'Color', color405, 'DisplayName', '405');
+                plot(obj.fpa.time, obj.fpa.signal, 'Color', color465, 'DisplayName', '465');
+                plot(obj.fpa.time, obj.fpa.reference, 'Color', color405, 'DisplayName', '405');
                 legend('show');
                 ylim(ylims);
                 
                 subplot(3, 1, 2);
                 hold('all');
-                ylims = limits(fpa.dff, percentile, grow);
+                ylims = limits(obj.fpa.dff, percentile, grow);
                 plotEpochs(epochs, xlims, ylims, cmap, false);
-                plot(fpa.time, fpa.dff, 'Color', colorDff, 'DisplayName', 'df/f');
+                plot(obj.fpa.time, obj.fpa.dff, 'Color', colorDff, 'DisplayName', 'df/f');
                 legend('show');
                 ylim(ylims);
                 
@@ -729,11 +733,11 @@ classdef GUI < handle
                 for e = 1:nEpochs
                     epochName = epochs{2 * e - 1};
                     ranges = epochs{2 * e};
-                    mask = time2id(fpa.time, ranges);
+                    mask = time2id(obj.fpa.time, ranges);
                     if isempty(mask)
                         xc = NaN * xcTics;
                     else
-                        xc = xcorr(fpa.dff(mask), emgHigh(mask), xcLags, 'normalized');
+                        xc = xcorr(obj.fpa.dff(mask), emgHigh(mask), xcLags, 'normalized');
                     end
                     plot(xcTics, xc, 'DisplayName', epochName);
                 end
@@ -752,8 +756,8 @@ classdef GUI < handle
                     prompt = 'Select fiber photometry data (Doric)';
                     callback = @obj.onDoricFilenameEdit;
                 case obj.h.cleverSysFilenameEdit
-                    extensions = {'*.xlsx'};
-                    prompt = 'Select video data (CleverSys)';
+                    extensions = {'*.xlsx;*.tsv', 'CleverSys (*.xlsx) or BORIS (*.tsv)'};
+                    prompt = 'Select behavior data';
                     callback = @obj.onCleverSysFilenameEdit;
                 case obj.h.labChartFilenameEdit
                     extensions = {'*.adicht'};
@@ -787,7 +791,7 @@ classdef GUI < handle
             obj.h.conditionEpochsPanel.Visible = false;
             obj.h.cleverSysPanel.Visible = false;
             switch epochType
-                case 'CleverSys'
+                case 'File'
                     obj.h.cleverSysPanel.Visible = true;
                 case 'Manual'
                     obj.h.conditionEpochsPanel.Visible = true;
@@ -812,7 +816,7 @@ classdef GUI < handle
             if numel(varargin) == 1
                 sheet = varargin{1};
                 obj.h.cleverSysSheetDrop.Value = sheet;
-                epochs = loadCleverSys(obj.h.cleverSysFilenameEdit.Value, sheet);
+                epochs = loadCleverSysOrBoris(obj.h.cleverSysFilenameEdit.Value, sheet);
                 entries = epochs(1:2:end);
                 obj.cleverSysEpochsEntries = entries;
                 updateList(obj.h.cleverSysEpochsList, obj.cleverSysEpochsEntries, obj.settings.cleverSysEpochsChoices);
@@ -825,14 +829,23 @@ classdef GUI < handle
         function onCleverSysFilenameEdit(obj)
             target = obj.h.cleverSysFilenameEdit;
             filename = target.Value;
-            if isempty(filename)
+            if isTSV(filename)
+                epochs = loadCleverSysOrBoris(obj.h.cleverSysFilenameEdit.Value);
+                entries = epochs(1:2:end);
+                obj.h.cleverSysSheetDrop.Items = {};
+                obj.onCleverSysSheetDrop();
+                obj.cleverSysEpochsEntries = entries;
+                updateList(obj.h.cleverSysEpochsList, obj.cleverSysEpochsEntries, obj.settings.cleverSysEpochsChoices);
+                obj.saveSettings('cleverSysFilename', filename);
+                success = true;
+            elseif isempty(filename)
                 obj.h.cleverSysSheetDrop.Items = {};
                 obj.onCleverSysSheetDrop();
                 obj.saveSettings('cleverSysFilename', filename);
                 success = true;
             else
                 try
-                    [~, sheets] = xlsfinfo(filename);
+                    [~, sheets, ~] = xlsfinfo(filename);
                     success = true;
                 catch
                     success = false;
@@ -1037,11 +1050,22 @@ classdef GUI < handle
         end
     end
     
+    methods
+        function export(obj, varargin)
+            if numel(varargin) == 1
+                prefix = varargin;
+            else
+                prefix = regexprep(obj.settings.lastFolder, '/$', '');
+            end
+            obj.fpa.export(prefix);
+        end
+    end
+    
     methods (Static)
         function options = enumerate(type, varargin)
             switch type
                 case 'epochsType'
-                    options = {'CleverSys', 'Manual'};
+                    options = {'File', 'Manual'};
                 case 'emgBandpassType'
                     options = {'Zero-phase', 'Butter', 'Window'};
                 case 'emgEnvelopeType'
@@ -1241,6 +1265,20 @@ end
 
 function errorDialog(messages)
     errordlg(messages, 'Processing error', 'modal');
+end
+
+function test = isTSV(filename)
+    [~, ~, extension] = fileparts(filename);
+    test = lower(extension) == ".tsv";
+end
+
+function varargout = loadCleverSysOrBoris(varargin)
+    filename = varargin{1};
+    if isTSV(filename)
+        [varargout{1:nargout}] = loadBoris(filename);
+    else
+        [varargout{1:nargout}] = loadCleverSys(varargin{:});
+    end
 end
 
 %#ok<*PROPLC>

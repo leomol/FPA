@@ -23,13 +23,13 @@ configuration.f0 = {@median, cleanEpochs};
 configuration.f1 = {@std, cleanEpochs};
 
 % Call FPA with given configuration.
-results = FPA(time, signal, reference, configuration);
-cellfun(@warning, results.warnings);
+fpa = FPA(time, signal, reference, configuration);
+cellfun(@warning, fpa.warnings);
 
 figure();
 hold('on');
-plot(results.time, results.signal, 'DisplayName', 'Corrected signal');
-plot(results.time, results.reference, 'DisplayName', 'Corrected reference');
+plot(fpa.time, fpa.signal, 'DisplayName', 'Corrected signal');
+plot(fpa.time, fpa.reference, 'DisplayName', 'Corrected reference');
 xlim(configuration.baselineEpochs);
 xlabel('Time (s)');
 legend('show');

@@ -3,7 +3,7 @@ addpath('..');
 addpath(genpath('../common'));
 
 % Fiber-photometry data recorded with TDT DAQ.
-inputFolder = '../data/RA_FST_305-200318-133857/';
+inputFolder = '../data/RA_FST_305-200318-133857';
 signalTitle = 'Dv1A';
 referenceTitle = 'Dv2A';
 data = loadTDT(inputFolder, {signalTitle, referenceTitle});
@@ -30,29 +30,4 @@ configuration.fitReference = true;
 configuration.triggeredWindow = 10;
 configuration.plot = true;
 
-results = FPA(time, signal, reference, configuration);
-
-% Area under the curve.
-figure();
-nEpochs = numel(configuration.conditionEpochs) / 2;
-epochNames = configuration.conditionEpochs(1:2:2 * nEpochs);
-area = zeros(1, nEpochs);
-duration = zeros(1, nEpochs);
-for e = 1:nEpochs
-    ids = time2id(results.time, configuration.conditionEpochs{2 * e});
-    dff = results.dff(ids);
-    area(e) = sum(dff);
-    duration(e) = numel(ids);
-end
-bar(1:nEpochs, area);
-h = gca();
-h.XTickLabel = epochNames;
-xtickangle(h, 45);
-title('dff/f - AUC');
-
-figure();
-bar(1:nEpochs, area ./ duration);
-h = gca();
-h.XTickLabel = epochNames;
-xtickangle(h, 45);
-title('dff/f - normalized AUC');
+FPA(time, signal, reference, configuration);
