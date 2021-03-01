@@ -1055,7 +1055,7 @@ classdef GUI < handle
             if numel(varargin) == 1
                 prefix = varargin;
             else
-                prefix = regexprep(obj.settings.lastFolder, '/$', '');
+                prefix = obj.settings.lastFolder;
             end
             obj.fpa.export(prefix);
         end

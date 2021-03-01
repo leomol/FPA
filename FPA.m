@@ -585,6 +585,7 @@ classdef FPA < handle
         end
         
         function export(obj, prefix)
+            prefix = regexprep(prefix, '/$', '');
             [folder, basename] = fileparts(prefix);
             
             % Save data for post-processing.
