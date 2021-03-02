@@ -15,8 +15,7 @@ reference = data(:, referenceColumn);
 configuration = struct();
 configuration.conditionEpochs = {'Pre', [600, 700], 'During', [750, 850], 'Post', [900, 1000]};
 configuration.baselineEpochs = [0, 300, 1010, Inf];
-configuration.thresholdingFunction = @mad;
-configuration.thresholdFactor = 2.91;
+configuration.threshold = {2.91, @mad, @median};
 
 % Call FPA with given configuration.
 fpa = FPA(time, signal, reference, configuration);

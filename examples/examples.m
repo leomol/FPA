@@ -37,8 +37,7 @@ configuration.peaksLowpassFrequency = 0.5;
 configuration.fitReference = true;
 configuration.f0 = @median;
 configuration.f1 = @mad;
-configuration.thresholdingFunction = @mad;
-configuration.thresholdFactor = 2.91;
+configuration.threshold = {2.91, @mad, @median};
 configuration.triggeredWindow = 10;
 configuration.plot = {'trace', 'power', 'stats', 'trigger'};
 % Call FPA with given configuration.
@@ -93,8 +92,7 @@ time = data(:, 1);
 signal = data(:, signalColumn);
 reference = data(:, referenceColumn);
 configuration = struct();
-configuration.thresholdingFunction = @mad;
-configuration.thresholdFactor = 2.91;
+configuration.threshold = {2.91, @mad, @median};
 % Extract epochs from CleverSys output.
 configuration.conditionEpochs = loadCleverSys(inputEventFile{:});
 fpa = FPA(time, signal, reference, configuration);

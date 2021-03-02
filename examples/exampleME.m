@@ -17,8 +17,7 @@ configuration.baselineLowpassFrequency = 0.1;
 configuration.airPLS = true;
 configuration.lowpassFrequency = 2;
 configuration.peaksLowpassFrequency = 0.5;
-configuration.thresholdingFunction = @mad;
-configuration.thresholdFactor = 2.91;
+configuration.threshold = {2.91, @mad, @median};
 configuration.f0 = {@median, cleanEpochs};
 configuration.f1 = {@std, cleanEpochs};
 

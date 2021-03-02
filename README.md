@@ -61,10 +61,10 @@ Processing steps:
 - `resamplingFrequency` - Resampling frequency (Hz).
 - `lowpassFrequency` - Lowest frequency permitted in normalized signal.
 - `peaksLowpassFrequency` - Lowest frequency to detect peaks.
-- `thresholdingFunction` - `@mad`, `@std`, ...
-- `thresholdFactor` - Thresholding cut-off.
 - `triggeredWindow` - Length of time to capture around each peak of spontaneous activity.
 - `fitReference` - Shift and scale reference to fit signal.
+
+Also see [normalization](#Normalization-recipes) and [thresholding](#Thresholding) configurations below.
 
 See source code for default values:
 ```matlab
@@ -126,6 +126,25 @@ f0 = ones(size(time));
 f1 = ones(size(time)) * 10;
 configuration.f0 = f0;
 configuration.f1 = f1;
+```
+
+
+## Thresholding
+Fluorescence deflections are considered peaks when they exceed a threshold calculated as `k * f2 + f3` and they are provided by the user as `configuration.threshold = {k, f2, f3}`
+
+### Examples:
+
+#### 2.91 median absolute deviations from the median:
+```matlab
+  configuration.threshold = {2.91, @mad, @median}
+```
+#### 2.91 median absolute deviations from 0:
+```matlab
+  configuration.threshold = {2.91, @mad, 0}
+```
+#### 2.00 standard deviations from the mean:
+```matlab
+  configuration.threshold = {2.00, @std, @mean}
 ```
 
 ## Data loaders
@@ -232,6 +251,9 @@ epochs = loadBoris(filename)
 Returns a list of event epochs scored with BORIS.
 
 ## Version History
+* 2021-03-02
+	- Added thresholding options.
+	- Default thresholding changed from k * mad(x) + mean(x) to k * mad(x) + median(x).
 * 2021-03-01
 	- FPA changed from function to object.
 	- Added export method.

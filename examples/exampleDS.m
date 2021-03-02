@@ -17,16 +17,27 @@ configuration.conditionEpochs = {'Pre', [0, 300], 'During', [300, 600], 'Post', 
 configuration.baselineEpochs = [-Inf, Inf];
 configuration.lowpassFrequency = 2;
 configuration.peaksLowpassFrequency = 0.5;
-configuration.thresholdingFunction = @mad;
-configuration.thresholdFactor = 2.91;
+
+thresholdingOption = 3;
+switch thresholdingOption
+    case 1
+        % 2.91 median absolute deviations from the median
+        configuration.threshold = {2.91, @mad, @median};
+    case 2
+        % 3.00 median absolute deviations from zero.
+        configuration.threshold = {3.00, @mad, 0};
+    case 3
+        % 2.00 standtard deviations from the mean.
+        configuration.threshold = {2.00, @std, @mean};
+end
 
 % In the options below:
 %   f: the calcium response after baseline correction and motion artifacts.
 %   f0: value calculated from neighbors around each value of f.
 %   window: length of the window enclosing neighbors of f.
 % Choose one according to your preference.
-option = 1;
-switch option
+normalizationOption = 1;
+switch normalizationOption
     case 1
         % "z-score" ==> (f - mean(f0)) / std(f0)
         configuration.f0 = @mean;
@@ -51,3 +62,8 @@ end
 % Call FPA with given configuration.
 fpa = FPA(time, signal, reference, configuration);
 cellfun(@warning, fpa.warnings);
+
+% Export data.
+[folder, basename] = fileparts(inputDataFile);
+prefix = fullfile(folder, basename);
+fpa.export(prefix);

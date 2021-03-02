@@ -2,7 +2,7 @@
 % see FPA.
 
 % 2020-11-01. Leonardo Molina.
-% 2021-03-01. Last modified.
+% 2021-03-02. Last modified.
 classdef GUI < handle
     properties
         fpa
@@ -202,10 +202,10 @@ classdef GUI < handle
             h.Layout.Row = 7;
             h.Layout.Column = 2;
             obj.h.fpLowpassFrequencyEdit = h;
-            h = uidropdown(panel, 'Items', GUI.enumerate('fpThresholdingFunction'), 'ValueChangedFcn', @(h, ~)obj.saveSettings('fpThresholdingFunction', h.Value));
+            h = uidropdown(panel, 'Items', GUI.enumerate('fpThresholdingFunctions'), 'ValueChangedFcn', @(h, ~)obj.saveSettings('fpThresholdingFunctions', h.Value));
             h.Layout.Row = 8;
             h.Layout.Column = 2;
-            obj.h.fpThresholdingFunctionDrop = h;
+            obj.h.fpThresholdingFunctionsDrop = h;
             h = uieditfield(panel, 'numeric', 'Limits', [1e-3, Inf], 'ValueChangedFcn', @(h, ~)obj.saveSettings('fpThresholdingFactor', h.Value));
             h.Layout.Row = 9;
             h.Layout.Column = 2;
@@ -420,7 +420,7 @@ classdef GUI < handle
             
             obj.h.fpPeaksLowpassFrequencyLowEdit.Value = obj.settings.fpPeaksLowpassFrequency;
             obj.h.fpLowpassFrequencyEdit.Value = obj.settings.fpLowpassFrequency;
-            obj.h.fpThresholdingFunctionDrop.Value = obj.settings.fpThresholdingFunction;
+            obj.h.fpThresholdingFunctionsDrop.Value = obj.settings.fpThresholdingFunctions;
             obj.h.fpThresholdingFactorEdit.Value = obj.settings.fpThresholdingFactor;
             obj.h.fpNormalizationTypeDrop.Value = obj.settings.fpNormalizationType;
             
@@ -504,14 +504,13 @@ classdef GUI < handle
             fp.peaksLowpassFrequency = obj.settings.fpPeaksLowpassFrequency;
             fp.lowpassFrequency = obj.settings.fpLowpassFrequency;
             fp.resamplingFrequency = obj.settings.resamplingFrequency;
-            switch obj.settings.fpThresholdingFunction
-                case 'mad'
-                    fp.thresholdingFunction = @mad;
-                case 'std'
-                    fp.thresholdingFunction = @std;
+            switch obj.settings.fpThresholdingFunctions
+                case 'median:mad'
+                    fp.threshold = {obj.settings.fpThresholdingFactor, @mad, @median};
+                case 'mean:std'
+                    fp.threshold = {obj.settings.fpThresholdingFactor, @std, @mean};
             end
             
-            fp.thresholdFactor = obj.settings.fpThresholdingFactor;
             switch obj.settings.fpNormalizationType
                 case 'z-score'
                     fp.f0 = @mean;
@@ -1074,8 +1073,8 @@ classdef GUI < handle
                     options = {'exponential decay', 'airPLS'};
                 case 'fpFitReference'
                     options = {'true', 'false'};
-                case 'fpThresholdingFunction'
-                    options = {'mad', 'std'};
+                case 'fpThresholdingFunctions'
+                    options = {'median:mad', 'mean:std'};
                 case 'fpNormalizationType'
                     options = {'z-score', 'df/f', 'median:mad', 'median:std', 'mean:mad'};
                 otherwise
@@ -1123,7 +1122,7 @@ function settings = getDefaults()
     settings.fpArtifactEpochsText = '';
     settings.fpLowpassFrequency = 2;
     settings.fpPeaksLowpassFrequency = 0.5;
-    settings.fpThresholdingFunction = 'mad';
+    settings.fpThresholdingFunctions = 'median:mad';
     settings.fpThresholdingFactor = 2.91;
     settings.fpNormalizationType = 'median:mad';
     

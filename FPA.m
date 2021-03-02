@@ -36,8 +36,6 @@
 %     resamplingFrequency - Resampling frequency (Hz).
 %     lowpassFrequency - Lowest frequency permitted in normalized signal.
 %     peaksLowpassFrequency - Lowest frequency to detect peaks.
-%     thresholdingFunction - @mad, @std, ...
-%     thresholdFactor - Threshold cut-off.
 %     triggeredWindow - Length of time to capture around each peak of spontaneous activity.
 %     fitReference - Shift and scale reference to fit signal.
 % 
@@ -78,14 +76,21 @@
 %         configuration.f0 = f0;
 %         configuration.f1 = f1;
 % 
-% results contain processed data.
+% Fluorescence deflections are considered peaks when they exceed a threshold calculated as
+% k * f2 + f3 and they are provided by the user as configuration.threshold = {k, f2, f3}
+% Examples:
+%   2.91 median absolute deviations from the median:
+%     configuration.threshold = {2.91, @mad, @median}
+%   2.91 median absolute deviations from 0:
+%     configuration.threshold = {2.91, @mad, 0}
+%   2.00 standard deviations from the mean:
+%     configuration.threshold = {2.00, @std, @mean}
 % 
-% See examples
-% See source code for detailed analysis steps and default parameters.
+% See examples and source code for detailed analysis steps and default parameters.
 % Units for time and frequency are seconds and hertz respectively.
 % 
 % 2019-02-01. Leonardo Molina.
-% 2021-03-01. Last modified.
+% 2021-03-02. Last modified.
 classdef FPA < handle
     properties
         configuration
@@ -131,8 +136,7 @@ classdef FPA < handle
             defaults.fitReference = true;
             defaults.f0 = @median;
             defaults.f1 = @mad;
-            defaults.thresholdingFunction = @mad;
-            defaults.thresholdFactor = 2.91;
+            defaults.threshold = {2.91, @mad, @median};
             defaults.triggeredWindow = 10;
             defaults.plot = true;
             
@@ -309,7 +313,7 @@ classdef FPA < handle
             end
 
             % Get peak threshold.
-            peakThreshold = mean(peaksSmooth(cleanIds)) + configuration.thresholdFactor * configuration.thresholdingFunction(peaksSmooth(cleanIds));
+            peakThreshold = threshold(configuration.threshold, peaksSmooth(cleanIds));
             valleyThreshold = -peakThreshold;
 
             state = warning('Query', 'signal:findpeaks:largeMinPeakHeight');
@@ -455,7 +459,7 @@ classdef FPA < handle
                 epochs(1:2:end) = arrayfun(@(e) sprintf('%i peaks / %i valleys', peakCount(e), valleyCount(e)), 1:nConditions, 'UniformOutput', false);
                 plotEpochs(epochs, xlims, ylims, cmap, true);
                 plot(ax.processed, time, peaksSmooth, 'Color', peaksLineColor, 'DisplayName', sprintf('df/f (<%.2fHz)', configuration.peaksLowpassFrequency));
-                plot(ax.processed, time([1, end]), peakThreshold([1, 1]), 'Color', dashColor, 'LineStyle', '--', 'DisplayName', 'threshold');
+                plot(ax.processed, time([1, end]), peakThreshold([1, 1]), 'Color', dashColor, 'LineStyle', '--', 'DisplayName', sprintf('threshold:%.2f', peakThreshold));
                 plot(ax.processed, time([1, end]), valleyThreshold([1, 1]), 'Color', dashColor, 'LineStyle', '--', 'HandleVisibility', 'off');
                 plot(ax.processed, time(uniquePeakIds), peaksSmooth(uniquePeakIds), 'Color', peaksMarkerColor, 'LineStyle', 'none', 'Marker', 'o', 'HandleVisibility', 'off');
                 plot(ax.processed, time(uniqueValleyIds), peaksSmooth(uniqueValleyIds), 'Color', peaksMarkerColor, 'LineStyle', 'none', 'Marker', 'o', 'HandleVisibility', 'off');
@@ -660,6 +664,41 @@ function output = normalize(parameters, f, time)
         output = fcn(f(ids));
     else
         output = parameters;
+    end
+end
+
+function value = threshold(parameters, data)
+    % {value1, @mad, @median}
+    % {value1, @mad}
+    % {value1, @mad, value2}
+    % {value1}
+    % value
+    if iscell(parameters)
+        n = numel(parameters);
+        if n >= 3
+            f3 = parameters{3};
+        else
+            f3 = @median;
+        end
+        if n >= 2
+            f2 = parameters{2};
+        else
+            f2 = @mad;
+        end
+        if n >= 1
+            k = parameters{1};
+        else
+            k = 2.91;
+        end
+    else
+        k = parameters;
+        f2 = @mad;
+        f3 = @median;
+    end
+    if isa(f3, 'function_handle')
+        value = k * f2(data) + f3(data);
+    else
+        value = k * f2(data) + f3;
     end
 end
 
