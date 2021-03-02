@@ -21,7 +21,7 @@ configuration.peaksLowpassFrequency = 0.5;
 thresholdingOption = 3;
 switch thresholdingOption
     case 1
-        % 2.91 median absolute deviations from the median
+        % 2.91 median absolute deviations from the median.
         configuration.threshold = {2.91, @mad, @median};
     case 2
         % 3.00 median absolute deviations from zero.
