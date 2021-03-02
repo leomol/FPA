@@ -90,7 +90,7 @@
 % Units for time and frequency are seconds and hertz respectively.
 % 
 % 2019-02-01. Leonardo Molina.
-% 2021-03-02B. Last modified.
+% 2021-03-02C. Last modified.
 classdef FPA < handle
     properties
         configuration
@@ -237,10 +237,9 @@ classdef FPA < handle
             end
 
             % Define clean epochs for fitting and peak detection.
-            excludeWindow =  ceil(configuration.peaksLowpassFrequency * frequency);
+            excludeWindow =  ceil(0.5 * frequency / configuration.peaksLowpassFrequency);
             excludeIds = union(badId, [1:excludeWindow, numel(time) - excludeWindow + 1:nSamples]');
             cleanIds = setdiff(allIds, excludeIds);
-
             baselineCorrectionId = time2id(time, configuration.baselineEpochs);
 
             % Remove high-frequency oscillations to detect baseline (where indicated).
@@ -675,20 +674,20 @@ function value = threshold(parameters, data)
     % value
     if iscell(parameters)
         n = numel(parameters);
-        if n >= 3
-            f3 = parameters{3};
+        if n >= 1
+            k = parameters{1};
         else
-            f3 = @median;
+            k = 2.91;
         end
         if n >= 2
             f2 = parameters{2};
         else
             f2 = @mad;
         end
-        if n >= 1
-            k = parameters{1};
+        if n >= 3
+            f3 = parameters{3};
         else
-            k = 2.91;
+            f3 = @median;
         end
     else
         k = parameters;
