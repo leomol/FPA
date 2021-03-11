@@ -47,8 +47,8 @@ Processing steps:
   - Power spectrum for each epoch.
 - Plot 3:
   - Boxplot.
-- Plot 4:
-  - Triggered average of spontaneous activity (if any peaks are found).
+- Plot 4, 5, 6:
+  - Triggered average of peaks (if any), epoch start, and epoch stop.
 
 ## Configuration
 

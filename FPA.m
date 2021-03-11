@@ -90,7 +90,7 @@
 % Units for time and frequency are seconds and hertz respectively.
 % 
 % 2019-02-01. Leonardo Molina.
-% 2021-03-02C. Last modified.
+% 2021-03-11. Last modified.
 classdef FPA < handle
     properties
         configuration
@@ -593,10 +593,6 @@ classdef FPA < handle
             
             % Save data for post-processing.
             nConditions = numel(obj.configuration.conditionEpochs) / 2;
-            [triggeredWindow, halfWindow] = forceOdd(obj.configuration.triggeredWindow * obj.frequency);
-            windowTemplate = -halfWindow:halfWindow;
-            triggeredWindowHeader = [repmat('n, ', 1, halfWindow), 'zero', repmat(', p', 1, halfWindow)];
-            triggeredWindowFormat = ['%i', repmat(', %.4f', 1, triggeredWindow), '\n'];
 
             % Time vs dff.
             % Rows represent increasing values of time with corresponding dff values.
@@ -605,7 +601,7 @@ classdef FPA < handle
             fprintf(fid, '# time, dff\n');
             fprintf(fid, '%.4f, %.4f\n', [obj.time, obj.dff]');
             fclose(fid);
-
+            
             % AUC.
             output = fullfile(folder, sprintf('%s - AUC.csv', basename));
             fid = fopen(output, 'w');
@@ -616,17 +612,59 @@ classdef FPA < handle
             % All peak-triggered windows and their average with corresponding epoch label.
             output1 = fullfile(folder, sprintf('%s - peak-triggered.csv', basename));
             output2 = fullfile(folder, sprintf('%s - peak-triggered averaged.csv', basename));
-            saveEventTrigger(output1, output2, triggeredWindowHeader, triggeredWindowFormat, obj.dff, obj.peakIds, obj.peakLabels, windowTemplate, obj.frequency);
+            obj.saveEventTrigger(output1, output2, obj.peakIds, obj.peakLabels);
 
             % Same as above for start-triggered windows.
             output1 = fullfile(folder, sprintf('%s - start-triggered.csv', basename));
             output2 = fullfile(folder, sprintf('%s - start-triggered averaged.csv', basename));
-            saveEventTrigger(output1, output2, triggeredWindowHeader, triggeredWindowFormat, obj.dff, obj.epochIds(1:2:end)', obj.epochLabels, windowTemplate, obj.frequency);
+            obj.saveEventTrigger(output1, output2, obj.epochIds(1:2:end)', obj.epochLabels);
 
             % Same as above for stop-triggered windows.
             output1 = fullfile(folder, sprintf('%s - stop-triggered.csv', basename));
             output2 = fullfile(folder, sprintf('%s - stop-triggered averaged.csv', basename));
-            saveEventTrigger(output1, output2, triggeredWindowHeader, triggeredWindowFormat, obj.dff, obj.epochIds(2:2:end)', obj.epochLabels, windowTemplate, obj.frequency);
+            obj.saveEventTrigger(output1, output2, obj.epochIds(2:2:end)', obj.epochLabels);
+        end
+        
+        function saveEventTrigger(obj, output1, output2, triggerIds, triggerLabels)
+            [triggeredWindow, halfWindow] = forceOdd(obj.configuration.triggeredWindow * obj.frequency);
+            window = -halfWindow:halfWindow;
+            traceTime = window / obj.frequency;
+            timeHeader = strjoin(arrayfun(@(x) sprintf('%.4f', x), traceTime, 'UniformOutput', false), ', ');
+            
+            % Filter out out-of-range traces.
+            nSamples = numel(obj.dff);
+            k = triggerIds > halfWindow & triggerIds + halfWindow < nSamples;
+            triggerLabels = triggerLabels(k);
+            triggerIds = triggerIds(k);
+            triggerData = obj.dff;
+            triggerData = triggerData(window + triggerIds);
+            triggerTime = obj.time(triggerIds);
+            
+            % All triggered windows with corresponding epoch label.
+            % Order depends on epoch definitions. Overlapping is possible.
+            % Rows represent a single trigger:
+            % First column is the condition label of the trigger followed by the trace around each trigger, with each trigger at the center column (n / 2 + 1) labeled with "zero".
+            fid = fopen(output1, 'w');
+            fprintf(fid, ['# time, condition, ', timeHeader, '\n']);
+            format = ['%.4f, %i', repmat(', %.4f', 1, triggeredWindow), '\n'];
+            fprintf(fid, format, [triggerTime, triggerLabels, triggerData]');
+            fclose(fid);
+
+            % Average of the above.
+            uLabels = unique(triggerLabels);
+            averages = zeros(0, size(triggerData, 2));
+            for u = 1:numel(uLabels)
+                label = uLabels(u);
+                uData = triggerData(triggerLabels == label, :);
+                uData = reshape(uData, [], size(triggerData, 2));
+                averages = cat(1, averages, mean(uData, 1));
+            end
+
+            fid = fopen(output2, 'w');
+            fprintf(fid, ['# condition, ', timeHeader, '\n']);
+            format = ['%i', repmat(', %.4f', 1, triggeredWindow), '\n'];
+            fprintf(fid, format, [uLabels, averages]');
+            fclose(fid);
         end
     end
 end
@@ -773,42 +811,4 @@ function plotTriggerAverage(data, ids, labels, window, frequency, colors, names)
     legend('show');
     xlabel('Time (s)');
     axis('tight');
-end
-
-function saveEventTrigger(output1, output2, header, format, data, ids, labels, window, frequency)
-    % Filter out out-of-range traces.
-    nSamples = numel(data);
-    triggeredWindow = numel(window);
-    halfWindow = (triggeredWindow - 1) / 2;
-    k = ids > halfWindow & ids + halfWindow < nSamples;
-    labels = labels(k);
-    ids = ids(k);
-    time = window / frequency;
-    data = data(window + ids);
-    
-    % All triggered windows with corresponding epoch label.
-    % Order depends on epoch definitions. Overlapping is possible.
-    % Rows represent a single trigger:
-    % First column is the condition label of the trigger followed by the trace around each trigger, with each trigger at the center column (n / 2 + 1) labeled with "zero".
-    fid = fopen(output1, 'w');
-    fprintf(fid, '# condition, %s\n', header);
-    fprintf(fid, ['#          ', sprintf(', %.2f', time), '\n']);
-    fprintf(fid, format, [labels, data]');
-    fclose(fid);
-    
-    % Average of the above.
-    uLabels = unique(labels);
-    averages = zeros(0, size(data, 2));
-    for u = 1:numel(uLabels)
-        label = uLabels(u);
-        uData = data(labels == label, :);
-        uData = reshape(uData, [], size(data, 2));
-        averages = cat(1, averages, mean(uData, 1));
-    end
-    
-    fid = fopen(output2, 'w');
-    fprintf(fid,  '# condition, %s\n', header);
-    fprintf(fid, ['#          ', sprintf(', %.2f', time), '\n']);
-    fprintf(fid, format, [uLabels, averages]');
-    fclose(fid);
 end
