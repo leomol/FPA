@@ -24,6 +24,7 @@ configuration.f1 = {@std, cleanEpochs};
 % Call FPA with given configuration.
 fpa = FPA(time, signal, reference, configuration);
 cellfun(@warning, fpa.warnings);
+fpa.plot();
 
 figure();
 hold('on');

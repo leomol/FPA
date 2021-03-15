@@ -2,7 +2,7 @@
 % see FPA.
 
 % 2020-11-01. Leonardo Molina.
-% 2021-03-02. Last modified.
+% 2021-03-15. Last modified.
 classdef GUI < handle
     properties
         fpa
@@ -322,12 +322,13 @@ classdef GUI < handle
             panel.RowHeight = repmat({'1x'}, 1, ceil(rowCount / 2));
             panel.ColumnWidth = {'1x', '1x'};
             
-            savePlotSelection = @()obj.saveSettings('plotFpTrace', obj.h.fpPlots(1).Value, 'plotFpPower', obj.h.fpPlots(2).Value, 'plotFpStats', obj.h.fpPlots(3).Value, 'plotFpTrigger', obj.h.fpPlots(4).Value, 'plotFpAUC', obj.h.fpPlots(5).Value, 'plotEmgTrace', obj.h.emgPlots(1).Value, 'plotXcorr', obj.h.generalPlots(1).Value);
+            savePlotSelection = @()obj.saveSettings('plotFpTrace', obj.h.fpPlots(1).Value, 'plotFpPower', obj.h.fpPlots(2).Value, 'plotFpStats', obj.h.fpPlots(3).Value, 'plotFpTrigger', obj.h.fpPlots(4).Value, 'plotFpTriggerAverage', obj.h.fpPlots(5).Value, 'plotFpAUC', obj.h.fpPlots(6).Value, 'plotEmgTrace', obj.h.emgPlots(1).Value, 'plotXcorr', obj.h.generalPlots(1).Value);
             obj.h.fpPlots(1) = uicheckbox(panel, 'Text', 'df/f trace and peaks', 'ValueChangedFcn', @(~, ~)savePlotSelection());
             obj.h.fpPlots(2) = uicheckbox(panel, 'Text', 'df/f power spectrum', 'ValueChangedFcn', @(~, ~)savePlotSelection());
             obj.h.fpPlots(3) = uicheckbox(panel, 'Text', 'df/f stats boxplot', 'ValueChangedFcn', @(~, ~)savePlotSelection());
-            obj.h.fpPlots(4) = uicheckbox(panel, 'Text', 'df/f triggered average', 'ValueChangedFcn', @(~, ~)savePlotSelection());
-            obj.h.fpPlots(5) = uicheckbox(panel, 'Text', 'df/f normalized AUC', 'ValueChangedFcn', @(~, ~)savePlotSelection());
+            obj.h.fpPlots(4) = uicheckbox(panel, 'Text', 'df/f triggered', 'ValueChangedFcn', @(~, ~)savePlotSelection());
+            obj.h.fpPlots(5) = uicheckbox(panel, 'Text', 'df/f triggered average', 'ValueChangedFcn', @(~, ~)savePlotSelection());
+            obj.h.fpPlots(6) = uicheckbox(panel, 'Text', 'df/f normalized AUC', 'ValueChangedFcn', @(~, ~)savePlotSelection());
             obj.h.emgPlots(1) = uicheckbox(panel, 'Text', 'EMG trace and envelope', 'ValueChangedFcn', @(~, ~)savePlotSelection());
             obj.h.generalPlots(1) = uicheckbox(panel, 'Text', 'Cross-correlation df/f to EMG', 'ValueChangedFcn', @(~, ~)savePlotSelection());
             
@@ -435,7 +436,8 @@ classdef GUI < handle
             obj.h.fpPlots(2).Value = obj.settings.plotFpPower;
             obj.h.fpPlots(3).Value = obj.settings.plotFpStats;
             obj.h.fpPlots(4).Value = obj.settings.plotFpTrigger;
-            obj.h.fpPlots(5).Value = obj.settings.plotFpAUC;
+            obj.h.fpPlots(5).Value = obj.settings.plotFpTriggerAverage;
+            obj.h.fpPlots(6).Value = obj.settings.plotFpAUC;
             obj.h.emgPlots(1).Value = obj.settings.plotEmgTrace;
             obj.h.generalPlots(1).Value = obj.settings.plotXcorr;
             
@@ -672,11 +674,33 @@ classdef GUI < handle
             end
             
             fp.conditionEpochs = epochs;
-            fp.plot = {'trace', 'power', 'stats', 'trigger', 'AUC'};
-            fp.plot = fp.plot([obj.settings.plotFpTrace, obj.settings.plotFpPower, obj.settings.plotFpStats, obj.settings.plotFpTrigger, obj.settings.plotFpAUC]);
             [fpTime, fpSignal, fpReference] = alignTimestamps(fpTime, 1 / obj.settings.resamplingFrequency, fpSignal, fpReference);
             obj.fpa = FPA(fpTime, fpSignal, fpReference, fp);
             cellfun(@warning, obj.fpa.warnings);
+            
+            if obj.settings.plotFpTrace
+                obj.fpa.plotTrace();
+            end
+            
+            if obj.settings.plotFpPower
+                obj.fpa.plotPowerSpectrum();
+            end
+            
+            if obj.settings.plotFpStats
+                obj.fpa.plotStatistics();
+            end
+            
+            if obj.settings.plotFpTrigger
+                obj.fpa.plotTrigger();
+            end
+            
+            if obj.settings.plotFpTriggerAverage
+                obj.fpa.plotTriggerAverage();
+            end
+            
+            if obj.settings.plotFpAUC
+                obj.fpa.plotAUC();
+            end
             
             percentile = 0.99;
             grow = 0.50;
@@ -1149,6 +1173,7 @@ function settings = getDefaults()
     settings.plotFpPower = true;
     settings.plotFpStats = true;
     settings.plotFpTrigger = true;
+    settings.plotFpTriggerAverage = true;
     settings.plotFpAUC = true;
     settings.plotEmgTrace = true;
     settings.plotXcorr = true;

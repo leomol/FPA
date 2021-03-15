@@ -19,7 +19,7 @@ configuration.conditionEpochs = {'Before', [626, 926] 'During1', [926, 1226] 'Du
 configuration.baselineEpochs = [100, 1500];
 configuration.airPLS = false;
 configuration.lowpassFrequency = 10;
-configuration.peakslowpassFrequency = 0.5;
+configuration.peaksLowpassFrequency = 0.5;
 configuration.baselineLowpassFrequency = 0.1;
 configuration.resamplingFrequency = 100;
 configuration.f0 = @median;
@@ -27,6 +27,7 @@ configuration.f1 = @mad;
 configuration.threshold = {2.91, @mad, @median};
 configuration.fitReference = true;
 configuration.triggeredWindow = 10;
-configuration.plot = true;
 
-FPA(time, signal, reference, configuration);
+fpa = FPA(time, signal, reference, configuration);
+cellfun(@warning, fpa.warnings);
+fpa.plot();

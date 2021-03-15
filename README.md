@@ -16,7 +16,8 @@ See and edit examples according to your experimental setup.
 
 ### Script
 ```matlab
-results = FPA(time, signal, reference, configuration);
+fpa = FPA(time, signal, reference, configuration);
+fpa.plot();
 ```
 
 ### GUI
@@ -48,6 +49,8 @@ Processing steps:
 - Plot 3:
   - Boxplot.
 - Plot 4, 5, 6:
+  - Peak triggers, epoch start-triggers, and epoch stop-triggers.
+- Plot 7, 8, 9:
   - Triggered average of peaks (if any), epoch start, and epoch stop.
 
 ## Configuration
@@ -251,6 +254,9 @@ epochs = loadBoris(filename)
 Returns a list of event epochs scored with BORIS.
 
 ## Version History
+* 2021-03-15
+	- Added heatmaps of raw triggers.
+	- Plots are now methods.
 * 2021-03-02
 	- Added thresholding options.
 	- Default thresholding changed from k * mad(x) + mean(x) to k * mad(x) + median(x).

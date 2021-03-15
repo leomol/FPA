@@ -25,6 +25,8 @@
 %   -Plot 3:
 %     -Boxplot.
 %   -Plot 4, 5, 6:
+%     -Peak triggers, epoch start-triggers, and epoch stop-triggers.
+%   -Plot 7, 8, 9:
 %     -Triggered average of peaks (if any), epoch start, and epoch stop.
 % 
 % configuration is a struct with the following fields (defaults are used for missing fields):
@@ -90,19 +92,20 @@
 % Units for time and frequency are seconds and hertz respectively.
 % 
 % 2019-02-01. Leonardo Molina.
-% 2021-03-11. Last modified.
+% 2021-03-15. Last modified.
 classdef FPA < handle
     properties
         configuration
         
         warnings
-        figures
         time
         frequency
         peakIds
         peakLabels
         epochIds
         epochLabels
+        peakCounts
+        valleyCounts
         
         signalBaseline
         referenceBaseline
@@ -115,6 +118,31 @@ classdef FPA < handle
         dff
         area
         duration
+        peakThreshold
+    end
+    
+    properties (Access = private)
+        nConditions
+        epochNames
+        cleanIds
+        windowTemplate
+        referenceProvided
+        peaksSmooth
+        uniquePeakIds
+        uniqueValleyIds
+        normalizedArea
+        boxplotIds
+        boxplotLabels
+        
+        % Settings for visualization.
+        cmap = lines();
+        zoomSettings = {0.99, 0.50};
+        signalColor = [0, 0.4470, 0.7410];
+        referenceColor = [0.8500, 0.3250, 0.0980];
+        alternateColor = [0, 0.6470, 0.9410];
+        peaksLineColor = [0.4660, 0.6740, 0.1880];
+        peaksMarkerColor = [1, 0, 0];
+        dashColor = [0, 0, 0];
     end
     
     methods
@@ -138,7 +166,6 @@ classdef FPA < handle
             defaults.f1 = @mad;
             defaults.threshold = {2.91, @mad, @median};
             defaults.triggeredWindow = 10;
-            defaults.plot = true;
             
             configuration = defaults;
             defaultNames = fieldnames(defaults);
@@ -152,23 +179,10 @@ classdef FPA < handle
                 end
             end
 
-            % Settings for visualization.
-            percentile = 0.99;
-            grow = 0.50;
-
             % Sampling frequency defaults.
             sourceFrequency = 1 / median(diff(time));
             if ~ismember('resamplingFrequency', parametersNames)
                 configuration.resamplingFrequency = min(100, sourceFrequency);
-            end
-
-            % Plot: true | false | cell array of choices.
-            if islogical(configuration.plot)
-                if configuration.plot
-                    configuration.plot = {'trace', 'power', 'stats', 'trigger', 'AUC'};
-                else
-                    configuration.plot = {};
-                end
             end
 
             if islogical(configuration.airPLS)
@@ -235,7 +249,7 @@ classdef FPA < handle
             if referenceProvided
                 reference2(badId) = interp1(goodId, reference(goodId), badId);
             end
-
+            
             % Define clean epochs for fitting and peak detection.
             excludeWindow =  ceil(0.5 * frequency / configuration.peaksLowpassFrequency);
             excludeIds = union(badId, [1:excludeWindow, numel(time) - excludeWindow + 1:nSamples]');
@@ -313,7 +327,6 @@ classdef FPA < handle
 
             % Get peak threshold.
             peakThreshold = threshold(configuration.threshold, peaksSmooth(cleanIds));
-            valleyThreshold = -peakThreshold;
 
             state = warning('Query', 'signal:findpeaks:largeMinPeakHeight');
             warning('Off', 'signal:findpeaks:largeMinPeakHeight');
@@ -332,7 +345,7 @@ classdef FPA < handle
             warning(state.state, 'signal:findpeaks:largeMinPeakHeight');
             [~, halfWindow] = forceOdd(configuration.triggeredWindow * frequency);
             % Index template to apply around each peak.
-            windowTemplate = -halfWindow:halfWindow;
+            obj.windowTemplate = -halfWindow:halfWindow;
 
             % Index epochs.
             epochIds = zeros(2, 0);
@@ -341,11 +354,10 @@ classdef FPA < handle
             peakLabels = zeros(0, 1);
             boxplotIds = zeros(0, 1);
             boxplotLabels = zeros(0, 1);
-            peakCount = zeros(nConditions, 1);
-            valleyCount = zeros(nConditions, 1);
+            peakCounts = zeros(nConditions, 1);
+            valleyCounts = zeros(nConditions, 1);
             area = zeros(nConditions, 1);
             duration = zeros(nConditions, 1);
-            normalizedArea = zeros(nConditions, 1);
 
             for c = 1:nConditions
                 % Epoch indices:  3 4 5 ...
@@ -364,196 +376,14 @@ classdef FPA < handle
                 boxplotIds = cat(1, boxplotIds, ids);
                 boxplotLabels = cat(1, boxplotLabels, repmat(c, numel(ids), 1));
 
-                peakCount(c) = sum(ismember(ids, uniquePeakIds));
-                valleyCount(c) = sum(ismember(ids, uniqueValleyIds));
+                peakCounts(c) = sum(ismember(ids, uniquePeakIds));
+                valleyCounts(c) = sum(ismember(ids, uniqueValleyIds));
 
                 duration(c) = numel(ids) / frequency;
                 area(c) = trapz(dff(ids)) / frequency;
-                if numel(ids) > 0
-                    normalizedArea(c) = area(c) / duration(c);
-                end
             end
-
-            % Style.
-            cmap = lines();
-            xlims = time([1, end]);
-
-            signalColor = [0 0.4470 0.7410];
-            referenceColor = [0.8500 0.3250 0.0980];
-            alternateColor = [0 0.6470 0.9410];
-            peaksLineColor = [0.4660 0.6740 0.1880];
-            peaksMarkerColor = [1, 0, 0];
-            dashColor = [0, 0, 0];
-            obj.figures = [];
-
-            anyMatch = @(choices, pattern) any(~cellfun(@isempty, regexp(choices, pattern, 'start', 'once')));
-            if anyMatch(configuration.plot, '\<trace\>')
-                obj.figures(end + 1) = figure('name', 'FPA: df/f');
-
-                % Plot raw signal, reference, and baseline model.
-                ax.raw = subplot(5, 1, 1);
-                ax.raw.XTick = [];
-                hold(ax.raw, 'all');
-                yy = [signal(:); reference(:); signalBaseline(:)];
-                ylims = limits(yy, percentile, grow);
-                plotEpochs(configuration.conditionEpochs, xlims, ylims, cmap, true);
-                plot(ax.raw, time, signal, 'Color', signalColor, 'DisplayName', 'Signal');
-                if referenceProvided
-                    plot(ax.raw, time, reference, 'Color', referenceColor, 'DisplayName', 'Reference');
-                end
-                plot(ax.raw, time, signalBaseline, 'Color', dashColor, 'LineStyle', '--', 'DisplayName', 'Baseline');
-                ylim(ax.raw, ylims);
-                title(ax.raw, 'Raw data');
-                legend(ax.raw, 'show');
-
-                % Plot baseline corrected signal and reference.
-                ax.corrected = subplot(5, 1, 2);
-                ax.corrected.XTick = [];
-                hold(ax.corrected, 'all');
-                yy = [signalCorrected(:); referenceCorrected(:);];
-                ylims = limits(yy, percentile, grow);
-                plotEpochs(configuration.conditionEpochs, xlims, ylims, cmap, false);
-                plot(ax.corrected, time, signalCorrected, 'Color', signalColor, 'DisplayName', 'Signal');
-                if referenceProvided
-                    plot(ax.corrected, time, referenceCorrected, 'Color', referenceColor, 'DisplayName', 'Reference');
-                end
-                ylim(ax.corrected, ylims);
-                title(ax.corrected, 'Baseline correction');
-                legend(ax.corrected, 'show');
-
-                % Plot motion correction (f and lowpass f).
-                ax.f = subplot(5, 1, 3);
-                ax.f.XTick = [];
-                hold(ax.f, 'all');
-                yy = [f(cleanIds); fSmooth(cleanIds)];
-                ylims = limits(yy, percentile, grow);
-                plotEpochs(configuration.conditionEpochs, xlims, ylims, cmap, false);
-                plot(ax.f, time, f, 'Color', signalColor, 'DisplayName', 'f');
-                plot(ax.f, time, fSmooth, 'Color', alternateColor, 'DisplayName', sprintf('f (<%.2fHz)', configuration.lowpassFrequency));
-                ylim(ax.f, ylims);
-                title(ax.f, 'Motion correction');
-                legend(ax.f, 'show');
-
-                % Plot normalization (e.g. df/f).
-                ax.filtered = subplot(5, 1, 4);
-                ax.filtered.XTick = [];
-                hold(ax.filtered, 'all');
-                yy = [dff(cleanIds); peaksSmooth(cleanIds)];
-                ylims = limits(yy, percentile, grow);
-                epochs = configuration.conditionEpochs;
-                epochs(1:2:end) = arrayfun(@(e) sprintf('area:%.2f', area(e)), 1:nConditions, 'UniformOutput', false);
-                plotEpochs(epochs, xlims, ylims, cmap, true);
-                plot(ax.filtered, time, dff, 'Color', signalColor, 'DisplayName', 'df/f');
-                plot(ax.filtered, time, peaksSmooth, 'Color', peaksLineColor, 'DisplayName', sprintf('df/f (<%.2fHz)', configuration.peaksLowpassFrequency));
-                ylim(ax.filtered, ylims);
-                title(ax.filtered, 'Normalization');
-                legend(ax.filtered, 'show');
-
-                % Plot peak detection.
-                ax.processed = subplot(5, 1, 5);
-                hold(ax.processed, 'all');
-                yy = peaksSmooth(cleanIds);
-                ylims = limits(yy, percentile, grow);
-                epochs = configuration.conditionEpochs;
-                epochs(1:2:end) = arrayfun(@(e) sprintf('%i peaks / %i valleys', peakCount(e), valleyCount(e)), 1:nConditions, 'UniformOutput', false);
-                plotEpochs(epochs, xlims, ylims, cmap, true);
-                plot(ax.processed, time, peaksSmooth, 'Color', peaksLineColor, 'DisplayName', sprintf('df/f (<%.2fHz)', configuration.peaksLowpassFrequency));
-                plot(ax.processed, time([1, end]), peakThreshold([1, 1]), 'Color', dashColor, 'LineStyle', '--', 'DisplayName', sprintf('threshold:%.2f', peakThreshold));
-                plot(ax.processed, time([1, end]), valleyThreshold([1, 1]), 'Color', dashColor, 'LineStyle', '--', 'HandleVisibility', 'off');
-                plot(ax.processed, time(uniquePeakIds), peaksSmooth(uniquePeakIds), 'Color', peaksMarkerColor, 'LineStyle', 'none', 'Marker', 'o', 'HandleVisibility', 'off');
-                plot(ax.processed, time(uniqueValleyIds), peaksSmooth(uniqueValleyIds), 'Color', peaksMarkerColor, 'LineStyle', 'none', 'Marker', 'o', 'HandleVisibility', 'off');
-                ylim(ylims);
-                title(ax.processed, 'Peak detection');
-                legend(ax.processed, 'show');
-
-                % Move axes together.
-                linkaxes(findobj(gcf(), 'type', 'axes'), 'x');
-                xlim(ax.raw, [time(1), time(end)]);
-
-                xlabel('Time (s)');
-                ylabel('df/f');
-            end
-
-            if anyMatch(configuration.plot, '\<power\>')
-                % Plot power spectrum.
-                obj.figures(end + 1) = figure('name', 'FPA: Power spectrum');
-                axs = cell(1, nConditions);
-                for c = 1:nConditions
-                    axs{c} = subplot(nConditions, 1, c);
-                    epochName = configuration.conditionEpochs{2 * c - 1};
-                    ids = time2id(time, configuration.conditionEpochs{2 * c});
-                    n = numel(ids);
-                    if n > 2
-                        d = dff(ids);
-                        halfN = floor(n / 2);
-                        f = fft(d);
-                        % Two-sided spectrum.
-                        p2 = abs(f / n);
-                        % Single-sided amplitude spectrum.
-                        p1 = p2(1:halfN + 1);
-                        p1(2:end-1) = 2 * p1(2:end-1);
-                        % Create frequency vector for range.
-                        fs = frequency * (0:halfN) / n;
-                        plot(fs, p1);
-                        ylim(limits(p1, percentile, grow));
-                    end
-                    title(sprintf('%s - Power spectrum', epochName));
-                end
-                ylabel('Power');
-                xlabel('Frequency (Hz)');
-                linkaxes(findobj(gcf(), 'type', 'axes'), 'x');
-            end
-
-            if anyMatch(configuration.plot, '\<stats\>')
-                % Boxplot of dff.
-                obj.figures(end + 1) = figure('name', 'FPA: Boxplot');
-                ax.boxplot = axes();
-                % Not all epochs may be available.
-                boxplotNames = epochNames(unique(boxplotLabels));
-                boxplot(dff(boxplotIds), boxplotLabels, 'Labels', boxplotNames);
-                hold('all');
-                ylims = ylim();
-                for c = 1:nConditions
-                    ids = time2id(time, configuration.conditionEpochs{2 * c});
-                    n = numel(ids);
-                    if n > 2
-                        epochStatLabel = sprintf('\nmean:%.2f\nstd:%.2f', normalizedArea(c), std(dff(ids)));
-                        text(c, ylims(2), epochStatLabel, 'HorizontalAlignment', 'center', 'VerticalAlignment', 'Top');
-                    end
-                end
-                plot(normalizedArea, 'k.', 'DisplayName', 'Mean');
-                ylabel('df/f');
-                xtickangle(45);
-                title('Stats on df/f traces for each condition');
-            end
-
-            if anyMatch(configuration.plot, '\<trigger\>')
-                obj.figures(end + 1) = figure('name', 'FPA: Peak-triggered average');
-                plotTriggerAverage(dff, peakIds, peakLabels, windowTemplate, frequency, cmap, configuration.conditionEpochs(1:2:end));
-                ylabel('df/f');
-                title('Peak-triggered average');
-
-                obj.figures(end + 1) = figure('name', 'FPA: Epoch start-triggered average');
-                plotTriggerAverage(dff, epochIds(1:2:end)', epochLabels, windowTemplate, frequency, cmap, configuration.conditionEpochs(1:2:end));
-                ylabel('df/f');
-                title('Epoch start-triggered average');
-
-                obj.figures(end + 1) = figure('name', 'FPA: Epoch stop-triggered average');
-                plotTriggerAverage(dff, epochIds(2:2:end)', epochLabels, windowTemplate, frequency, cmap, configuration.conditionEpochs(1:2:end));
-                ylabel('df/f');
-                title('Epoch stop-triggered average');
-            end
-
-            if anyMatch(configuration.plot, '\<AUC\>')
-                % Plot normalized area under the curve.
-                nConditions = numel(configuration.conditionEpochs) / 2;
-                obj.figures(end + 1) = figure('name', 'FPA: Normalized area under the curve');
-                ax.auc = axes();
-                bar(1:nConditions, normalizedArea);
-                set(ax.auc, 'XTickLabel', epochNames);
-                xtickangle(45);
-                title('dff/f - normalized AUC');
-            end
+            normalizedArea = area ./ duration;
+            normalizedArea(duration == 0) = 0;
             
             obj.configuration = configuration;
             obj.time = time;
@@ -564,6 +394,8 @@ classdef FPA < handle
             obj.peakLabels = peakLabels;
             obj.epochIds = epochIds;
             obj.epochLabels = epochLabels;
+            obj.peakCounts = peakCounts;
+            obj.valleyCounts = valleyCounts;
 
             % Filtered, uncorrected.
             obj.signalBaseline = signalBaseline;
@@ -585,6 +417,209 @@ classdef FPA < handle
             obj.dff = dff;
             obj.area = area;
             obj.duration = duration;
+            
+            obj.nConditions = nConditions;
+            obj.epochNames = epochNames;
+            obj.cleanIds = cleanIds;
+            obj.peakThreshold = peakThreshold;
+            obj.peaksSmooth = peaksSmooth;
+            obj.uniquePeakIds = uniquePeakIds;
+            obj.uniqueValleyIds = uniqueValleyIds;
+            obj.boxplotIds = boxplotIds;
+            obj.boxplotLabels = boxplotLabels;
+            obj.normalizedArea = normalizedArea;
+            obj.referenceProvided = referenceProvided;
+        end
+        
+        function plot(obj)
+            obj.plotTrace();
+            obj.plotPowerSpectrum();
+            obj.plotStatistics();
+            obj.plotTrigger();
+            obj.plotTriggerAverage();
+            obj.plotAUC();
+        end
+        
+        function fig = plotTrace(obj)
+            fig = figure('name', 'FPA: df/f');
+            xlims = obj.time([1, end]);
+
+            % Plot raw signal, reference, and baseline model.
+            subplot(5, 1, 1);
+            hold('all');
+            yy = [obj.signal(:); obj.reference(:); obj.signalBaseline(:)];
+            ylims = limits(yy, obj.zoomSettings{:});
+            plotEpochs(obj.configuration.conditionEpochs, xlims, ylims, obj.cmap, true);
+            plot(obj.time, obj.signal, 'Color', obj.signalColor, 'DisplayName', 'Signal');
+            if obj.referenceProvided
+                plot(obj.time, obj.reference, 'Color', obj.referenceColor, 'DisplayName', 'Reference');
+            end
+            plot(obj.time, obj.signalBaseline, 'Color', obj.dashColor, 'LineStyle', '--', 'DisplayName', 'Baseline');
+            ylim(ylims);
+            title('Raw data');
+            legend('show');
+
+            % Plot baseline corrected signal and reference.
+            subplot(5, 1, 2);
+            hold('all');
+            yy = [obj.signal(:); obj.reference(:)];
+            ylims = limits(yy, obj.zoomSettings{:});
+            plotEpochs(obj.configuration.conditionEpochs, xlims, ylims, obj.cmap, false);
+            plot(obj.time, obj.signal, 'Color', obj.signalColor, 'DisplayName', 'Signal');
+            if obj.referenceProvided
+                plot(obj.time, obj.reference, 'Color', obj.referenceColor, 'DisplayName', 'Reference');
+            end
+            ylim(ylims);
+            title('Baseline correction');
+            legend('show');
+
+            % Plot motion correction (f and lowpass f).
+            subplot(5, 1, 3);
+            hold('all');
+            yy = [obj.f(obj.cleanIds); obj.fSmooth(obj.cleanIds)];
+            ylims = limits(yy, obj.zoomSettings{:});
+            plotEpochs(obj.configuration.conditionEpochs, xlims, ylims, obj.cmap, false);
+            plot(obj.time, obj.f, 'Color', obj.signalColor, 'DisplayName', 'f');
+            plot(obj.time, obj.fSmooth, 'Color', obj.alternateColor, 'DisplayName', sprintf('f (<%.2fHz)', obj.configuration.lowpassFrequency));
+            ylim(ylims);
+            title('Motion correction');
+            legend('show');
+
+            % Plot normalization (e.g. df/f).
+            subplot(5, 1, 4);
+            hold('all');
+            yy = [obj.dff(obj.cleanIds); obj.peaksSmooth(obj.cleanIds)];
+            ylims = limits(yy, obj.zoomSettings{:});
+            epochs = obj.configuration.conditionEpochs;
+            epochs(1:2:end) = arrayfun(@(e) sprintf('area:%.2f', obj.area(e)), 1:obj.nConditions, 'UniformOutput', false);
+            plotEpochs(epochs, xlims, ylims, obj.cmap, true);
+            plot(obj.time, obj.dff, 'Color', obj.signalColor, 'DisplayName', 'df/f');
+            plot(obj.time, obj.peaksSmooth, 'Color', obj.peaksLineColor, 'DisplayName', sprintf('df/f (<%.2fHz)', obj.configuration.peaksLowpassFrequency));
+            ylim(ylims);
+            title('Normalization');
+            legend('show');
+
+            % Plot peak detection.
+            subplot(5, 1, 5);
+            hold('all');
+            yy = obj.peaksSmooth(obj.cleanIds);
+            ylims = limits(yy, obj.zoomSettings{:});
+            epochs = obj.configuration.conditionEpochs;
+            epochs(1:2:end) = arrayfun(@(e) sprintf('%i peaks / %i valleys', obj.peakCounts(e), obj.valleyCounts(e)), 1:obj.nConditions, 'UniformOutput', false);
+            plotEpochs(epochs, xlims, ylims, obj.cmap, true);
+            plot(obj.time, obj.peaksSmooth, 'Color', obj.peaksLineColor, 'DisplayName', sprintf('df/f (<%.2fHz)', obj.configuration.peaksLowpassFrequency));
+            plot(obj.time([1, end]), +obj.peakThreshold([1, 1]), 'Color', obj.dashColor, 'LineStyle', '--', 'DisplayName', sprintf('threshold:%.2f', obj.peakThreshold));
+            plot(obj.time([1, end]), -obj.peakThreshold([1, 1]), 'Color', obj.dashColor, 'LineStyle', '--', 'HandleVisibility', 'off');
+            plot(obj.time(obj.uniquePeakIds), obj.peaksSmooth(obj.uniquePeakIds), 'Color', obj.peaksMarkerColor, 'LineStyle', 'none', 'Marker', 'o', 'HandleVisibility', 'off');
+            plot(obj.time(obj.uniqueValleyIds), obj.peaksSmooth(obj.uniqueValleyIds), 'Color', obj.peaksMarkerColor, 'LineStyle', 'none', 'Marker', 'o', 'HandleVisibility', 'off');
+            ylim(ylims);
+            title('Peak detection');
+            legend('show');
+
+            % Move axes together.
+            axs = findobj(gcf(), 'type', 'axes');
+            linkaxes(axs, 'x');
+            xlim(axs(1), [obj.time(1), obj.time(end)]);
+            set(axs(2:end), 'XTick', []);
+            xlabel('Time (s)');
+            ylabel('df/f');
+        end
+        
+        function fig = plotPowerSpectrum(obj)
+            % Plot power spectrum.
+            fig = figure('name', 'FPA: Power spectrum');
+            axs = cell(1, obj.nConditions);
+            for c = 1:obj.nConditions
+                axs{c} = subplot(obj.nConditions, 1, c);
+                epochName = obj.configuration.conditionEpochs{2 * c - 1};
+                ids = time2id(obj.time, obj.configuration.conditionEpochs{2 * c});
+                n = numel(ids);
+                if n > 2
+                    d = obj.dff(ids);
+                    halfN = floor(n / 2);
+                    ff = fft(d);
+                    % Two-sided spectrum.
+                    p2 = abs(ff / n);
+                    % Single-sided amplitude spectrum.
+                    p1 = p2(1:halfN + 1);
+                    p1(2:end-1) = 2 * p1(2:end-1);
+                    % Create frequency vector for range.
+                    fs = obj.frequency * (0:halfN) / n;
+                    plot(fs, p1);
+                    ylim(limits(p1, obj.zoomSettings{:}));
+                end
+                title(sprintf('%s - Power spectrum', epochName));
+            end
+            ylabel('Power');
+            xlabel('Frequency (Hz)');
+            linkaxes(findobj(gcf(), 'type', 'axes'), 'x');
+        end
+
+        function fig = plotStatistics(obj)
+            % Boxplot of dff.
+            fig = figure('name', 'FPA: Boxplot');
+            % Not all epochs may be available.
+            boxplotNames = obj.epochNames(unique(obj.boxplotLabels));
+            boxplot(obj.dff(obj.boxplotIds), obj.boxplotLabels, 'Labels', boxplotNames);
+            hold('all');
+            ylims = ylim();
+            for c = 1:obj.nConditions
+                ids = time2id(obj.time, obj.configuration.conditionEpochs{2 * c});
+                n = numel(ids);
+                if n > 2
+                    epochStatLabel = sprintf('\nmean:%.2f\nstd:%.2f', obj.normalizedArea(c), std(obj.dff(ids)));
+                    text(c, ylims(2), epochStatLabel, 'HorizontalAlignment', 'center', 'VerticalAlignment', 'Top');
+                end
+            end
+            plot(obj.normalizedArea, 'k.', 'DisplayName', 'Mean');
+            ylabel('df/f');
+            xtickangle(45);
+            title('Stats on df/f traces for each condition');
+        end
+            
+        function figs = plotTrigger(obj)
+            name = 'Peak-trigger heatmap';
+            figs(1) = figure('name', name);
+            plotTriggerHeatmap(obj.dff, obj.peakIds, obj.peakLabels, obj.windowTemplate, obj.frequency, obj.configuration.conditionEpochs(1:2:end));
+            annotation('textbox', [0, 0.95, 1, 0.05], 'string', name, 'LineStyle', 'none');
+
+            name = 'Start-triggered heatmap';
+            figs(2) = figure('name', name);
+            plotTriggerHeatmap(obj.dff, obj.epochIds(1:2:end)', obj.epochLabels, obj.windowTemplate, obj.frequency, obj.configuration.conditionEpochs(1:2:end));
+            annotation('textbox', [0, 0.95, 1, 0.05], 'string', name, 'LineStyle', 'none');
+
+            name = 'Stop-triggered heatmap';
+            figs(3) = figure('name', name);
+            plotTriggerHeatmap(obj.dff, obj.epochIds(2:2:end)', obj.epochLabels, obj.windowTemplate, obj.frequency, obj.configuration.conditionEpochs(1:2:end));
+            annotation('textbox', [0, 0.95, 1, 0.05], 'string', name, 'LineStyle', 'none');
+        end
+
+        function figs = plotTriggerAverage(obj)
+            figs(1) = figure('name', 'FPA: Peak-triggered average');
+            plotTriggerAverage(obj.dff, obj.peakIds, obj.peakLabels, obj.windowTemplate, obj.frequency, obj.configuration.conditionEpochs(1:2:end), obj.cmap);
+            ylabel('df/f');
+            title('Peak-triggered average');
+
+            figs(2) = figure('name', 'FPA: start-triggered average');
+            plotTriggerAverage(obj.dff, obj.epochIds(1:2:end)', obj.epochLabels, obj.windowTemplate, obj.frequency, obj.configuration.conditionEpochs(1:2:end), obj.cmap);
+            ylabel('df/f');
+            title('Start-triggered average');
+
+            figs(3) = figure('name', 'FPA: stop-triggered average');
+            plotTriggerAverage(obj.dff, obj.epochIds(2:2:end)', obj.epochLabels, obj.windowTemplate, obj.frequency, obj.configuration.conditionEpochs(1:2:end), obj.cmap);
+            ylabel('df/f');
+            title('Stop-triggered average');
+        end
+
+        function fig = plotAUC(obj)
+            % Plot normalized area under the curve.
+            obj.nConditions = numel(obj.configuration.conditionEpochs) / 2;
+            fig = figure('name', 'FPA: Normalized area under the curve');
+            ax.auc = axes();
+            bar(1:obj.nConditions, obj.normalizedArea);
+            set(ax.auc, 'XTickLabel', obj.epochNames);
+            xtickangle(45);
+            title('dff/f - normalized AUC');
         end
         
         function export(obj, prefix)
@@ -592,7 +627,7 @@ classdef FPA < handle
             [folder, basename] = fileparts(prefix);
             
             % Save data for post-processing.
-            nConditions = numel(obj.configuration.conditionEpochs) / 2;
+            obj.nConditions = numel(obj.configuration.conditionEpochs) / 2;
 
             % Time vs dff.
             % Rows represent increasing values of time with corresponding dff values.
@@ -606,7 +641,7 @@ classdef FPA < handle
             output = fullfile(folder, sprintf('%s - AUC.csv', basename));
             fid = fopen(output, 'w');
             fprintf(fid, '# condition, area, duration\n');
-            fprintf(fid, '%i, %.4f, %d\n', [(1:nConditions)', obj.area, obj.duration]');
+            fprintf(fid, '%i, %.4f, %d\n', [(1:obj.nConditions)', obj.area, obj.duration]');
             fclose(fid);
 
             % All peak-triggered windows and their average with corresponding epoch label.
@@ -624,7 +659,9 @@ classdef FPA < handle
             output2 = fullfile(folder, sprintf('%s - stop-triggered averaged.csv', basename));
             obj.saveEventTrigger(output1, output2, obj.epochIds(2:2:end)', obj.epochLabels);
         end
-        
+    end
+    
+    methods (Access = private)
         function saveEventTrigger(obj, output1, output2, triggerIds, triggerLabels)
             [triggeredWindow, halfWindow] = forceOdd(obj.configuration.triggeredWindow * obj.frequency);
             window = -halfWindow:halfWindow;
@@ -758,6 +795,7 @@ function output = warn(format, varargin)
 end
 
 function ylims = limits(x, percentile, grow)
+    x = x(:);
     ylims = [prctile(x, 100 * (1 - percentile)), prctile(x, 100 * percentile)];
     delta = diff(ylims) * grow;
     ylims = [ylims(1) - delta, ylims(2) + delta];
@@ -771,7 +809,52 @@ function [odd, half] = forceOdd(fractional)
     half = (odd - 1) / 2;
 end
 
-function plotTriggerAverage(data, ids, labels, window, frequency, colors, names)
+function plotTriggerHeatmap(data, ids, labels, window, frequency, names)
+    % Filter out out-of-range traces.
+    nSamples = numel(data);
+    triggeredWindow = numel(window);
+    halfWindow = (triggeredWindow - 1) / 2;
+    k = ids > halfWindow & ids + halfWindow < nSamples;
+    labels = labels(k);
+    ids = ids(k);
+    time = window / frequency;
+    
+    nConditions = numel(names);
+    [ni, nj] = squaredFactors(nConditions);
+    
+    if numel(ids) > 0
+        allWindowIds = ids + window;
+        allTriggeredData = data(allWindowIds);
+        clims = limits(allTriggeredData, 0.99, 0);
+    end
+    
+    axs = cell(nConditions, 1);
+    for c = 1:nConditions
+        axs{c} = subplot(ni, nj, c);
+        triggerIds = ids(labels == c);
+        nTriggers = numel(triggerIds);
+        if nTriggers > 0
+            windowIds = triggerIds + window;
+            triggeredData = data(windowIds);
+            % Make sure matrix is nr x nc, particularly for 1 x nc.
+            triggeredData = reshape(triggeredData, size(windowIds));
+            nTriggers = size(triggeredData, 1);
+            imagesc('xData', time, 'yData', 1:nTriggers, 'cData', triggeredData, clims);
+            yticks = get(gca(), 'YTick');
+            yticks = yticks(round(yticks) == yticks);
+            set(gca(), 'YTick', yticks);
+        else
+            text(0.5, 0.5, 'No triggers', 'HorizontalAlignment', 'center');
+        end
+        title(names{c});
+        axis('tight');
+    end
+    xlabel(axs{ni}, 'Time (s)');
+    ylabel(axs{ni}, 'Trigger id');
+    set(get(colorbar(), 'title'), 'string', 'df/f');
+end
+
+function plotTriggerAverage(data, ids, labels, window, frequency, names, colors)
     % Filter out out-of-range traces.
     nSamples = numel(data);
     triggeredWindow = numel(window);
@@ -806,7 +889,7 @@ function plotTriggerAverage(data, ids, labels, window, frequency, colors, names)
             end
         end
     else
-        text(0.5, 0.5, 'No events', 'HorizontalAlignment', 'center');
+        text(0.5, 0.5, 'No triggers', 'HorizontalAlignment', 'center');
     end
     legend('show');
     xlabel('Time (s)');

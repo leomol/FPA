@@ -13,7 +13,9 @@ signal = data(:, signalColumn);
 reference = data(:, referenceColumn);
 % Call FPA with given configuration.
 configuration = struct();
-FPA(time, signal, reference, configuration);
+fpa = FPA(time, signal, reference, configuration);
+cellfun(@warning, fpa.warnings);
+fpa.plot();
 
 %% Example - Same as above with updated configuration.
 inputDataFile = '../data/Doric.csv';
@@ -39,10 +41,10 @@ configuration.f0 = @median;
 configuration.f1 = @mad;
 configuration.threshold = {2.91, @mad, @median};
 configuration.triggeredWindow = 10;
-configuration.plot = {'trace', 'power', 'stats', 'trigger'};
 % Call FPA with given configuration.
 fpa = FPA(time, signal, reference, configuration);
 cellfun(@warning, fpa.warnings);
+fpa.plot();
 
 %% Example - Fiber-photometry data with stimuli recorded with Inscopix.
 inputDataFile = '../data/Inscopix.csv';
@@ -60,6 +62,7 @@ configuration = struct();
 configuration.conditionEpochs = epochs;
 fpa = FPA(time, signal, [], configuration);
 cellfun(@warning, fpa.warnings);
+fpa.plot();
 
 %% Example - Fiber-photometry data recorded with Doric DAQ. Two conditions are encoded as TTL values 1 or 0.
 inputDataFile = '../data/Doric.csv';
@@ -79,6 +82,7 @@ reference = data(:, referenceColumn);
 % Call FPA with given configuration.
 fpa = FPA(time, signal, reference, configuration);
 cellfun(@warning, fpa.warnings);
+fpa.plot();
 
 %% Example - Fiber-photometry data recorded with Doric DAQ and behavioral data recorded with CleverSys.
 % Fibre photometry recording file.
@@ -97,6 +101,7 @@ configuration.threshold = {2.91, @mad, @median};
 configuration.conditionEpochs = loadCleverSys(inputEventFile{:});
 fpa = FPA(time, signal, reference, configuration);
 cellfun(@warning, fpa.warnings);
+fpa.plot();
 % Save peak times to file.
 [folder, basename] = fileparts(inputDataFile);
 output = fullfile(folder, sprintf('%s peak-time.csv', basename));
@@ -112,7 +117,6 @@ inputDataFile2 = '../data/Doric.csv';
 signalColumn = 5;
 referenceColumn = 3;
 configuration = struct();
-configuration.plot = false;
 % Parse file with baseline data.
 data = loadData(inputDataFile1);
 time = data(:, 1);
@@ -126,9 +130,9 @@ signal = data(:, signalColumn);
 reference = data(:, referenceColumn);
 configuration.f0 = baseline.f0;
 configuration.f1 = baseline.f1;
-configuration.plot = true;
 fpa = FPA(time, signal, reference, configuration);
 cellfun(@warning, fpa.warnings);
+fpa.plot();
 
 %% Example - Fiber-photometry data recorded with TDT DAQ.
 inputFolder = '../data/TDT';
@@ -139,5 +143,6 @@ time = data(:, 1);
 signal = data(:, 2);
 reference = data(:, 3);
 configuration = struct();
-FPA(time, signal, reference, configuration);
+fpa = FPA(time, signal, reference, configuration);
 cellfun(@warning, fpa.warnings);
+fpa.plot();

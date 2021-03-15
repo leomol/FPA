@@ -20,3 +20,4 @@ configuration.threshold = {2.91, @mad, @median};
 % Call FPA with given configuration.
 fpa = FPA(time, signal, reference, configuration);
 cellfun(@warning, fpa.warnings);
+fpa.plot();
