@@ -51,12 +51,9 @@ switch normalizationOption
         configuration.f0 = 0;
         configuration.f1 = 1;
     case 4
-        % Literature:
-        %   df/f ==> (f - f0) / f0
-        %   f0: one of mean, median
-        %   f1: one of std, mad
-        configuration.f0 = @median;
-        configuration.f1 = @std;
+        % df/f ==> (f - f0) / f0
+        configuration.f0 = @mean;
+        configuration.f1 = @mean;
 end
 
 % Call FPA with given configuration.
