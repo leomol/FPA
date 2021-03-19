@@ -4,7 +4,7 @@
 % https://github.com/olivierfriard/BORIS
 
 % 2021-02-26. Leonardo Molina.
-% 2021-02-26. Last modified.
+% 2021-03-19. Last modified.
 function varargout = loadBoris(filename)
     % Search for the header line.
     fid = fopen(filename, 'r');
@@ -17,7 +17,7 @@ function varargout = loadBoris(filename)
             searching = false;
         else
             nHeaderLines = nHeaderLines + 1;
-            if contains(line, regexpPattern("\<Time\>.*\<Media file path\>.*\<Subject\>.*\<Behavior\>.*\<Status\>"))
+            if ~isempty(regexp(line, "\<Time\>.*\<Media file path\>.*\<Subject\>.*\<Behavior\>.*\<Status\>", 'match', 'once'))
                 % Header must contain all the following: "Time" "Media file path" "Subject" "Behavior" and "Status".
                 found = true;
                 searching = false;
