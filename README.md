@@ -254,6 +254,9 @@ epochs = loadBoris(filename)
 Returns a list of event epochs scored with BORIS.
 
 ## Version History
+* 2021-03-25
+	- Added baseline plot of reference for figure 1.1.
+	- Figure 1.1 shows resampled raw data (before was corrected data).
 * 2021-03-15
 	- Added heatmaps of raw triggers.
 	- Plots are now methods.

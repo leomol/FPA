@@ -92,7 +92,7 @@
 % Units for time and frequency are seconds and hertz respectively.
 % 
 % 2019-02-01. Leonardo Molina.
-% 2021-03-15. Last modified.
+% 2021-03-25. Last modified.
 classdef FPA < handle
     properties
         configuration
@@ -107,6 +107,8 @@ classdef FPA < handle
         peakCounts
         valleyCounts
         
+        signalRaw
+        referenceRaw
         signalBaseline
         referenceBaseline
         signal
@@ -396,7 +398,11 @@ classdef FPA < handle
             obj.epochLabels = epochLabels;
             obj.peakCounts = peakCounts;
             obj.valleyCounts = valleyCounts;
-
+            
+            % Resampled only.
+            obj.signalRaw = signal;
+            obj.referenceRaw = reference;
+            
             % Filtered, uncorrected.
             obj.signalBaseline = signalBaseline;
             obj.referenceBaseline = referenceBaseline;
@@ -447,12 +453,13 @@ classdef FPA < handle
             % Plot raw signal, reference, and baseline model.
             subplot(5, 1, 1);
             hold('all');
-            yy = [obj.signal(:); obj.reference(:); obj.signalBaseline(:)];
+            yy = [obj.signalRaw(:); obj.referenceRaw(:); obj.signalBaseline(:)];
             ylims = limits(yy, obj.zoomSettings{:});
             plotEpochs(obj.configuration.conditionEpochs, xlims, ylims, obj.cmap, true);
-            plot(obj.time, obj.signal, 'Color', obj.signalColor, 'DisplayName', 'Signal');
+            plot(obj.time, obj.signalRaw, 'Color', obj.signalColor, 'DisplayName', 'Signal');
             if obj.referenceProvided
-                plot(obj.time, obj.reference, 'Color', obj.referenceColor, 'DisplayName', 'Reference');
+                plot(obj.time, obj.referenceRaw, 'Color', obj.referenceColor, 'DisplayName', 'Reference');
+                plot(obj.time, obj.referenceBaseline, 'Color', obj.dashColor, 'LineStyle', '--', 'DisplayName', 'Baseline', 'HandleVisibility', 'off');
             end
             plot(obj.time, obj.signalBaseline, 'Color', obj.dashColor, 'LineStyle', '--', 'DisplayName', 'Baseline');
             ylim(ylims);
