@@ -44,8 +44,8 @@ switch normalizationOption
         configuration.f1 = @std;
     case 2
         % "altered z-score" ==> (f - median(f0)) / median(f0)
-        configuration.f0 = @median;
-        configuration.f1 = @mad;
+configuration.f0 = @median;
+configuration.f1 = @mad;
     case 3
         % Doric_photom_analysis.m if plotting variable "normDat".
         configuration.f0 = 0;

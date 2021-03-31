@@ -92,7 +92,7 @@
 % Units for time and frequency are seconds and hertz respectively.
 % 
 % 2019-02-01. Leonardo Molina.
-% 2021-03-25. Last modified.
+% 2021-03-31. Last modified.
 classdef FPA < handle
     properties
         configuration
@@ -680,35 +680,39 @@ classdef FPA < handle
             k = triggerIds > halfWindow & triggerIds + halfWindow < nSamples;
             triggerLabels = triggerLabels(k);
             triggerIds = triggerIds(k);
-            triggerData = obj.dff;
-            triggerData = triggerData(window + triggerIds);
-            triggerTime = obj.time(triggerIds);
             
-            % All triggered windows with corresponding epoch label.
-            % Order depends on epoch definitions. Overlapping is possible.
-            % Rows represent a single trigger:
-            % First column is the condition label of the trigger followed by the trace around each trigger, with each trigger at the center column (n / 2 + 1) labeled with "zero".
-            fid = fopen(output1, 'w');
-            fprintf(fid, ['# time, condition, ', timeHeader, '\n']);
-            format = ['%.4f, %i', repmat(', %.4f', 1, triggeredWindow), '\n'];
-            fprintf(fid, format, [triggerTime, triggerLabels, triggerData]');
-            fclose(fid);
+            if numel(triggerIds) >= 1
+                triggerData = obj.dff;
+                triggerData = triggerData(window + triggerIds);
+                triggerData = reshape(triggerData, [], numel(window));
+                triggerTime = obj.time(triggerIds);
 
-            % Average of the above.
-            uLabels = unique(triggerLabels);
-            averages = zeros(0, size(triggerData, 2));
-            for u = 1:numel(uLabels)
-                label = uLabels(u);
-                uData = triggerData(triggerLabels == label, :);
-                uData = reshape(uData, [], size(triggerData, 2));
-                averages = cat(1, averages, mean(uData, 1));
+                % All triggered windows with corresponding epoch label.
+                % Order depends on epoch definitions. Overlapping is possible.
+                % Rows represent a single trigger:
+                % First column is the condition label of the trigger followed by the trace around each trigger, with each trigger at the center column (n / 2 + 1) labeled with "zero".
+                fid = fopen(output1, 'w');
+                fprintf(fid, ['# time, condition, ', timeHeader, '\n']);
+                format = ['%.4f, %i', repmat(', %.4f', 1, triggeredWindow), '\n'];
+                fprintf(fid, format, [triggerTime, triggerLabels, triggerData]');
+                fclose(fid);
+
+                % Average of the above.
+                uLabels = unique(triggerLabels);
+                averages = zeros(0, size(triggerData, 2));
+                for u = 1:numel(uLabels)
+                    label = uLabels(u);
+                    uData = triggerData(triggerLabels == label, :);
+                    uData = reshape(uData, [], size(triggerData, 2));
+                    averages = cat(1, averages, mean(uData, 1));
+                end
+
+                fid = fopen(output2, 'w');
+                fprintf(fid, ['# condition, ', timeHeader, '\n']);
+                format = ['%i', repmat(', %.4f', 1, triggeredWindow), '\n'];
+                fprintf(fid, format, [uLabels, averages]');
+                fclose(fid);
             end
-
-            fid = fopen(output2, 'w');
-            fprintf(fid, ['# condition, ', timeHeader, '\n']);
-            format = ['%i', repmat(', %.4f', 1, triggeredWindow), '\n'];
-            fprintf(fid, format, [uLabels, averages]');
-            fclose(fid);
         end
     end
 end

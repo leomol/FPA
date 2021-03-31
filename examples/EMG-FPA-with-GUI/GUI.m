@@ -400,6 +400,11 @@ classdef GUI < handle
                 obj.settings.(name) = value;
             end
             
+            if ~exist(settings.lastFolder, 'dir') ~= 7
+                warning('[GUI] lastFolder "%s" does not exist, using default: "%s"', settings.lastFolder, defaults.lastFolder);
+                obj.settings.lastFolder = defaults.lastFolder;
+            end
+            
             unexpectedNames = setdiff(fieldnames(settings), expectedNames);
             if numel(unexpectedNames) > 0
                 warning('[GUI] Unexpected settings in "%s":%s', obj.settingsFilename, sprintf(' "%s"', unexpectedNames{:}));
@@ -1078,7 +1083,7 @@ classdef GUI < handle
             if numel(varargin) == 1
                 prefix = varargin;
             else
-                prefix = obj.settings.lastFolder;
+                prefix = fullfile(obj.settings.lastFolder, 'output');
             end
             obj.fpa.export(prefix);
         end
