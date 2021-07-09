@@ -2,7 +2,7 @@
 % see FPA.
 
 % 2020-11-01. Leonardo Molina.
-% 2021-03-15. Last modified.
+% 2021-07-08. Last modified.
 classdef GUI < handle
     properties
         fpa
@@ -10,7 +10,7 @@ classdef GUI < handle
     
     properties % (Access = private)
         doricChannelsEntries
-        cleverSysEpochsEntries
+        behaviorEpochsEntries
         labChartChannelsEntries
         labChartBlocksEntries
         settingsFilename
@@ -25,12 +25,12 @@ classdef GUI < handle
             addpath('../../common');
             
             obj.doricChannelsEntries = {};
-            obj.cleverSysEpochsEntries = {};
+            obj.behaviorEpochsEntries = {};
             obj.labChartChannelsEntries = {};
             obj.labChartBlocksEntries = {};
             obj.cache.doricFilename = '<empty>';
             obj.cache.labChartFilename = '<empty>';
-            obj.cache.cleverSysFilename = '<empty>';
+            obj.cache.behaviorFilename = '<empty>';
             
             % Calculate GUI dimensions.
             screenSize = get(0, 'ScreenSize');
@@ -227,7 +227,7 @@ classdef GUI < handle
             % CleverSys epochs panel.
             panel = uipanel(mainLayout, 'Title', 'Epoch definitions');
             panel.Layout = obj.h.conditionEpochsPanel.Layout;
-            obj.h.cleverSysPanel = panel;
+            obj.h.behaviorPanel = panel;
             panel = uigridlayout(panel, [1, 1]);
             panel.RowHeight = repmat({'1x'}, 1, rowCount);
             panel.ColumnWidth = {'5x', '1x'};
@@ -236,11 +236,11 @@ classdef GUI < handle
             h = uieditfield(panel, 'ValueChangedFcn', @(~, ~)obj.onCleverSysFilenameEdit);
             h.Layout.Row = 1;
             h.Layout.Column = 1;
-            obj.h.cleverSysFilenameEdit = h;
-            h = uibutton(panel, 'Text', 'Select', 'ButtonPushedFcn', @(~, ~)obj.onGetFile(obj.h.cleverSysFilenameEdit));
+            obj.h.behaviorFilenameEdit = h;
+            h = uibutton(panel, 'Text', 'Select', 'ButtonPushedFcn', @(~, ~)obj.onGetFile(obj.h.behaviorFilenameEdit));
             h.Layout.Row = 1;
             h.Layout.Column = 2;
-            obj.h.cleverSysButton = h;
+            obj.h.behaviorButton = h;
             
             % CleverSys sheet dropdown and list.
             h = uidropdown(panel, 'Items', {}, 'ValueChangedFcn', @(h, ~)obj.onCleverSysSheetDrop(h.Value));
@@ -251,7 +251,7 @@ classdef GUI < handle
             h.Layout.Row = [3, rowCount];
             h.Layout.Column = [1, 2];
             obj.addMenu(h, {'Use', 'Use', 'Unset', 'Unset'}, @obj.setChoice);
-            obj.h.cleverSysEpochsList = h;
+            obj.h.behaviorEpochsList = h;
             
             % Doric panel.
             panel = uipanel(mainLayout, 'Title', 'Doric Channels');
@@ -343,7 +343,7 @@ classdef GUI < handle
                         settings = varargin{1};
                 end
             elseif nargin == 0
-                obj.settingsFilename = fullfile(getenv('USERPROFILE'), 'Documents', 'MATLAB', 'csmopto-settings.mat');
+                obj.settingsFilename = fullfile(getHome(), 'Documents', 'MATLAB', 'csmopto-settings.mat');
                 if exist(obj.settingsFilename, 'file') == 2
                     settings = load(obj.settingsFilename);
                     settings = settings.settings;
@@ -400,7 +400,7 @@ classdef GUI < handle
                 obj.settings.(name) = value;
             end
             
-            if ~exist(settings.lastFolder, 'dir') ~= 7
+            if exist(settings.lastFolder, 'dir') ~= 7
                 warning('[GUI] lastFolder "%s" does not exist, using default: "%s"', settings.lastFolder, defaults.lastFolder);
                 obj.settings.lastFolder = defaults.lastFolder;
             end
@@ -433,7 +433,7 @@ classdef GUI < handle
             obj.h.conditionEpochsEdit.Value = obj.settings.conditionEpochsText;
             obj.h.fpArtifactEpochsEdit.Value = obj.settings.fpArtifactEpochsText;
             
-            obj.h.cleverSysFilenameEdit.Value = obj.settings.cleverSysFilename;
+            obj.h.behaviorFilenameEdit.Value = obj.settings.behaviorFilename;
             obj.h.doricFilenameEdit.Value = obj.settings.doricFilename;
             obj.h.labChartFilenameEdit.Value = obj.settings.labChartFilename;
             
@@ -648,22 +648,22 @@ classdef GUI < handle
             end
             
             manualEpochs = obj.settings.conditionEpochs;
-            if ~isempty(obj.settings.cleverSysFilename)
+            if ~isempty(obj.settings.behaviorFilename)
                 fprintf('Loading epochs data ... ');
-                if isequal(obj.settings.cleverSysFilename, obj.cache.cleverSysFilename) && isequal(obj.settings.cleverSysSheet, obj.cache.cleverSysSheet)
+                if isequal(obj.settings.behaviorFilename, obj.cache.behaviorFilename) && isequal(obj.settings.cleverSysSheet, obj.cache.cleverSysSheet)
                     fprintf('reused cache.\n');
-                    cleverSysEpochs = obj.cache.cleverSysEpochs;
+                    behaviorEpochs = obj.cache.behaviorEpochs;
                 else
                     fprintf('\n');
-                    cleverSysEpochs = loadCleverSysOrBoris(obj.settings.cleverSysFilename, obj.settings.cleverSysSheet);
-                    obj.cache.cleverSysEpochs = cleverSysEpochs;
-                    obj.cache.cleverSysFilename = obj.settings.cleverSysFilename;
+                    behaviorEpochs = loadBehavior(obj.settings.behaviorFilename, obj.settings.cleverSysSheet);
+                    obj.cache.behaviorEpochs = behaviorEpochs;
+                    obj.cache.behaviorFilename = obj.settings.behaviorFilename;
                     obj.cache.cleverSysSheet = obj.settings.cleverSysSheet;
                 end
-                k = getIndex(obj.cleverSysEpochsEntries, obj.settings.cleverSysEpochsChoices, 'Use');
+                k = getIndex(obj.behaviorEpochsEntries, obj.settings.behaviorEpochsChoices, 'Use');
                 k = sort([2 * k, 2 * k - 1]);
-                cleverSysEpochs = cleverSysEpochs(k);
-                epochs = [manualEpochs, cleverSysEpochs];
+                behaviorEpochs = behaviorEpochs(k);
+                epochs = [manualEpochs, behaviorEpochs];
             else
                 epochs = manualEpochs;
             end
@@ -783,8 +783,8 @@ classdef GUI < handle
                     extensions = {'*.csv'};
                     prompt = 'Select fiber photometry data (Doric)';
                     callback = @obj.onDoricFilenameEdit;
-                case obj.h.cleverSysFilenameEdit
-                    extensions = {'*.xlsx;*.tsv', 'CleverSys (*.xlsx) or BORIS (*.tsv)'};
+                case obj.h.behaviorFilenameEdit
+                    extensions = {'*.csv;*.xlsx;*.tsv', 'BinaryStates (*.csv) or CleverSys (*.xlsx) or BORIS (*.tsv)'};
                     prompt = 'Select behavior data';
                     callback = @obj.onCleverSysFilenameEdit;
                 case obj.h.labChartFilenameEdit
@@ -817,10 +817,10 @@ classdef GUI < handle
         function onEpochsTypeDrop(obj, epochType)
             obj.h.epochsTypeDrop.Value = epochType;
             obj.h.conditionEpochsPanel.Visible = false;
-            obj.h.cleverSysPanel.Visible = false;
+            obj.h.behaviorPanel.Visible = false;
             switch epochType
                 case 'File'
-                    obj.h.cleverSysPanel.Visible = true;
+                    obj.h.behaviorPanel.Visible = true;
                 case 'Manual'
                     obj.h.conditionEpochsPanel.Visible = true;
             end
@@ -844,34 +844,37 @@ classdef GUI < handle
             if numel(varargin) == 1
                 sheet = varargin{1};
                 obj.h.cleverSysSheetDrop.Value = sheet;
-                epochs = loadCleverSysOrBoris(obj.h.cleverSysFilenameEdit.Value, sheet);
+                epochs = loadBehavior(obj.h.behaviorFilenameEdit.Value, sheet);
                 entries = epochs(1:2:end);
-                obj.cleverSysEpochsEntries = entries;
-                updateList(obj.h.cleverSysEpochsList, obj.cleverSysEpochsEntries, obj.settings.cleverSysEpochsChoices);
+                obj.behaviorEpochsEntries = entries;
+                updateList(obj.h.behaviorEpochsList, obj.behaviorEpochsEntries, obj.settings.behaviorEpochsChoices);
                 obj.saveSettings('cleverSysSheet', sheet);
             else
-                updateList(obj.h.cleverSysEpochsList);
+                updateList(obj.h.behaviorEpochsList);
             end
         end
         
         function onCleverSysFilenameEdit(obj)
-            target = obj.h.cleverSysFilenameEdit;
+            target = obj.h.behaviorFilenameEdit;
             filename = target.Value;
-            if isTSV(filename)
-                epochs = loadCleverSysOrBoris(obj.h.cleverSysFilenameEdit.Value);
+            if hasExtension(filename, 'tsv') || hasExtension(filename, 'csv')
+                % It's Boris or BinaryStates.
+                epochs = loadBehavior(obj.h.behaviorFilenameEdit.Value);
                 entries = epochs(1:2:end);
                 obj.h.cleverSysSheetDrop.Items = {};
                 obj.onCleverSysSheetDrop();
-                obj.cleverSysEpochsEntries = entries;
-                updateList(obj.h.cleverSysEpochsList, obj.cleverSysEpochsEntries, obj.settings.cleverSysEpochsChoices);
-                obj.saveSettings('cleverSysFilename', filename);
+                obj.behaviorEpochsEntries = entries;
+                updateList(obj.h.behaviorEpochsList, obj.behaviorEpochsEntries, obj.settings.behaviorEpochsChoices);
+                obj.saveSettings('behaviorFilename', filename);
                 success = true;
             elseif isempty(filename)
+                % User canceled choice.
                 obj.h.cleverSysSheetDrop.Items = {};
                 obj.onCleverSysSheetDrop();
-                obj.saveSettings('cleverSysFilename', filename);
+                obj.saveSettings('behaviorFilename', filename);
                 success = true;
             else
+                % It's CleverSys.
                 try
                     [~, sheets, ~] = xlsfinfo(filename);
                     success = true;
@@ -886,7 +889,7 @@ classdef GUI < handle
                         sheet = sheets{1};
                     end
                     obj.onCleverSysSheetDrop(sheet);
-                    obj.saveSettings('cleverSysFilename', filename, 'cleverSysSheet', sheet);
+                    obj.saveSettings('behaviorFilename', filename, 'cleverSysSheet', sheet);
                 else
                     obj.h.cleverSysSheetDrop.Items = {};
                     obj.onCleverSysSheetDrop();
@@ -1045,10 +1048,10 @@ classdef GUI < handle
                     obj.settings.doricChannelsChoices = updateChoices(obj.settings.doricChannelsChoices, obj.doricChannelsEntries(index), choice);
                     updateList(list, obj.doricChannelsEntries, obj.settings.doricChannelsChoices);
                     obj.saveSettings('doricChannelsChoices', obj.settings.doricChannelsChoices);
-                case obj.h.cleverSysEpochsList
-                    obj.settings.cleverSysEpochsChoices = updateChoices(obj.settings.cleverSysEpochsChoices, obj.cleverSysEpochsEntries(index), choice);
-                    updateList(list, obj.cleverSysEpochsEntries, obj.settings.cleverSysEpochsChoices);
-                    obj.saveSettings('cleverSysEpochsChoices', obj.settings.cleverSysEpochsChoices);
+                case obj.h.behaviorEpochsList
+                    obj.settings.behaviorEpochsChoices = updateChoices(obj.settings.behaviorEpochsChoices, obj.behaviorEpochsEntries(index), choice);
+                    updateList(list, obj.behaviorEpochsEntries, obj.settings.behaviorEpochsChoices);
+                    obj.saveSettings('behaviorEpochsChoices', obj.settings.behaviorEpochsChoices);
                 case obj.h.labChartChannelsList
                     obj.settings.labChartChannelsChoices = updateChoices(obj.settings.labChartChannelsChoices, obj.labChartChannelsEntries(index), choice);
                     updateList(list, obj.labChartChannelsEntries, obj.settings.labChartChannelsChoices);
@@ -1115,7 +1118,7 @@ end
 
 function settings = getDefaults()
     % Internal.
-    settings.lastFolder = fullfile(getenv('USERPROFILE'), 'Documents');
+    settings.lastFolder = fullfile(getHome(), 'Documents');
     
     % General.
     settings.epochsType = 'Manual';
@@ -1160,9 +1163,9 @@ function settings = getDefaults()
     settings.conditionEpochsText = '';
     
     % CleverSys epochs.
-    settings.cleverSysFilename = '';
+    settings.behaviorFilename = '';
     settings.cleverSysSheet = '';
-    settings.cleverSysEpochsChoices = cell(0, 2);
+    settings.behaviorEpochsChoices = cell(0, 2);
     
     % Doric.
     settings.doricFilename = '';
@@ -1296,17 +1299,27 @@ function errorDialog(messages)
     errordlg(messages, 'Processing error', 'modal');
 end
 
-function test = isTSV(filename)
-    [~, ~, extension] = fileparts(filename);
-    test = lower(extension) == ".tsv";
+function test = hasExtension(filename, extension)
+    [~, ~, ext] = fileparts(filename);
+    test = lower(ext) == "." + extension;
 end
 
-function varargout = loadCleverSysOrBoris(varargin)
+function varargout = loadBehavior(varargin)
     filename = varargin{1};
-    if isTSV(filename)
+    if hasExtension(filename, 'tsv')
         [varargout{1:nargout}] = loadBoris(filename);
+    elseif hasExtension(filename, 'csv')
+        [varargout{1:nargout}] = loadBinaryStates(filename);
     else
         [varargout{1:nargout}] = loadCleverSys(varargin{:});
+    end
+end
+
+function folder = getHome()
+    if ispc
+        folder = getenv('USERPROFILE');
+    else
+        folder = char(java.lang.System.getProperty('user.home'));
     end
 end
 
