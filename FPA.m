@@ -92,7 +92,7 @@
 % Units for time and frequency are seconds and hertz respectively.
 % 
 % 2019-02-01. Leonardo Molina.
-% 2021-03-31. Last modified.
+% 2021-09-01. Last modified.
 classdef FPA < handle
     properties
         configuration
@@ -350,10 +350,15 @@ classdef FPA < handle
             obj.windowTemplate = -halfWindow:halfWindow;
 
             % Index epochs.
+            % Start and stop vector indices for all provided epochs.
             epochIds = zeros(2, 0);
+            % Numeric label corresponding to each epoch range.
             epochLabels = zeros(0, 1);
+            % Vector index for each peak.
             peakIds = zeros(0, 1);
+            % Numeric label corresponding to each peak.
             peakLabels = zeros(0, 1);
+            % Misc indexing / labeling.
             boxplotIds = zeros(0, 1);
             boxplotLabels = zeros(0, 1);
             peakCounts = zeros(nConditions, 1);
@@ -634,7 +639,6 @@ classdef FPA < handle
             [folder, basename] = fileparts(prefix);
             
             % Save data for post-processing.
-            obj.nConditions = numel(obj.configuration.conditionEpochs) / 2;
 
             % Time vs dff.
             % Rows represent increasing values of time with corresponding dff values.
@@ -647,29 +651,33 @@ classdef FPA < handle
             % AUC.
             output = fullfile(folder, sprintf('%s - AUC.csv', basename));
             fid = fopen(output, 'w');
-            fprintf(fid, '# condition, area, duration\n');
-            fprintf(fid, '%i, %.4f, %d\n', [(1:obj.nConditions)', obj.area, obj.duration]');
+            fprintf(fid, '# conditionId, conditionName, area, duration\n');
+            data = [obj.epochNames(:), num2cell([colon(1, obj.nConditions)', obj.area, obj.duration])];
+            data = data(:, [2, 1, 3, 4])';
+            fprintf(fid, '%i, %s, %.4f, %d\n', data{:});
             fclose(fid);
 
             % All peak-triggered windows and their average with corresponding epoch label.
             output1 = fullfile(folder, sprintf('%s - peak-triggered.csv', basename));
             output2 = fullfile(folder, sprintf('%s - peak-triggered averaged.csv', basename));
-            obj.saveEventTrigger(output1, output2, obj.peakIds, obj.peakLabels);
+            obj.saveEventTrigger(output1, output2, 'peak', obj.peakIds, obj.peakLabels);
 
             % Same as above for start-triggered windows.
             output1 = fullfile(folder, sprintf('%s - start-triggered.csv', basename));
             output2 = fullfile(folder, sprintf('%s - start-triggered averaged.csv', basename));
-            obj.saveEventTrigger(output1, output2, obj.epochIds(1:2:end)', obj.epochLabels);
+            startIds = obj.epochIds(1:2:end);
+            obj.saveEventTrigger(output1, output2, 'condition', startIds, obj.epochLabels, obj.epochNames(obj.epochLabels));
 
             % Same as above for stop-triggered windows.
             output1 = fullfile(folder, sprintf('%s - stop-triggered.csv', basename));
             output2 = fullfile(folder, sprintf('%s - stop-triggered averaged.csv', basename));
-            obj.saveEventTrigger(output1, output2, obj.epochIds(2:2:end)', obj.epochLabels);
+            stopIds = obj.epochIds(2:2:end);
+            obj.saveEventTrigger(output1, output2, 'condition', stopIds, obj.epochLabels, obj.epochNames(obj.epochLabels));
         end
     end
     
     methods (Access = private)
-        function saveEventTrigger(obj, output1, output2, triggerIds, triggerLabels)
+        function saveEventTrigger(obj, output1, output2, prefix, triggerIds, triggerLabels, triggerNames)
             [triggeredWindow, halfWindow] = forceOdd(obj.configuration.triggeredWindow * obj.frequency);
             window = -halfWindow:halfWindow;
             traceTime = window / obj.frequency;
@@ -681,6 +689,14 @@ classdef FPA < handle
             triggerLabels = triggerLabels(k);
             triggerIds = triggerIds(k);
             
+            triggerIds = triggerIds(:);
+            triggerLabels = triggerLabels(:);
+            if nargin == 7
+                triggerNames = triggerNames(:);
+                saveConditionName = true;
+            else
+                saveConditionName = false;
+            end
             if numel(triggerIds) >= 1
                 triggerData = obj.dff;
                 triggerData = triggerData(window + triggerIds);
@@ -692,9 +708,18 @@ classdef FPA < handle
                 % Rows represent a single trigger:
                 % First column is the condition label of the trigger followed by the trace around each trigger, with each trigger at the center column (n / 2 + 1) labeled with "zero".
                 fid = fopen(output1, 'w');
-                fprintf(fid, ['# time, condition, ', timeHeader, '\n']);
-                format = ['%.4f, %i', repmat(', %.4f', 1, triggeredWindow), '\n'];
-                fprintf(fid, format, [triggerTime, triggerLabels, triggerData]');
+                if saveConditionName
+                    fprintf(fid, ['# time, %1$sId, %1$sName, ', timeHeader, '\n'], prefix);
+                    format = ['%.4f, %i, %s', repmat(', %.4f', 1, triggeredWindow), '\n'];
+                    data = [triggerNames, num2cell([triggerTime, triggerLabels, triggerData])];
+                    data = data(:, [2 3 1 4:end])';
+                else
+                    fprintf(fid, ['# time, %1$sId, ', timeHeader, '\n'], prefix);
+                    format = ['%.4f, %i', repmat(', %.4f', 1, triggeredWindow), '\n'];
+                    data = num2cell([triggerTime, triggerLabels, triggerData]);
+                    data = data(:, :)';
+                end
+                fprintf(fid, format, data{:});
                 fclose(fid);
 
                 % Average of the above.
@@ -706,11 +731,21 @@ classdef FPA < handle
                     uData = reshape(uData, [], size(triggerData, 2));
                     averages = cat(1, averages, mean(uData, 1));
                 end
-
+                
                 fid = fopen(output2, 'w');
-                fprintf(fid, ['# condition, ', timeHeader, '\n']);
-                format = ['%i', repmat(', %.4f', 1, triggeredWindow), '\n'];
-                fprintf(fid, format, [uLabels, averages]');
+                if saveConditionName
+                    fprintf(fid, ['# %1$sId, %1$sName, ', timeHeader, '\n'], prefix);
+                    format = ['%i, %s', repmat(', %.4f', 1, triggeredWindow), '\n'];
+                    data = [triggerNames, num2cell([uLabels, averages])];
+                    data = data(:, [2, 1, 3:end])';
+                    fprintf(fid, format, data{:});
+                else
+                    fprintf(fid, ['# %1$sId, ', timeHeader, '\n'], prefix);
+                    format = ['%i', repmat(', %.4f', 1, triggeredWindow), '\n'];
+                    data = num2cell([uLabels, averages]);
+                    data = data(:, :)';
+                    fprintf(fid, format, data{:});
+                end
                 fclose(fid);
             end
         end
