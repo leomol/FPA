@@ -736,7 +736,8 @@ classdef FPA < handle
                 if saveConditionName
                     fprintf(fid, ['# %1$sId, %1$sName, ', timeHeader, '\n'], prefix);
                     format = ['%i, %s', repmat(', %.4f', 1, triggeredWindow), '\n'];
-                    data = [triggerNames, num2cell([uLabels, averages])];
+                    uTriggerNames = unique(triggerNames, 'stable');
+                    data = [uTriggerNames, num2cell([uLabels, averages])];
                     data = data(:, [2, 1, 3:end])';
                     fprintf(fid, format, data{:});
                 else
