@@ -2,7 +2,7 @@
 % see FPA.
 
 % 2020-11-01. Leonardo Molina.
-% 2021-07-08. Last modified.
+% 2021-09-08. Last modified.
 classdef GUI < handle
     properties
         fpa
@@ -560,7 +560,7 @@ classdef GUI < handle
                 fpData = obj.cache.fpData;
             else
                 fprintf('\n');
-                fpData = loadData(obj.settings.doricFilename);
+                fpData = loadDoric(obj.settings.doricFilename);
                 obj.cache.fpData = fpData;
                 obj.cache.doricFilename = obj.settings.doricFilename;
             end
@@ -648,7 +648,7 @@ classdef GUI < handle
             end
             
             manualEpochs = obj.settings.conditionEpochs;
-            if ~isempty(obj.settings.behaviorFilename)
+            if ~isempty(obj.settings.behaviorFilename) && exist(obj.settings.behaviorFilename, 'file') == 2
                 fprintf('Loading epochs data ... ');
                 if isequal(obj.settings.behaviorFilename, obj.cache.behaviorFilename) && isequal(obj.settings.cleverSysSheet, obj.cache.cleverSysSheet)
                     fprintf('reused cache.\n');
@@ -859,14 +859,18 @@ classdef GUI < handle
             filename = target.Value;
             if hasExtension(filename, 'tsv') || hasExtension(filename, 'csv')
                 % It's Boris or BinaryStates.
-                epochs = loadBehavior(obj.h.behaviorFilenameEdit.Value);
-                entries = epochs(1:2:end);
-                obj.h.cleverSysSheetDrop.Items = {};
-                obj.onCleverSysSheetDrop();
-                obj.behaviorEpochsEntries = entries;
-                updateList(obj.h.behaviorEpochsList, obj.behaviorEpochsEntries, obj.settings.behaviorEpochsChoices);
-                obj.saveSettings('behaviorFilename', filename);
-                success = true;
+                if exist(obj.h.behaviorFilenameEdit.Value, 'file') == 2
+                    epochs = loadBehavior(obj.h.behaviorFilenameEdit.Value);
+                    entries = epochs(1:2:end);
+                    obj.h.cleverSysSheetDrop.Items = {};
+                    obj.onCleverSysSheetDrop();
+                    obj.behaviorEpochsEntries = entries;
+                    updateList(obj.h.behaviorEpochsList, obj.behaviorEpochsEntries, obj.settings.behaviorEpochsChoices);
+                    obj.saveSettings('behaviorFilename', filename);
+                    success = true;
+                else
+                    success = false;
+                end
             elseif isempty(filename)
                 % User canceled choice.
                 obj.h.cleverSysSheetDrop.Items = {};
@@ -964,7 +968,7 @@ classdef GUI < handle
                 success = true;
             else
                 try
-                    [~, channels] = loadData(filename, 0);
+                    [~, channels] = loadDoric(filename);
                     nChannels = numel(channels);
                     for i = 1:nChannels
                         channels{i} = sprintf('#%i %s', i, channels{i});
@@ -1321,6 +1325,15 @@ function folder = getHome()
     else
         folder = char(java.lang.System.getProperty('user.home'));
     end
+end
+
+function [data, channels] = loadDoric(filename)
+    data = readtable(filename);
+    channels = data.Properties.VariableNames;
+    data = data{:, :};
+    % Remove NaN.
+    k = any(isnan(data), 2);
+    data = data(~k, :);
 end
 
 %#ok<*PROPLC>
