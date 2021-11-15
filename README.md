@@ -2,7 +2,7 @@
 MATLAB scripts to plot data from a fiber-photometry recording.
 
 ## Prerequisites
-* [MATLAB][MATLAB] (last tested with R2020b)
+* [MATLAB][MATLAB] (last tested with R2021b)
 
 ## Installation
 * Install MATLAB with the following toolboxes:
@@ -254,6 +254,9 @@ epochs = loadBoris(filename)
 Returns a list of event epochs scored with BORIS.
 
 ## Version History
+* 2021-11-01
+	- Process a project folder as an example.
+	- First release.
 * 2021-03-25
 	- Added baseline plot of reference for figure 1.1.
 	- Figure 1.1 shows resampled raw data (before was corrected data).
