@@ -1,0 +1,15 @@
+cff-version: 1.2.0
+title: "FPA - Fiber-photometry analysis toolbox"
+abstract: "MATLAB toolbox to process data collected with a few popular fiber-photometry data acquisition systems."
+message: If you use this software, please cite it.
+type: software
+version: 1.0.0
+doi: 10.5281/zenodo.5708471
+date-released: 2021-11-17
+repository-code: https://github.com/leomol/FPA
+authors:
+  - family-names: "Molina"
+    given-names: "Leonardo A."
+    email: "leonardomt@gmail.com"
+    affiliation: "University of Calgary"
+    orcid: https://orcid.org/0000-0002-6601-7185
