@@ -92,7 +92,7 @@
 % Units for time and frequency are seconds and hertz respectively.
 % 
 % 2019-02-01. Leonardo Molina.
-% 2021-11-14. Last modified.
+% 2021-11-17. Last modified.
 classdef FPA < handle
     properties
         configuration
@@ -646,16 +646,16 @@ classdef FPA < handle
             output = fullfile(folder, sprintf('%s - dff.csv', basename));
             fid = fopen(output, 'w');
             fprintf(fid, '# time, dff\n');
-            fprintf(fid, '%.4f, %.4f\n', [obj.time, obj.dff]');
+            fprintf(fid, '%f, %f\n', [obj.time, obj.dff]');
             fclose(fid);
             
             % AUC.
             output = fullfile(folder, sprintf('%s - AUC.csv', basename));
             fid = fopen(output, 'w');
-            fprintf(fid, '# conditionId, conditionName, area, duration\n');
-            data = [obj.epochNames(:), num2cell([colon(1, obj.nConditions)', obj.area, obj.duration])];
-            data = data(:, [2, 1, 3, 4])';
-            fprintf(fid, '%i, %s, %.4f, %d\n', data{:});
+            fprintf(fid, '# conditionId, conditionName, area, duration, normalizedArea\n');
+            data = [obj.epochNames(:), num2cell([colon(1, obj.nConditions)', obj.area, obj.duration, obj.normalizedArea])];
+            data = data(:, [2, 1, 3, 4, 5])';
+            fprintf(fid, '%i, %s, %f, %f, %f\n', data{:});
             fclose(fid);
 
             % All peak-triggered windows and their average with corresponding epoch label.
@@ -682,18 +682,18 @@ classdef FPA < handle
             [triggeredWindow, halfWindow] = forceOdd(obj.configuration.triggeredWindow * obj.frequency);
             window = -halfWindow:halfWindow;
             traceTime = window / obj.frequency;
-            timeHeader = strjoin(arrayfun(@(x) sprintf('%.4f', x), traceTime, 'UniformOutput', false), ', ');
+            timeHeader = strjoin(arrayfun(@(x) sprintf('%f', x), traceTime, 'UniformOutput', false), ', ');
             
             % Filter out out-of-range traces.
             nSamples = numel(obj.dff);
             k = triggerIds > halfWindow & triggerIds + halfWindow < nSamples;
             triggerLabels = triggerLabels(k);
             triggerIds = triggerIds(k);
-            
             triggerIds = triggerIds(:);
             triggerLabels = triggerLabels(:);
             if nargin == 7
                 triggerNames = triggerNames(:);
+                triggerNames = triggerNames(k);
                 saveConditionName = true;
             else
                 saveConditionName = false;
@@ -711,12 +711,12 @@ classdef FPA < handle
                 fid = fopen(output1, 'w');
                 if saveConditionName
                     fprintf(fid, ['# time, %1$sId, %1$sName, ', timeHeader, '\n'], prefix);
-                    format = ['%.4f, %i, %s', repmat(', %.4f', 1, triggeredWindow), '\n'];
+                    format = ['%f, %i, %s', repmat(', %f', 1, triggeredWindow), '\n'];
                     data = [triggerNames, num2cell([triggerTime, triggerLabels, triggerData])];
                     data = data(:, [2 3 1 4:end])';
                 else
                     fprintf(fid, ['# time, %1$sId, ', timeHeader, '\n'], prefix);
-                    format = ['%.4f, %i', repmat(', %.4f', 1, triggeredWindow), '\n'];
+                    format = ['%f, %i', repmat(', %f', 1, triggeredWindow), '\n'];
                     data = num2cell([triggerTime, triggerLabels, triggerData]);
                     data = data(:, :)';
                 end
@@ -736,14 +736,14 @@ classdef FPA < handle
                 fid = fopen(output2, 'w');
                 if saveConditionName
                     fprintf(fid, ['# %1$sId, %1$sName, ', timeHeader, '\n'], prefix);
-                    format = ['%i, %s', repmat(', %.4f', 1, triggeredWindow), '\n'];
+                    format = ['%i, %s', repmat(', %f', 1, triggeredWindow), '\n'];
                     uTriggerNames = unique(triggerNames, 'stable');
                     data = [uTriggerNames, num2cell([uLabels, averages])];
                     data = data(:, [2, 1, 3:end])';
                     fprintf(fid, format, data{:});
                 else
                     fprintf(fid, ['# %1$sId, ', timeHeader, '\n'], prefix);
-                    format = ['%i', repmat(', %.4f', 1, triggeredWindow), '\n'];
+                    format = ['%i', repmat(', %f', 1, triggeredWindow), '\n'];
                     data = num2cell([uLabels, averages]);
                     data = data(:, :)';
                     fprintf(fid, format, data{:});
@@ -929,7 +929,7 @@ function plotTriggerAverage(data, ids, labels, window, frequency, names, colors)
                 plot(time, av, 'Color', colors(c, :), 'HandleVisibility', 'off');
                 sem = std(triggeredData, [], 1) / sqrt(size(triggeredData, 1));
                 sem0 = sem(ceil(size(triggeredData, 2) / 2));
-                label = sprintf('%s (SEM=%.4f, n = %i)', names{c}, sem0, nTriggers);
+                label = sprintf('%s (SEM=%f, n = %i)', names{c}, sem0, nTriggers);
                 vertices = [time; av + sem / 2];
                 vertices = cat(2, vertices, [fliplr(time); fliplr(av - sem / 2)])';
                 faces = 1:2 * triggeredWindow;

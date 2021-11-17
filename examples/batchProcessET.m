@@ -4,18 +4,18 @@
 % 
 % Note:
 %   -Do not use dots in folder or file names (IMPORTANT).
-%   -The configuration was defined according to a conversation in Slack (Chat Elizabeth+Patrick+Leo 2021-11-14).
+%   -The configuration was defined according to a conversation in Slack (Chat Elizabeth+Patrick+Leo 2021-11-14). Except for peaksLowpassFrequency, which was reverted back to the defaults (0.5Hz) after chatting over AnyDesk messaging.
 %   -Homework:
 %     -Check all settings (including data columns), folders and epoch defitions below!
 %     -Add new data (if any) following the pattern below. Ask if unsure.
 % 
 % 2021-09-30. Leonardo Molina.
-% 2021-11-15. Last modified.
+% 2021-11-16. Last modified.
 
 % Top project folder.
-top = 'C:\Users\Molina\Documents\public\data\HALO\FibrePhotometry\Elizabeth\Thesis';
+top = 'G:\My Drive\MSc\Research Data\Fiber Photometry Experiments\';
 % Formats to exports images to. A single or multiple image formats.
-formats = {'png', 'fig', 'epsc'};
+formats = {'png', 'fig'}; % If you wanted eps, add 'epsc'
 % Suffix added to the exported folder.
 outputSuffix = ' - exported';
 
@@ -25,32 +25,28 @@ configuration.resamplingFrequency = 100;
 configuration.baselineLowpassFrequency = 0.1;
 configuration.fitReference = false;
 configuration.lowpassFrequency = 4;
-configuration.peaksLowpassFrequency = 0.001;
+configuration.peaksLowpassFrequency = 0.5;
 configuration.threshold = {2.91, @mad, @median};
 
-% Option 1: z-score.
+% z-score.
 configuration.f0 = @mean;
 configuration.f1 = @std;
 
-% Option 2: 5min moving window using median and mad.
-% configuration.f0 = {@median, 300};
-% configuration.f1 = {@mad, 300};
-
 % Columns corresponding to 465nm and 405nm.
-signalColumn = 5;
-referenceColumn = 3;
+signalColumn = 2;
+referenceColumn = 4;
 
 project = { ...
 		"familiar male", ...
 		[...
-            dir(fullfile(top, "Experiment 1.5*\familiar male*\*.csv"))
-            dir(fullfile(top, "Experiment 1.6*\familiar male*\*.csv"))
-            dir(fullfile(top, "Experiment 1.7*\familiar male*\*.csv"))
+            dir(fullfile(top, "Experiment_1_5*\familiar male*\*.csv"))
+            dir(fullfile(top, "Experiment_1_6*\familiar male*\*.csv"))
+            dir(fullfile(top, "Experiment_1_7*\familiar male*\*.csv"))
         ], ...
         [...
-            dir(fullfile(top, "Experiment 1.5*\familiar male*\tracking*\**\*.csv"))
-            dir(fullfile(top, "Experiment 1.6*\familiar male*\tracking*\**\*.csv"))
-            dir(fullfile(top, "Experiment 1.7*\familiar male*\tracking*\**\*.csv"))
+            dir(fullfile(top, "Experiment_1_5*\familiar male*\tracking*\**\*.csv"))
+            dir(fullfile(top, "Experiment_1_6*\familiar male*\tracking*\**\*.csv"))
+            dir(fullfile(top, "Experiment_1_7*\familiar male*\tracking*\**\*.csv"))
         ], ...
         [
             struct('baselineEpochs', [ 0, 300, 637, 937], 'artifactEpochs', [])
@@ -78,14 +74,14 @@ project = { ...
 		...
 		"novel female", ...
 		[...
-            dir(fullfile(top, "Experiment 1.5*\novel female*\*.csv"))
-            dir(fullfile(top, "Experiment 1.6*\novel female*\*.csv"))
-            dir(fullfile(top, "Experiment 1.7*\novel female*\*.csv"))
+            dir(fullfile(top, "Experiment_1_5*\novel female*\*.csv"))
+            dir(fullfile(top, "Experiment_1_6*\novel female*\*.csv"))
+            dir(fullfile(top, "Experiment_1_7*\novel female*\*.csv"))
         ], ...
         [...
-            dir(fullfile(top, "Experiment 1.5*\novel female*\tracking*\**\*.csv"))
-            dir(fullfile(top, "Experiment 1.6*\novel female*\tracking*\**\*.csv"))
-            dir(fullfile(top, "Experiment 1.7*\novel female*\tracking*\**\*.csv"))
+            dir(fullfile(top, "Experiment_1_5*\novel female*\tracking*\**\*.csv"))
+            dir(fullfile(top, "Experiment_1_6*\novel female*\tracking*\**\*.csv"))
+            dir(fullfile(top, "Experiment_1_7*\novel female*\tracking*\**\*.csv"))
         ], ...
 		[
             struct('baselineEpochs', [ 0, 320, 640, 940], 'artifactEpochs', [])
@@ -113,14 +109,14 @@ project = { ...
 		...
 		"novel male", ...
 		[...
-            dir(fullfile(top, "Experiment 1.5*\novel male*\*.csv"))
-            dir(fullfile(top, "Experiment 1.6*\novel male*\*.csv"))
-            dir(fullfile(top, "Experiment 1.7*\novel male*\*.csv"))
+            dir(fullfile(top, "Experiment_1_5*\novel male*\*.csv"))
+            dir(fullfile(top, "Experiment_1_6*\novel male*\*.csv"))
+            dir(fullfile(top, "Experiment_1_7*\novel male*\*.csv"))
         ], ...
         [...
-            dir(fullfile(top, "Experiment 1.5*\novel male*\tracking*\**\*.csv"))
-            dir(fullfile(top, "Experiment 1.6*\novel male*\tracking*\**\*.csv"))
-            dir(fullfile(top, "Experiment 1.7*\novel male*\tracking*\**\*.csv"))
+            dir(fullfile(top, "Experiment_1_5*\novel male*\tracking*\**\*.csv"))
+            dir(fullfile(top, "Experiment_1_6*\novel male*\tracking*\**\*.csv"))
+            dir(fullfile(top, "Experiment_1_7*\novel male*\tracking*\**\*.csv"))
         ], ...
 		[
             struct('baselineEpochs', [ 0, 300, 657, 957], 'artifactEpochs', [])
@@ -148,14 +144,14 @@ project = { ...
 		...
 		"novel object", ...
 		[...
-            dir(fullfile(top, "Experiment 1.5*\novel object*\*.csv"))
-            dir(fullfile(top, "Experiment 1.6*\novel object*\*.csv"))
-            dir(fullfile(top, "Experiment 1.7*\novel object*\*.csv"))
+            dir(fullfile(top, "Experiment_1_5*\novel object*\*.csv"))
+            dir(fullfile(top, "Experiment_1_6*\novel object*\*.csv"))
+            dir(fullfile(top, "Experiment_1_7*\novel object*\*.csv"))
         ], ...
         [...
-            dir(fullfile(top, "Experiment 1.5*\novel object*\tracking*\**\*.csv"))
-            dir(fullfile(top, "Experiment 1.6*\novel object*\tracking*\**\*.csv"))
-            dir(fullfile(top, "Experiment 1.7*\novel object*\tracking*\**\*.csv"))
+            dir(fullfile(top, "Experiment_1_5*\novel object*\tracking*\**\*.csv"))
+            dir(fullfile(top, "Experiment_1_6*\novel object*\tracking*\**\*.csv"))
+            dir(fullfile(top, "Experiment_1_7*\novel object*\tracking*\**\*.csv"))
         ], ...
 		[
             struct('baselineEpochs', [ 0, 300, 635,  935], 'artifactEpochs', [])

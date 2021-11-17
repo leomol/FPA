@@ -7,7 +7,7 @@
 % If the file has multiple sheets, use sheetName or sheetNumber to select one.
 
 % 2019-05-07. Leonardo Molina.
-% 2021-01-28. Last modified.
+% 2021-11-17. Last modified.
 function [data, names, sheetName] = loadData(filename, varargin)
     [~, ~, extension] = fileparts(filename);
     if ismember(lower(extension), {'.xls', '.xlsx'})
@@ -16,7 +16,7 @@ function [data, names, sheetName] = loadData(filename, varargin)
         [data, ~, names] = loadABF(filename, varargin{:});
         sheetName = '';
     else
-        [data, names] = loadCSV(filename, varargin{:});
+        [data, names] = loadCSV(filename);
         sheetName = '';
     end
 end
@@ -39,7 +39,7 @@ function [data, names, sheetName] = loadXLS(filename, sheet)
     names = table.Properties.VariableNames;
 end
 
-function [data, names] = loadCSV(filename, nRows)
+function [data, names] = loadCSV(filename)
     %  <                    , cell1   , cell2 , ... , cellN   >
     %  <Time(s)/Cell Status , accepted,  ...  , ... , accepted>
     %   00.00               , 10.00   ,       , ... , 100.00
@@ -50,49 +50,53 @@ function [data, names] = loadCSV(filename, nRows)
     %   00.00                , 10.00   ,       , ... , 100.00
     %   00.10                , ..
     
-    if nargin == 1
-        nRows = Inf;
-    end
-    
+    % First line is possibly a header line.
     fid = fopen(filename, 'r');
     tmp = fgetl(fid);
     tmp = textscan(tmp, '%s', 'Delimiter', ',');
     tmp = tmp{1};
 	names = tmp;
-    if isnan(str2double(names{1}))
+    if validateNumber(names{1})
+        % The file starts with data without a header.
+        names = arrayfun(@num2str, -1:numel(names), 'UniformOutput', false);
+        nHeaderLines = 0;
+    else
+        % The file starts with at least one header line.
 		tmp = fgetl(fid);
 		tmp = textscan(tmp, '%s', 'Delimiter', ',');
 		tmp = tmp{1};
-		if isnan(str2double(tmp{1}))
-			nHeaderLines = 2;
-			names = tmp;
-		else
-			nHeaderLines = 1;
-		end
-    else
-        names = arrayfun(@num2str, -1:numel(names), 'UniformOutput', false);
-        nHeaderLines = 0;
+        if validateNumber(tmp{1})
+            % The file has a single header line.
+            nHeaderLines = 1;
+        else
+            % The file has 2 header lines. Keep the first header.
+            nHeaderLines = 2;
+        end
     end
     if isempty(names{1})
+        % If empty, set name for the first column.
         names{1} = 'time';
     end
-    keep = fgetl(fid);
-    keep = textscan(keep, '%s', 'Delimiter', ',');
-    keep = keep{1};
+    % Next line is data. Detect numeric columns.
+    line = fgetl(fid);
+    line = textscan(line, '%s', 'Delimiter', ',');
+    line = line{1};
+    keep = validateNumber(line);
+    % Reset carret.
     fseek(fid, 0, 'bof');
-    if ismember({'accepted'}, keep)
-        nHeaderLines = nHeaderLines + 1;
-        keep = [true; ismember(keep(2:end), 'accepted')];
-        data = textscan(fid, repmat('%f', 1, numel(names)), 'Delimiter', ',', 'HeaderLines', nHeaderLines);
-    else
-        keep = ~isnan(str2double(keep));
-        format = cell(1, numel(keep));
-        [format{ keep}] = deal('%f');
-        [format{~keep}] = deal('%s');
-        format = cat(2, format{:});
-        data = textscan(fid, format, nRows, 'Delimiter', ',', 'HeaderLines', nHeaderLines);
-    end
+    data = textscan(fid, repmat('%f', 1, numel(names)), 'Delimiter', ',', 'HeaderLines', nHeaderLines);
+    fclose(fid);
     data = cat(2, data{keep});
     names = names(keep);
-    fclose(fid);
+    % Remove columns with only NaN values.
+    c = all(isnan(data), 1);
+    data(:, c) = [];
+    names(c) = [];
+    % Remove rows with any NaN values.
+    r = any(isnan(data), 2);
+    data(r, :) = [];
+end
+
+function result = validateNumber(numbers)
+    result = ~isnan(str2double(numbers)) | contains(numbers, 'nan', 'IgnoreCase', true);
 end

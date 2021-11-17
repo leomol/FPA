@@ -254,6 +254,9 @@ epochs = loadBoris(filename)
 Returns a list of event epochs scored with BORIS.
 
 ## Version History
+* 2021-11-17
+    - Patched `loadData.m` to remove columns with all NaN values and rows with any NaN values.
+	- Added column `normalizedArea` (redundantly) to exported AUC file.
 * 2021-11-01
 	- Process a project folder as an example.
 	- First release.
@@ -286,7 +289,7 @@ Returns a list of event epochs scored with BORIS.
 	- Initial release.
 
 ## License
-© 2018-2021 [Leonardo Molina][Leonardo Molina]
+© 2018 [Leonardo Molina][Leonardo Molina]
 
 This project is licensed under the [GNU GPLv3 License][LICENSE.md].
 
