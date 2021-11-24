@@ -1,16 +1,19 @@
 % FPA batch processing script for ET's thesis data.
-% This script will load Doric csv files and their corresponding behavioral data (Murari Lab spec), all of which are provided in the project variable below.
+% This script will load Doric csv files and their corresponding behavioral data (CleverSys or BinaryStates), all of which are provided in the project variable below.
 % Data is processed according to user-defined settings, then triggered data is generated in the form of output csv files and plots.
 % 
 % Note:
 %   -Do not use dots in folder or file names (IMPORTANT).
-%   -The configuration was defined according to a conversation in Slack (Chat Elizabeth+Patrick+Leo 2021-11-14). Except for peaksLowpassFrequency, which was reverted back to the defaults (0.5Hz) after chatting over AnyDesk messaging.
-%   -Homework:
-%     -Check all settings (including data columns), folders and epoch defitions below!
-%     -Add new data (if any) following the pattern below. Ask if unsure.
+%   -Add new data (if any) by following the pattern in the project variable.
+%   -Configuration and processing steps have been re-defined based on on-going conversations:
+%      2021-11-14 Slack chat with Elizabeth and Patrick.
+%      2021-11-15 Anydesk messaging with Elizabeth: peaksLowpassFrequency was reverted back to the defaults (0.5Hz).
+%      2021-11-18 Slack: Load both CleverSys or BinaryStates.
+%   -Always check:
+%      All settings including data columns, folders and epoch defitions.
 % 
 % 2021-09-30. Leonardo Molina.
-% 2021-11-16. Last modified.
+% 2021-11-24. Last modified.
 
 % Top project folder.
 top = 'G:\My Drive\MSc\Research Data\Fiber Photometry Experiments\';
@@ -36,17 +39,19 @@ configuration.f1 = @std;
 signalColumn = 2;
 referenceColumn = 4;
 
+search = @(folder) mdir(fullfile(top, folder), {'*.csv', '*.xlsx'});
+
 project = { ...
-		"familiar male", ...
+		'familiar male', ...
 		[...
-            dir(fullfile(top, "Experiment_1_5*\familiar male*\*.csv"))
-            dir(fullfile(top, "Experiment_1_6*\familiar male*\*.csv"))
-            dir(fullfile(top, "Experiment_1_7*\familiar male*\*.csv"))
+            search('Experiment_1_5*\familiar male*')
+            search('Experiment_1_6*\familiar male*')
+            search('Experiment_1_7*\familiar male*')
         ], ...
         [...
-            dir(fullfile(top, "Experiment_1_5*\familiar male*\tracking*\**\*.csv"))
-            dir(fullfile(top, "Experiment_1_6*\familiar male*\tracking*\**\*.csv"))
-            dir(fullfile(top, "Experiment_1_7*\familiar male*\tracking*\**\*.csv"))
+            search('Experiment_1_5*\familiar male*\tracking*\**')
+            search('Experiment_1_6*\familiar male*\tracking*\**')
+            search('Experiment_1_7*\familiar male*\tracking*\**')
         ], ...
         [
             struct('baselineEpochs', [ 0, 300, 637, 937], 'artifactEpochs', [])
@@ -72,16 +77,16 @@ project = { ...
             struct('baselineEpochs', [ 0, 300, 620, 920], 'artifactEpochs', [])
         ], ...
 		...
-		"novel female", ...
+		'novel female', ...
 		[...
-            dir(fullfile(top, "Experiment_1_5*\novel female*\*.csv"))
-            dir(fullfile(top, "Experiment_1_6*\novel female*\*.csv"))
-            dir(fullfile(top, "Experiment_1_7*\novel female*\*.csv"))
+            search('Experiment_1_5*\novel female*')
+            search('Experiment_1_6*\novel female*')
+            search('Experiment_1_7*\novel female*')
         ], ...
         [...
-            dir(fullfile(top, "Experiment_1_5*\novel female*\tracking*\**\*.csv"))
-            dir(fullfile(top, "Experiment_1_6*\novel female*\tracking*\**\*.csv"))
-            dir(fullfile(top, "Experiment_1_7*\novel female*\tracking*\**\*.csv"))
+            search('Experiment_1_5*\novel female*\tracking*\**')
+            search('Experiment_1_6*\novel female*\tracking*\**')
+            search('Experiment_1_7*\novel female*\tracking*\**')
         ], ...
 		[
             struct('baselineEpochs', [ 0, 320, 640, 940], 'artifactEpochs', [])
@@ -107,16 +112,16 @@ project = { ...
             struct('baselineEpochs', [ 0, 300, 625, 925], 'artifactEpochs', [])
 		], ...
 		...
-		"novel male", ...
+		'novel male', ...
 		[...
-            dir(fullfile(top, "Experiment_1_5*\novel male*\*.csv"))
-            dir(fullfile(top, "Experiment_1_6*\novel male*\*.csv"))
-            dir(fullfile(top, "Experiment_1_7*\novel male*\*.csv"))
+            search('Experiment_1_5*\novel male*')
+            search('Experiment_1_6*\novel male*')
+            search('Experiment_1_7*\novel male*')
         ], ...
         [...
-            dir(fullfile(top, "Experiment_1_5*\novel male*\tracking*\**\*.csv"))
-            dir(fullfile(top, "Experiment_1_6*\novel male*\tracking*\**\*.csv"))
-            dir(fullfile(top, "Experiment_1_7*\novel male*\tracking*\**\*.csv"))
+            search('Experiment_1_5*\novel male*\tracking*\**')
+            search('Experiment_1_6*\novel male*\tracking*\**')
+            search('Experiment_1_7*\novel male*\tracking*\**')
         ], ...
 		[
             struct('baselineEpochs', [ 0, 300, 657, 957], 'artifactEpochs', [])
@@ -142,16 +147,16 @@ project = { ...
             struct('baselineEpochs', [ 0, 300, 625, 925], 'artifactEpochs', [])
 		], ...
 		...
-		"novel object", ...
+		'novel object', ...
 		[...
-            dir(fullfile(top, "Experiment_1_5*\novel object*\*.csv"))
-            dir(fullfile(top, "Experiment_1_6*\novel object*\*.csv"))
-            dir(fullfile(top, "Experiment_1_7*\novel object*\*.csv"))
+            search('Experiment_1_5*\novel object*')
+            search('Experiment_1_6*\novel object*')
+            search('Experiment_1_7*\novel object*')
         ], ...
         [...
-            dir(fullfile(top, "Experiment_1_5*\novel object*\tracking*\**\*.csv"))
-            dir(fullfile(top, "Experiment_1_6*\novel object*\tracking*\**\*.csv"))
-            dir(fullfile(top, "Experiment_1_7*\novel object*\tracking*\**\*.csv"))
+            search('Experiment_1_5*\novel object*\tracking*\**')
+            search('Experiment_1_6*\novel object*\tracking*\**')
+            search('Experiment_1_7*\novel object*\tracking*\**')
         ], ...
 		[
             struct('baselineEpochs', [ 0, 300, 635,  935], 'artifactEpochs', [])
@@ -225,7 +230,13 @@ for c = 1:nConditions
             reference = data(:, referenceColumn);
 
             % Event files.
-            config.conditionEpochs = loadBinaryStates(inputEventFile);
+            [~, ~, ext] = fileparts(inputEventFile);
+            switch lower(ext)
+                case 'csv'
+                    config.conditionEpochs = loadBinaryStates(inputEventFile);
+                case 'xlsx'
+                    config.conditionEpochs = loadCleverSys(inputEventFile);
+            end
 
             % Call FPA with given configuration.
             fpa = FPA(time, signal, reference, config);
@@ -260,3 +271,8 @@ for c = 1:nConditions
     end
 end
 warning(status.state, warningType);
+
+function list = mdir(folder, filenames)
+    list = cellfun(@(filename) dir(fullfile(folder, filename)), filenames, 'UniformOutput', false);
+    list = vertcat(list{:});
+end
