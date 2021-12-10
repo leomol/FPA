@@ -13,7 +13,7 @@
 %      All settings including data columns, folders and epoch defitions.
 % 
 % 2021-09-30. Leonardo Molina.
-% 2021-11-24. Last modified.
+% 2021-12-10. Last modified.
 
 % Top project folder.
 top = 'G:\My Drive\MSc\Research Data\Fiber Photometry Experiments\';
@@ -21,6 +21,8 @@ top = 'G:\My Drive\MSc\Research Data\Fiber Photometry Experiments\';
 formats = {'png', 'fig'}; % If you wanted eps, add 'epsc'
 % Suffix added to the exported folder.
 outputSuffix = ' - exported';
+simulate = false;
+override = false;
 
 % General configuration to apply to all files.
 configuration = struct();
@@ -180,6 +182,75 @@ project = { ...
             struct('baselineEpochs', [ 0, 300, 640,  940], 'artifactEpochs', [])
             struct('baselineEpochs', [ 0, 300, 607,  907], 'artifactEpochs', [])
             struct('baselineEpochs', [ 0, 300, 610,  910], 'artifactEpochs', [])
+		], ...
+        'OF', ...
+		[...
+            search('Experiment_1_5*\OF*')
+            search('Experiment_1_6*\OF*')
+            search('Experiment_1_7*\OF*')
+        ], ...
+        [...
+            search('Experiment_1_5*\OF*\tracking*\**')
+            search('Experiment_1_6*\OF*\tracking*\**')
+            search('Experiment_1_7*\OF*\tracking*\**')
+        ], ...
+        [
+            struct('baselineEpochs', [0, 300, 942, 1242], 'artifactEpochs', [])
+            struct('baselineEpochs', [0, 300, 990, 1290], 'artifactEpochs', [337, 351])
+            struct('baselineEpochs', [335, 1270], 'artifactEpochs', [])
+            struct('baselineEpochs', [0, 300, 970, 1270], 'artifactEpochs', [464, 478])
+            struct('baselineEpochs', [0, 300, 950, 1250], 'artifactEpochs', [])
+            struct('baselineEpochs', [0, 300, 960, 1260], 'artifactEpochs', [711, 724])
+            struct('baselineEpochs', [0, 300, 965, 1265], 'artifactEpochs', [752, 773])
+            ...
+            struct('baselineEpochs', [0, 300, 955, 1255], 'artifactEpochs', [])
+            struct('baselineEpochs', [0, 300, 945, 1245], 'artifactEpochs', [])
+            struct('baselineEpochs', [0, 300, 965, 1265], 'artifactEpochs', [850, 872])
+            struct('baselineEpochs', [0, 300, 937, 1237], 'artifactEpochs', [])
+            struct('baselineEpochs', [0, 300, 940, 1240], 'artifactEpochs', [])
+            struct('baselineEpochs', [0, 300, 935, 1235], 'artifactEpochs', [])
+            ...
+            struct('baselineEpochs', [0, 300, 925, 1225], 'artifactEpochs', [])
+            struct('baselineEpochs', [0, 300, 945, 1245], 'artifactEpochs', [580, 595])
+            struct('baselineEpochs', [0, 300, 943, 1243], 'artifactEpochs', [])
+            struct('baselineEpochs', [0, 300, 927, 1227], 'artifactEpochs', [])
+            struct('baselineEpochs', [0, 300, 960, 1260], 'artifactEpochs', [])
+            struct('baselineEpochs', [0, 300, 940, 1240], 'artifactEpochs', [])
+        ], ...
+		...
+		'EPM', ...
+		[...
+            search('Experiment_1_5*\EPM*')
+            search('Experiment_1_6*\EPM*')
+            search('Experiment_1_7*\EPM*')
+        ], ...
+        [...
+            search('Experiment_1_5*\EPM*\tracking*\**')
+            search('Experiment_1_6*\EPM*\tracking*\**')
+            search('Experiment_1_7*\EPM*\tracking*\**')
+        ], ...
+		[
+            struct('baselineEpochs', [0, 300, 672, 972], 'artifactEpochs', [])
+            struct('baselineEpochs', [0, 300, 685, 985], 'artifactEpochs', [])
+            struct('baselineEpochs', [40, 340, 700, 1000], 'artifactEpochs', [])
+            struct('baselineEpochs', [0, 300, 660, 960], 'artifactEpochs', [])
+            ... struct('baselineEpochs', [0, 300, 665, 965], 'artifactEpochs', [])
+            struct('baselineEpochs', [0, 300, 742, 1042], 'artifactEpochs', [304, 317, 727, 737])
+            ... struct('baselineEpochs', [0, 300, 667, 967], 'artifactEpochs', [])
+            ...
+            struct('baselineEpochs', [0, 300, 630, 930], 'artifactEpochs', [])
+            struct('baselineEpochs', [0, 300, 620, 935], 'artifactEpochs', [])
+            struct('baselineEpochs', [0, 300, 647, 947], 'artifactEpochs', [])
+            struct('baselineEpochs', [0, 300, 675, 975], 'artifactEpochs', [])
+            struct('baselineEpochs', [0, 300, 680, 980], 'artifactEpochs', [])
+            struct('baselineEpochs', [0, 300, 630, 930], 'artifactEpochs', [])
+            ...
+            struct('baselineEpochs', [0, 300, 682, 982], 'artifactEpochs', [])
+            struct('baselineEpochs', [0, 300, 667, 967], 'artifactEpochs', [])
+            struct('baselineEpochs', [0, 300, 665, 965], 'artifactEpochs', [300, 543])
+            struct('baselineEpochs', [0, 300, 645, 945], 'artifactEpochs', [])
+            struct('baselineEpochs', [0, 300, 652, 952], 'artifactEpochs', [])
+            struct('baselineEpochs', [0, 300, 642, 942], 'artifactEpochs', [])
 		]
     };
 
@@ -210,61 +281,71 @@ for c = 1:nConditions
             % Create output folder.
             [folder, basename] = fileparts(inputDataFile);
             outputFolder = fullfile(folder, [basename, outputSuffix]);
-            fprintf('  [%02i:%02i] %s\n', f, nFiles, inputDataFile);
-            if exist(outputFolder, 'dir') ~= 7
-                mkdir(outputFolder);
-            end
+            existed = exist(outputFolder, 'dir') == 7;
             
-            % Merge base configuration with file-specific configuration.
-            config = configuration;
-            fnames = fieldnames(configurations(f));
-            for s = 1:numel(fnames)
-                fname = fnames{s};
-                config.(fname) = configurations(f).(fname);
-            end
-            
-            % Fiber-photometry data recorded with Doric DAQ.
-            data = loadData(inputDataFile);
-            time = data(:, 1);
-            signal = data(:, signalColumn);
-            reference = data(:, referenceColumn);
-
-            % Event files.
-            [~, ~, ext] = fileparts(inputEventFile);
-            switch lower(ext)
-                case 'csv'
-                    config.conditionEpochs = loadBinaryStates(inputEventFile);
-                case 'xlsx'
-                    config.conditionEpochs = loadCleverSys(inputEventFile);
-            end
-
-            % Call FPA with given configuration.
-            fpa = FPA(time, signal, reference, config);
-            % Print warnings.
-            if numel(fpa.warnings) > 0
-                fprintf(2, 'Warning(s) for "%s":\n', inputDataFile);
-                cellfun(@warning, fpa.warnings);
-            end
-
-            % Export.
-            prefix = fullfile(outputFolder, basename);
-            fpa.export(prefix);
-
-            % Plot, save and close.
-            fpa.plot();
-            allFigures = findobj('Type', 'figure');
-            fpaFigures = setdiff(allFigures, userFigures);
-            for j = 1:numel(fpaFigures)
-                fig = fpaFigures(j);
-                for k = 1:numel(formats)
-                    cleanName = regexprep(fig.Name, '[^a-zA-Z0-9 ]', '');
-                    saveas(fig, fullfile(outputFolder, cleanName), formats{k});
+            if existed
+                if override
+                    fprintf('  [%02i:%02i override] %s\n', f, nFiles, inputDataFile);
+                else
+                    fprintf('  [%02i:%02i  existed] %s\n', f, nFiles, inputDataFile);
                 end
+            else
+                mkdir(outputFolder);
+                fprintf('  [%02i:%02i  process] %s\n', f, nFiles, inputDataFile);
             end
-            close(fpaFigures);
 
-            % Save configuration file.
-            save(fullfile(outputFolder, 'configuration.mat'), 'configuration');
+            if ~simulate && (~existed || (existed && override))
+                % Merge base configuration with file-specific configuration.
+                config = configuration;
+                fnames = fieldnames(configurations(f));
+                for s = 1:numel(fnames)
+                    fname = fnames{s};
+                    config.(fname) = configurations(f).(fname);
+                end
+
+                % Fiber-photometry data recorded with Doric DAQ.
+                data = loadData(inputDataFile);
+                time = data(:, 1);
+                signal = data(:, signalColumn);
+                reference = data(:, referenceColumn);
+    
+                % Event files.
+                [~, ~, ext] = fileparts(inputEventFile);
+                switch lower(ext)
+                    case '.csv'
+                        config.conditionEpochs = loadBinaryStates(inputEventFile);
+                    case '.xlsx'
+                        config.conditionEpochs = loadCleverSys(inputEventFile);
+                end
+
+                % Call FPA with given configuration.
+                fpa = FPA(time, signal, reference, config);
+                % Print warnings.
+                if numel(fpa.warnings) > 0
+                    fprintf(2, 'Warning(s) for "%s":\n', inputDataFile);
+                    cellfun(@warning, fpa.warnings);
+                end
+    
+                % Export.
+                prefix = fullfile(outputFolder, basename);
+                fpa.export(prefix);
+    
+                % Plot, save and close.
+                fpa.plot();
+                allFigures = findobj('Type', 'figure');
+                fpaFigures = setdiff(allFigures, userFigures);
+                for j = 1:numel(fpaFigures)
+                    fig = fpaFigures(j);
+                    for k = 1:numel(formats)
+                        cleanName = regexprep(fig.Name, '[^a-zA-Z0-9 ]', '');
+                        saveas(fig, fullfile(outputFolder, cleanName), formats{k});
+                    end
+                end
+                close(fpaFigures);
+    
+                % Save configuration file.
+                save(fullfile(outputFolder, 'configuration.mat'), 'configuration');
+            end
         end
     else
         error('Mismatch in the number of data files and/or configuration provided.');
