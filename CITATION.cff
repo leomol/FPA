@@ -5,7 +5,7 @@ message: If you use this software, please cite it.
 type: software
 version: 1.0.0
 doi: 10.5281/zenodo.5708471
-date-released: 2021-11-17
+date-released: 2019-02-20
 repository-code: https://github.com/leomol/FPA
 authors:
   - family-names: "Molina"
