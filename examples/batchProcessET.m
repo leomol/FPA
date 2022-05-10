@@ -9,19 +9,23 @@
 %      2021-11-14 Slack chat with Elizabeth and Patrick.
 %      2021-11-15 Anydesk messaging with Elizabeth: peaksLowpassFrequency was reverted back to the defaults (0.5Hz).
 %      2021-11-18 Slack: Load both CleverSys or BinaryStates.
+%      2022-02-14 Slack: Calculate z-score using the mean and std from the first 5 min of the recording.
 %   -Always check:
 %      All settings including data columns, folders and epoch defitions.
 % 
 % 2021-09-30. Leonardo Molina.
-% 2021-12-10. Last modified.
+% 2022-02-17. Last modified.
 
 % Top project folder.
-top = 'G:\My Drive\MSc\Research Data\Fiber Photometry Experiments\';
+%top = 'G:\My Drive\MSc\Research Data\Fiber Photometry Experiments\';
+top = 'C:\Users\Molina\Documents\public\data\HALO\FibrePhotometry\Elizabeth\Thesis';
 % Formats to exports images to. A single or multiple image formats.
 formats = {'png', 'fig'}; % If you wanted eps, add 'epsc'
 % Suffix added to the exported folder.
 outputSuffix = ' - exported';
+% Set simulate to true if you want to see what would happen without actually doing it.
 simulate = false;
+%  Set override to true if you want to re-compute everything.
 override = false;
 
 % General configuration to apply to all files.
@@ -302,6 +306,9 @@ for c = 1:nConditions
                     fname = fnames{s};
                     config.(fname) = configurations(f).(fname);
                 end
+                % Use first epoch from baseline to .f0 and .f1
+                config.f0 = {configuration.f0, configurations(f).baselineEpochs(1:2)};
+                config.f1 = {configuration.f1, configurations(f).baselineEpochs(1:2)};
 
                 % Fiber-photometry data recorded with Doric DAQ.
                 data = loadData(inputDataFile);

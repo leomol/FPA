@@ -8,9 +8,8 @@
 % Processing steps:
 %   -Resample signal and reference to target frequency.
 %   -Replace artifacts with linear interpolation in flagged regions.
-% 	-Baseline correction modeled as an exponential decay of the low-pass
-%    filtered data or using airPLS.
-% 	-Correct for motion artifacts by subtracting reference to signal, after a polynomial fit.
+% 	-Baseline correction modeled as an exponential decay of the low-pass filtered data (optionally using airPLS).
+% 	-Correct for motion artifacts by subtracting reference to signal, after a polynomial fit (optional).
 %   -Remove fast oscillations with a low-pass filter.
 % 	-Normalize data as df/f or z-score according to settings.
 % 	-Find peaks of spontaneous activity in low-pass filtered data.
@@ -92,7 +91,7 @@
 % Units for time and frequency are seconds and hertz respectively.
 % 
 % 2019-02-01. Leonardo Molina.
-% 2021-11-17. Last modified.
+% 2022-05-10. Last modified.
 classdef FPA < handle
     properties
         configuration
@@ -641,6 +640,14 @@ classdef FPA < handle
             
             % Save data for post-processing.
 
+            % Time vs f.
+            % Rows represent increasing values of time with corresponding f values.
+            output = fullfile(folder, sprintf('%s - f.csv', basename));
+            fid = fopen(output, 'w');
+            fprintf(fid, '# time, f\n');
+            fprintf(fid, '%f, %f\n', [obj.time, obj.f]');
+            fclose(fid);
+            
             % Time vs dff.
             % Rows represent increasing values of time with corresponding dff values.
             output = fullfile(folder, sprintf('%s - dff.csv', basename));
@@ -656,6 +663,19 @@ classdef FPA < handle
             data = [obj.epochNames(:), num2cell([colon(1, obj.nConditions)', obj.area, obj.duration, obj.normalizedArea])];
             data = data(:, [2, 1, 3, 4, 5])';
             fprintf(fid, '%i, %s, %f, %f, %f\n', data{:});
+            fclose(fid);
+
+            %  Compute fluorescence statistics for each epoch.
+            output = fullfile(folder, sprintf('%s - epoch stats.csv', basename));
+            fid = fopen(output, 'w');
+            fprintf(fid, '# conditionId, conditionName, mean, median, max\n');
+            startIds = obj.epochIds(1:2:end);
+            stopIds = obj.epochIds(2:2:end);
+            for c = 1:numel(startIds)
+                x = obj.dff(startIds(c):stopIds(c));
+                label = obj.epochLabels(c);
+                fprintf(fid, '%i, %s, %f, %f, %f\n', obj.epochLabels(c), obj.epochNames{label}, mean(x), median(x), max(x));
+            end
             fclose(fid);
 
             % All peak-triggered windows and their average with corresponding epoch label.
