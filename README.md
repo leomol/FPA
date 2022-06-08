@@ -1,8 +1,8 @@
-# Fiber-photometry analysis
-MATLAB scripts to plot data from a fiber-photometry recording.
+# Fiber photometry analysis
+MATLAB scripts to plot data from a fiber photometry recording.
 
 ## Prerequisites
-* [MATLAB][MATLAB] (last tested with R2021b)
+* [MATLAB][MATLAB] (last tested with R2022a)
 
 ## Installation
 * Install MATLAB with the following toolboxes:
@@ -31,33 +31,33 @@ Remove baseline from data, correct from motion artifacts; normalize, filter, and
 
 ## Analysis
 Processing steps:
-- Resample data to target frequency.
+- Resample data to a given frequency.
 - Replace artifacts with linear interpolation in flagged regions.
 - Baseline correction modeled as an exponential decay of the low-pass filtered data.
 - Correct for motion artifacts by subtracting reference to signal, after a polynomial fit.
 - Remove fast oscillations with a low-pass filter.
 - Normalize data as df/f or z-score according to settings.
 - Find peaks of spontaneous activity in low-pass filtered data.
-- Plot 1:
+- Figure 1:
   - Raw signal and reference, and baseline model.
   - Baseline corrected signal and reference.
   - Motion correction.
   - Normalization.
   - Peaks.
-- Plot 2:
+- Figure 2:
   - Power spectrum for each epoch.
-- Plot 3:
+- Figure 3:
   - Boxplot.
-- Plot 4, 5, 6:
-  - Peak triggers, epoch start-triggers, and epoch stop-triggers.
-- Plot 7, 8, 9:
-  - Triggered average of peaks (if any), epoch start, and epoch stop.
+- Remaining figures:
+  - Peak triggers, event-triggers, epoch start-triggers, and epoch stop-triggers.
+  - Triggered average of peaks (if any), event-triggers, epoch start, and epoch stop.
 
 ## Configuration
 
 `configuration` is a struct with the following fields (defaults are used for missing fields):
 - `conditionEpochs` - Epochs for different conditions: `{'epoch1', [start1, end1, start2, end2, ...], 'epoch2', ...}`
 - `baselineEpochs` - Time epochs (s) to include for baseline correction.
+- `thresholdEpochs`
 - `baselineLowpassFrequency` - Frequency representative of baseline.
 - `airPLS` - Baseline correction for all data using airPLS (true, false, or airPLS inputs).
 - `artifactEpochs` - Time epochs (s) to remove.
@@ -254,6 +254,10 @@ epochs = loadBoris(filename)
 Returns a list of event epochs scored with BORIS.
 
 ## Version History
+* 2022-06-08
+	- Added custom event-triggers (similar to start, stop, and peak triggers).
+	- Added custom epochs to calculate peak threshold.
+	- All triggered data exported includes the column ConditionName.
 * 2022-05-10
 	- Export f.
 	- Added batch processing scripts to traverse project folders.
