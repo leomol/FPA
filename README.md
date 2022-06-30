@@ -2,17 +2,19 @@
 MATLAB scripts to plot data from a fiber photometry recording.
 
 ## Prerequisites
-* [MATLAB][MATLAB] (last tested with R2022a)
+- [MATLAB][MATLAB] (last tested with R2022a)
 
 ## Installation
-* Install MATLAB with the following toolboxes:
-	* Curve Fitting Toolbox
-	* Signal Processing Toolbox
-	* Statistics and Machine Learning Toolbox
-* Download and extract these scripts to Documents/MATLAB folder.
+- Install MATLAB with the following toolboxes:
+	- Curve Fitting Toolbox
+	- Signal Processing Toolbox
+	- Statistics and Machine Learning Toolbox
+- Download and extract these scripts to Documents/MATLAB folder.
 
 ## Usage
-See and edit examples according to your experimental setup.
+- Run `setup.m` to add FPA dependencies to the MATLAB search path.
+- See and edit examples according to your experimental setup.
+
 
 ### Script
 ```matlab
@@ -253,47 +255,8 @@ epochs = loadBoris(filename)
 
 Returns a list of event epochs scored with BORIS.
 
-## Version History
-* 2022-06-08
-	- Added custom event-triggers (similar to start, stop, and peak triggers).
-	- Added custom epochs to calculate peak threshold.
-	- All triggered data exported includes the column ConditionName.
-* 2022-05-10
-	- Export f.
-	- Added batch processing scripts to traverse project folders.
-* 2021-11-17
-    - Patched `loadData.m` to remove columns with all NaN values and rows with any NaN values.
-	- Added column `normalizedArea` (redundantly) to exported AUC file.
-* 2021-11-01
-	- Process a project folder as an example.
-	- First release.
-* 2021-03-25
-	- Added baseline plot of reference for figure 1.1.
-	- Figure 1.1 shows resampled raw data (before was corrected data).
-* 2021-03-15
-	- Added heatmaps of raw triggers.
-	- Plots are now methods.
-* 2021-03-02
-	- Added thresholding options.
-	- Default thresholding changed from k * mad(x) + mean(x) to k * mad(x) + median(x).
-* 2021-03-01
-	- FPA changed from function to object.
-	- Added export method.
-	- Added epoch-start and epoch-stop to trigger averages.
-	- Added BORIS reader.
-* 2021-02-25
-	- Area under the curve is normalized and calculated with trapz.
-	- Default normalization changed to "modified z-score".
-	- Significant changes to normalization API.
-* 2021-01-15
-	- Reference is fitted to signal.
-	- Band-pass replaced by low-pass.
-	- GUI example supports artifact removal.
-* 2019-08-22
-	- Library and example code.
-	- Added loaders for multiple data acquisition systems.
-* 2019-02-20
-	- Initial release.
+## Changelog
+See [Changelog](CHANGELOG.md)
 
 ## License
 © 2018 [Leonardo Molina][Leonardo Molina]

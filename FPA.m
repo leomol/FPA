@@ -24,22 +24,22 @@
 %   -Figure 3:
 %     -Boxplot.
 %   -Remaining figures:
-%     -Peak triggers, event-triggers, epoch start-triggers, and epoch stop-triggers.
-%     -Triggered average of peaks (if any), event-triggers, epoch start, and epoch stop.
+%     -Peak triggers and event-triggers.
+%     -Triggered average of peaks (if any) and event-triggers.
 % 
 % configuration is a struct with the following fields (defaults are used for missing fields):
 %     conditionEpochs - Epochs for different conditions: {'epoch1', [start1, end1, start2, end2, ...], 'epoch2', ...}
 %     artifactEpochs - Epochs to remove.
 %     baselineEpochs - Epochs to include for baseline correction.
 %     thresholdEpochs - Epochs to include for peak threshold calculation.
-%     eventTimes - Event-triggered data; times at which a type of event occurs.
+%     events - Event-triggered data; times at which a type of event occurs.
 %     baselineLowpassFrequency - Frequency representative of baseline.
 %     airPLS - Baseline correction for all data using airPLS (true, false, or airPLS inputs).
-%     artifactEpochs - Epochs (s) to remove.
 %     resamplingFrequency - Resampling frequency (Hz).
 %     lowpassFrequency - Lowest frequency permitted in normalized signal.
-%     peaksLowpassFrequency - Lowest frequency to detect peaks.
-%     triggeredWindow - Length of time to capture around each peak of spontaneous activity.
+%     peakSeparation - Minimum time separatio between two peaks.
+%     peakWindow - Window to capture around each peak of spontaneous activity.
+%     eventWindow - Window to capture around each event.
 %     fitReference - Shift and scale reference to fit signal.
 % 
 % Normalization is calculated as (f - f0) / f1 where f0 and f1 can be data provided by the
@@ -93,7 +93,7 @@
 % Units for time and frequency are seconds and hertz respectively.
 % 
 % 2019-02-01. Leonardo Molina.
-% 2022-06-07. Last modified.
+% 2022-06-30. Last modified.
 classdef FPA < handle
     properties
         configuration
@@ -105,8 +105,6 @@ classdef FPA < handle
         peakLabels
         eventIds
         eventLabels
-        epochIds
-        epochLabels
         peakCounts
         valleyCounts
         
@@ -121,8 +119,8 @@ classdef FPA < handle
         f0
         f1
         dff
-        area
         duration
+        area
         peakThreshold
     end
     
@@ -130,50 +128,62 @@ classdef FPA < handle
         nConditions
         epochNames
         cleanId
-        windowTemplate
+        epochBounds
+        epochLabels
+        peakWindowTemplate
+        eventWindowTemplate
         referenceProvided
-        peaksSmooth
-        uniquePeakIds
-        uniqueValleyIds
+        % Peaks detected including artifacts.
+        peakIdsAll
+        valleyIdsAll
         normalizedArea
         boxplotIds
         boxplotLabels
+        eventNormalization
         
         % Settings for visualization.
         cmap = lines();
         zoomSettings = {0.99, 0.50};
-        signalColor = [0, 0.4470, 0.7410];
+        signalColor = [0.0000, 0.4470, 0.7410];
         referenceColor = [0.8500, 0.3250, 0.0980];
         alternateColor = [0, 0.6470, 0.9410];
         peaksLineColor = [0.4660, 0.6740, 0.1880];
-        peaksMarkerColor = [1, 0, 0];
-        dashColor = [0, 0, 0];
+        peaksMarkerColor = [1.0000, 0.0000, 0.0000];
+        eventsMarkerColor = [0.0000, 0.0000, 0.0000];
+        dashColor = [0.0000, 0.0000, 0.0000];
     end
     
     methods
         function obj = FPA(time, signal, reference, parameters)
+            % Accumulate all warnings.
             obj.warnings = {};
+            
+            % The variable parameters is optional.
             if nargin < 4
                 parameters = struct();
             end
-
-            % Read input configuration. Use defaults for missing parameters.
+            
+            % Use defaults for missing parameters.
             defaults.conditionEpochs = {'Data', [-Inf, Inf]};
             defaults.artifactEpochs = [];
             defaults.baselineEpochs = [-Inf, Inf];
-            defaults.eventTimes = [];
+            defaults.events = [];
             defaults.resamplingFrequency = NaN;
             defaults.baselineLowpassFrequency = 0.1;
             defaults.airPLS = false;
-            defaults.lowpassFrequency = 5;
-            defaults.peaksLowpassFrequency = 0.5;
+            defaults.lowpassFrequency = 5.0;
+            defaults.peakSeparation = 2.0;
             defaults.fitReference = true;
             defaults.f0 = @median;
             defaults.f1 = @mad;
+            defaults.e0 = {@mean, [-1, 0]};
+            defaults.e1 = 1;
             defaults.thresholdEpochs = NaN;
             defaults.threshold = {2.91, @mad, @median};
-            defaults.triggeredWindow = 10;
+            defaults.peakWindow = 10.0;
+            defaults.eventWindow = 10.0;
             
+            % Override defaults with user parameters.
             configuration = defaults;
             defaultNames = fieldnames(defaults);
             parametersNames = fieldnames(parameters);
@@ -185,13 +195,21 @@ classdef FPA < handle
                     obj.warnings{end + 1} = warn('[parsing] "%s" is not a valid parameter.', name);
                 end
             end
-
-            % Sampling frequency defaults.
-            sourceFrequency = 1 / median(diff(time));
-            if ~ismember('resamplingFrequency', parametersNames)
-                configuration.resamplingFrequency = min(100, sourceFrequency);
+            
+            if numel(configuration.peakWindow) == 1
+                configuration.peakWindow = [-configuration.peakWindow, +configuration.peakWindow] / 2;
+            end
+            
+            if numel(configuration.eventWindow) == 1
+                configuration.eventWindow = [-configuration.eventWindow, +configuration.eventWindow] / 2;
             end
 
+            % Resampling frequency defaults to the smallest between 100Hz and the source frequency.
+            sourceFrequency = 1 / median(diff(time));
+            if isnan(configuration.resamplingFrequency)
+                configuration.resamplingFrequency = min(100, sourceFrequency);
+            end
+            
             if islogical(configuration.airPLS)
                 useAirPLS = configuration.airPLS;
                 configuration.airPLS = [5e9, 2, 0.1, 0.5, 50];
@@ -199,7 +217,7 @@ classdef FPA < handle
                 useAirPLS = true;
             end
             configuration.airPLS = num2cell(configuration.airPLS);
-
+            
             % Make vectors of equal size.
             if isempty(reference)
                 reference = NaN(size(signal));
@@ -219,7 +237,7 @@ classdef FPA < handle
                 time(k) = [];
                 signal(k) = [];
             end
-
+            
             % Resample to target frequency.
             if configuration.resamplingFrequency < sourceFrequency
                 frequency = configuration.resamplingFrequency;
@@ -231,39 +249,34 @@ classdef FPA < handle
                     reference = resample(reference, time, frequency, p, q);
                 end
                 time = time2;
-            elseif configuration.resamplingFrequency ~= sourceFrequency
+            elseif configuration.resamplingFrequency > sourceFrequency
                 frequency = sourceFrequency;
                 obj.warnings{end + 1} = warn('[resampling] Cannot resample to frequencies higher than the source frequency (%.2f Hz).', sourceFrequency);
             else
                 frequency = sourceFrequency;
             end
-
+            
             % Setup.
             nSamples = numel(time);
             nConditions = numel(configuration.conditionEpochs) / 2;
             epochNames = configuration.conditionEpochs(1:2:end);
-
-            % Replace artifacts with straight lines.
-            % Index of all points.
-            allIds = colon(1, nSamples)';
+            
             % Index of artifacts and non-artifacts.
-            badId = time2id(time, configuration.artifactEpochs);
-            goodId = setdiff(allIds, badId);
-            % Interpolate.
-            signal2 = signal;
-            signal2(badId) = interp1(goodId, signal(goodId), badId);
-            reference2 = reference;
-            if referenceProvided
-                reference2(badId) = interp1(goodId, reference(goodId), badId);
-            end
+            allIds = colon(1, nSamples)';
+            artifactId = time2id(time, configuration.artifactEpochs);
+            artifactFreeId = setdiff(allIds, artifactId);
+            
+            % Remove data from the edges as filtering will introduce artifacts here.
+            % The exclusion window is the smallest between half a second and 5% of sample size.
+            edgeWindow =  min(ceil(0.5 * frequency / configuration.lowpassFrequency), round(0.05 * nSamples));
+            edgeId = union(artifactId, [1:edgeWindow, numel(time) - edgeWindow + 1:nSamples]');
+            edgeFreeId = setdiff(allIds, edgeId);
+            cleanId = intersect(artifactFreeId, edgeFreeId);
             
             % Define clean epochs for fitting and peak detection.
-            % Workaround small peaksLowpassFrequency values which could remove all fitting data.
-            excludeWindow =  min(ceil(0.5 * frequency / configuration.peaksLowpassFrequency), round(0.05 * nSamples));
-            excludeId = union(badId, [1:excludeWindow, numel(time) - excludeWindow + 1:nSamples]');
-            cleanId = setdiff(allIds, excludeId);
-            baselineCorrectionId = time2id(time, configuration.baselineEpochs);
-
+            baselineId = time2id(time, configuration.baselineEpochs);
+            baselineId = intersect(baselineId, cleanId);
+            
             % Threshold epochs defaults to everything.
             if isnan(configuration.thresholdEpochs)
                 thresholdId = cleanId;
@@ -271,42 +284,49 @@ classdef FPA < handle
                 thresholdId = time2id(time, configuration.thresholdEpochs);
                 thresholdId = intersect(cleanId, thresholdId);
             end
-
+            
+            % Replace artifacts with straight lines for modeling baseline.
+            signalArtifactFree = signal;
+            signalArtifactFree(artifactId) = interp1(artifactFreeId, signal(artifactFreeId), artifactId);
+            referenceArtifactFree = reference;
+            if referenceProvided
+                referenceArtifactFree(artifactId) = interp1(artifactFreeId, reference(artifactFreeId), artifactId);
+            end
             % Remove high-frequency oscillations to detect baseline (where indicated).
-            signalSmooth = signal2;
-            referenceSmooth = reference2;
+            signalArtifactFreeSmooth = signalArtifactFree;
+            referenceArtifactFreeSmooth = referenceArtifactFree;
             if configuration.baselineLowpassFrequency <= frequency / 2
                 baselineFilter = designfilt('lowpassiir', 'HalfPowerFrequency', configuration.baselineLowpassFrequency, 'SampleRate', frequency, 'DesignMethod', 'butter', 'FilterOrder', 12);
-                signalSmooth(baselineCorrectionId) = filtfilt(baselineFilter, signal2(baselineCorrectionId));
+                signalArtifactFreeSmooth = filtfilt(baselineFilter, signalArtifactFree);
                 if referenceProvided
-                    referenceSmooth(baselineCorrectionId) = filtfilt(baselineFilter, reference2(baselineCorrectionId));
+                    referenceArtifactFreeSmooth = filtfilt(baselineFilter, referenceArtifactFree);
                 end
             else
                 obj.warnings{end + 1} = warn('[baseline-correction] Cannot lowpass to frequencies larger than half of the sampling frequency (%.2f Hz).', frequency / 2);
             end
-
+            
             if useAirPLS
                 % Model baseline with airPLS (everywhere).
-                [~, signalBaseline] = airPLS(signalSmooth', configuration.airPLS{:});
+                [~, signalBaseline] = airPLS(signalArtifactFreeSmooth', configuration.airPLS{:});
                 signalBaseline = signalBaseline';
-                signalCorrected = signal2 - signalBaseline;
+                signalCorrected = signalArtifactFree - signalBaseline;
                 if referenceProvided
-                    [~, referenceBaseline] = airPLS(referenceSmooth', configuration.airPLS{:});
+                    [~, referenceBaseline] = airPLS(referenceArtifactFreeSmooth', configuration.airPLS{:});
                     referenceBaseline = referenceBaseline';
-                    referenceCorrected = reference2 - referenceBaseline;
+                    referenceCorrected = referenceArtifactFree - referenceBaseline;
                 else
                     referenceBaseline = zeros(size(signalCorrected));
                     referenceCorrected = zeros(size(signalCorrected));
                 end
             else
                 % Model baseline with an exponential decay at given epochs (where indicated).
-                signalFit = fit(time(baselineCorrectionId), signalSmooth(baselineCorrectionId), fittype('exp1'));
+                signalFit = fit(time(baselineId), signalArtifactFreeSmooth(baselineId), fittype('exp1'));
                 signalBaseline = signalFit(time);
-                signalCorrected = signal2 - signalBaseline;
+                signalCorrected = signalArtifactFree - signalBaseline;
                 if referenceProvided
-                    referenceFit = fit(time(baselineCorrectionId), referenceSmooth(baselineCorrectionId), fittype('exp1'));
+                    referenceFit = fit(time(baselineId), referenceArtifactFreeSmooth(baselineId), fittype('exp1'));
                     referenceBaseline = referenceFit(time);
-                    referenceCorrected = reference2 - referenceBaseline;
+                    referenceCorrected = referenceArtifactFree - referenceBaseline;
                 else
                     referenceBaseline = zeros(size(signalCorrected));
                     referenceCorrected = zeros(size(signalCorrected));
@@ -315,7 +335,7 @@ classdef FPA < handle
             
             % Fit reference to signal (where indicated).
             if referenceProvided && configuration.fitReference
-                r2sFit = fit(referenceCorrected(baselineCorrectionId), signalCorrected(baselineCorrectionId), fittype('poly1'), 'Robust', 'on');
+                r2sFit = fit(referenceCorrected(cleanId), signalCorrected(cleanId), fittype('poly1'), 'Robust', 'on');
                 referenceCorrected = r2sFit.p1 * referenceCorrected + r2sFit.p2;
             end
             
@@ -323,49 +343,42 @@ classdef FPA < handle
             f = signalCorrected - referenceCorrected;
             
             % Low-pass filter.
-            fFilter = designfilt('lowpassiir', 'HalfPowerFrequency', configuration.lowpassFrequency, 'SampleRate', frequency, 'DesignMethod', 'butter', 'FilterOrder', 12);
-            fSmooth = f;
-            fSmooth(cleanId) = filtfilt(fFilter, f(cleanId));
+            if configuration.lowpassFrequency == Inf
+                fSmooth = f;
+            else
+                fFilter = designfilt('lowpassiir', 'HalfPowerFrequency', configuration.lowpassFrequency, 'SampleRate', frequency, 'DesignMethod', 'butter', 'FilterOrder', 12);
+                fSmooth = filtfilt(fFilter, f);
+            end
             
             % Normalize.
-            f0 = normalize(configuration.f0, fSmooth, time);
-            f1 = normalize(configuration.f1, fSmooth, time);
-            dff = (fSmooth - f0) ./ f1;
-            
-            % Low-pass filter to detect peaks.
-            peaksSmooth = dff;
-            if configuration.peaksLowpassFrequency <= frequency / 2
-                peaksFilter = designfilt('lowpassiir', 'HalfPowerFrequency', configuration.peaksLowpassFrequency, 'SampleRate', frequency, 'DesignMethod', 'butter', 'FilterOrder', 12);
-                peaksSmooth(cleanId) = filtfilt(peaksFilter, dff(cleanId));
-            else
-                obj.warnings{end + 1} = warn('[peak detection] Cannot lowpass to frequencies larger than half of the sampling frequency (%.2f Hz).', frequency / 2);
-            end
+            [dff, f0, f1] = normalize(time, fSmooth, configuration.f0, configuration.f1);
             
             % Get peak threshold.
-            peakThreshold = threshold(configuration.threshold, peaksSmooth(thresholdId));
-            
             state = warning('Query', 'signal:findpeaks:largeMinPeakHeight');
             warning('Off', 'signal:findpeaks:largeMinPeakHeight');
-            if any(peaksSmooth >= peakThreshold)
-                [~, uniquePeakIds] = findpeaks(+peaksSmooth, 'MinPeakHeight', peakThreshold);
-                uniquePeakIds = intersect(uniquePeakIds, cleanId);
+            peakThreshold = threshold(configuration.threshold, dff(thresholdId));
+            
+            if any(+dff >= peakThreshold)
+                [~, peakIdsAll] = findpeaks(+dff, 'MinPeakHeight', peakThreshold, 'MinPeakDistance', configuration.peakSeparation * frequency);
             else
-                uniquePeakIds = [];
+                peakIdsAll = [];
             end
-            if any(-peaksSmooth >= peakThreshold)
-                [~, uniqueValleyIds] = findpeaks(-peaksSmooth, 'MinPeakHeight', peakThreshold);
-                uniqueValleyIds = intersect(uniqueValleyIds, cleanId);
+            if any(-dff >= peakThreshold)
+                [~, valleyIdsAll] = findpeaks(-dff, 'MinPeakHeight', peakThreshold, 'MinPeakDistance', configuration.peakSeparation * frequency);
             else
-                uniqueValleyIds = [];
+                valleyIdsAll = [];
             end
             warning(state.state, 'signal:findpeaks:largeMinPeakHeight');
-            [~, halfWindow] = forceOdd(configuration.triggeredWindow * frequency);
-            % Index template to apply around each peak.
-            obj.windowTemplate = -halfWindow:halfWindow;
+
+            % Index template to apply around each peak and event.
+            range = round(configuration.peakWindow * frequency);
+            obj.peakWindowTemplate = range(1):range(2);
+            range = round(configuration.eventWindow * frequency);
+            obj.eventWindowTemplate = range(1):range(2);
             
             % Get indices for epochs.
             % Start and stop vector indices for all provided epochs.
-            epochIds = zeros(2, 0);
+            epochBounds = zeros(2, 0);
             % Numeric label corresponding to each epoch range.
             epochLabels = zeros(0, 1);
             % Vector index for each peak / event.
@@ -379,56 +392,60 @@ classdef FPA < handle
             boxplotLabels = zeros(0, 1);
             peakCounts = zeros(nConditions, 1);
             valleyCounts = zeros(nConditions, 1);
-            area = zeros(nConditions, 1);
             duration = zeros(nConditions, 1);
-
+            area = zeros(nConditions, 1);
+            
             % Get indices for time triggers.
-            x = arrayfun(@(t) find(time >= t, 1, 'first'), configuration.eventTimes, 'UniformOutput', false);
+            x = arrayfun(@(t) find(time >= t, 1, 'first'), configuration.events, 'UniformOutput', false);
             k = ~cellfun(@isempty, x);
             eventTimeIds = [x{k}];
-
+            
             for c = 1:nConditions
                 % Accumulate vector indices limited to conditions.
                 [ids, bounds] = time2id(time, configuration.conditionEpochs{2 * c});
-                nLimits = numel(bounds) / 2;
-                epochIds = cat(2, epochIds, bounds);
-                epochLabels = cat(1, epochLabels, repmat(c, nLimits, 1));
-
-                % Triggered windows and condition labels (overlapping is possible and allowed).
-                % Peaks in epoch: 3   5 ...
-                epochPeakIds = intersect(ids, uniquePeakIds);
-                n = numel(epochPeakIds);
-                peakIds = cat(1, peakIds, epochPeakIds);
-                peakLabels = cat(1, peakLabels, repmat(c, n, 1));
-
-                % Repeat for event-triggered data.
-                epochEventIds = intersect(ids, eventTimeIds);
-                eventIds = cat(1, eventIds, epochEventIds);
-                n = numel(epochEventIds);
+                
+                % Start/stop-triggered data.
+                n = numel(bounds) / 2;
+                epochBounds = cat(2, epochBounds, bounds);
+                epochLabels = cat(1, epochLabels, repmat(c, n, 1));
+                
+                % Event-triggered data.
+                eventIdsEpoch = intersect(ids, eventTimeIds);
+                n = numel(eventIdsEpoch);
+                eventIds = cat(1, eventIds, eventIdsEpoch);
                 eventLabels = cat(1, eventLabels, repmat(c, n, 1));
-
+                
+                % Peak-triggered data.
+                peakIdsEpoch = intersect(ids, peakIdsAll);
+                n = numel(peakIdsEpoch);
+                peakIds = cat(1, peakIds, peakIdsEpoch);
+                peakLabels = cat(1, peakLabels, repmat(c, n, 1));
+                
+                peakCounts(c) = sum(ismember(ids, peakIdsAll));
+                valleyCounts(c) = sum(ismember(ids, valleyIdsAll));
+                
                 boxplotIds = cat(1, boxplotIds, ids);
                 boxplotLabels = cat(1, boxplotLabels, repmat(c, numel(ids), 1));
-
-                peakCounts(c) = sum(ismember(ids, uniquePeakIds));
-                valleyCounts(c) = sum(ismember(ids, uniqueValleyIds));
-
+                
                 duration(c) = numel(ids) / frequency;
                 area(c) = trapz(dff(ids)) / frequency;
             end
+
+            % Normalize area according to epoch length.
             normalizedArea = area ./ duration;
             normalizedArea(duration == 0) = 0;
             
             obj.configuration = configuration;
             obj.time = time;
             obj.frequency = frequency;
+            obj.eventNormalization = @(data) normalize(obj.eventWindowTemplate / obj.frequency, data, obj.configuration.e0, obj.configuration.e1);
             
             % Order depends on epoch definitions. Overlapping is possible and allowed.
             obj.peakIds = peakIds;
             obj.peakLabels = peakLabels;
             obj.eventIds = eventIds;
             obj.eventLabels = eventLabels;
-            obj.epochIds = epochIds;
+            obj.epochBounds = epochBounds;
             obj.epochLabels = epochLabels;
             obj.peakCounts = peakCounts;
             obj.valleyCounts = valleyCounts;
@@ -440,17 +457,17 @@ classdef FPA < handle
             % Filtered, uncorrected.
             obj.signalBaseline = signalBaseline;
             obj.referenceBaseline = referenceBaseline;
-
+            
             % Unfiltered, corrected.
             obj.signal = signalCorrected;
             obj.reference = referenceCorrected;
-
+            
             % Unfiltered, motion corrected.
             obj.f = f;
-
+            
             % Filtered, motion corrected.
             obj.fSmooth = fSmooth;
-
+            
             % From fSmooth.
             obj.f0 = f0;
             obj.f1 = f1;
@@ -460,11 +477,10 @@ classdef FPA < handle
             
             obj.nConditions = nConditions;
             obj.epochNames = epochNames;
-            obj.cleanId = cleanId;
+            obj.cleanId = edgeFreeId;
             obj.peakThreshold = peakThreshold;
-            obj.peaksSmooth = peaksSmooth;
-            obj.uniquePeakIds = uniquePeakIds;
-            obj.uniqueValleyIds = uniqueValleyIds;
+            obj.peakIdsAll = peakIdsAll;
+            obj.valleyIdsAll = valleyIdsAll;
             obj.boxplotIds = boxplotIds;
             obj.boxplotLabels = boxplotLabels;
             obj.normalizedArea = normalizedArea;
@@ -473,19 +489,19 @@ classdef FPA < handle
         
         function plot(obj)
             obj.plotTrace();
-            obj.plotPowerSpectrum();
-            obj.plotStatistics();
+            %obj.plotPowerSpectrum();
+            %obj.plotStatistics();
             obj.plotTrigger();
             obj.plotTriggerAverage();
-            obj.plotAUC();
+            %obj.plotAUC();
         end
         
         function fig = plotTrace(obj)
             fig = figure('name', 'FPA: df/f');
             xlims = obj.time([1, end]);
-
+            
             % Plot raw signal, reference, and baseline model.
-            subplot(5, 1, 1);
+            subplot(4, 1, 1);
             hold('all');
             yy = [obj.signalRaw(:); obj.referenceRaw(:); obj.signalBaseline(:)];
             ylims = limits(yy, obj.zoomSettings{:});
@@ -499,9 +515,9 @@ classdef FPA < handle
             ylim(ylims);
             title('Raw data');
             legend('show');
-
+            
             % Plot baseline corrected signal and reference.
-            subplot(5, 1, 2);
+            subplot(4, 1, 2);
             hold('all');
             yy = [obj.signal(:); obj.reference(:)];
             ylims = limits(yy, obj.zoomSettings{:});
@@ -513,9 +529,9 @@ classdef FPA < handle
             ylim(ylims);
             title('Baseline correction');
             legend('show');
-
+            
             % Plot motion correction (f and lowpass f).
-            subplot(5, 1, 3);
+            subplot(4, 1, 3);
             hold('all');
             yy = [obj.f(obj.cleanId); obj.fSmooth(obj.cleanId)];
             ylims = limits(yy, obj.zoomSettings{:});
@@ -525,40 +541,29 @@ classdef FPA < handle
             ylim(ylims);
             title('Motion correction');
             legend('show');
-
-            % Plot normalization (e.g. df/f).
-            subplot(5, 1, 4);
+            
+            % Plot normalization (e.g. df/f) and peak detection.
+            subplot(4, 1, 4);
             hold('all');
-            yy = [obj.dff(obj.cleanId); obj.peaksSmooth(obj.cleanId)];
+            yy = obj.dff(obj.cleanId);
             ylims = limits(yy, obj.zoomSettings{:});
             epochs = obj.configuration.conditionEpochs;
-            epochs(1:2:end) = arrayfun(@(e) sprintf('area:%.2f', obj.area(e)), 1:obj.nConditions, 'UniformOutput', false);
+            epochs(1:2:end) = arrayfun(@(e) sprintf('area:%.2f / %i peaks / %i valleys', obj.area(e), obj.peakCounts(e), obj.valleyCounts(e)), 1:obj.nConditions, 'UniformOutput', false);
             plotEpochs(epochs, xlims, ylims, obj.cmap, true);
-            plot(obj.time, obj.dff, 'Color', obj.signalColor, 'DisplayName', 'df/f');
-            plot(obj.time, obj.peaksSmooth, 'Color', obj.peaksLineColor, 'DisplayName', sprintf('df/f (<%.2fHz)', obj.configuration.peaksLowpassFrequency));
             % Show event triggers if user provided such data, and the events exist within epochs.
-            if numel(obj.eventIds) > 0
-                plot(obj.time(obj.eventIds), obj.dff(obj.eventIds), 'Color', obj.peaksMarkerColor, 'LineStyle', 'none', 'Marker', 'o', 'DisplayName', 'User events');
+            nEvents = numel(obj.eventIds);
+            if nEvents > 0
+                x = [obj.time(obj.eventIds), obj.time(obj.eventIds), NaN(nEvents, 1)]';
+                y = repmat([ylims, NaN]', 1, nEvents);
+                plot(x(:), y(:), 'Color', obj.eventsMarkerColor, 'LineStyle', '-', 'DisplayName', 'Events');
             end
-            ylim(ylims);
-            title('Normalization');
-            legend('show');
-
-            % Plot peak detection.
-            subplot(5, 1, 5);
-            hold('all');
-            yy = obj.peaksSmooth(obj.cleanId);
-            ylims = limits(yy, obj.zoomSettings{:});
-            epochs = obj.configuration.conditionEpochs;
-            epochs(1:2:end) = arrayfun(@(e) sprintf('%i peaks / %i valleys', obj.peakCounts(e), obj.valleyCounts(e)), 1:obj.nConditions, 'UniformOutput', false);
-            plotEpochs(epochs, xlims, ylims, obj.cmap, true);
-            plot(obj.time, obj.peaksSmooth, 'Color', obj.peaksLineColor, 'DisplayName', sprintf('df/f (<%.2fHz)', obj.configuration.peaksLowpassFrequency));
+            plot(obj.time, obj.dff, 'Color', obj.signalColor, 'DisplayName', 'df/f');
             plot(obj.time([1, end]), +obj.peakThreshold([1, 1]), 'Color', obj.dashColor, 'LineStyle', '--', 'DisplayName', sprintf('threshold:%.2f', obj.peakThreshold));
             plot(obj.time([1, end]), -obj.peakThreshold([1, 1]), 'Color', obj.dashColor, 'LineStyle', '--', 'HandleVisibility', 'off');
-            plot(obj.time(obj.uniquePeakIds), obj.peaksSmooth(obj.uniquePeakIds), 'Color', obj.peaksMarkerColor, 'LineStyle', 'none', 'Marker', 'o', 'HandleVisibility', 'off');
-            plot(obj.time(obj.uniqueValleyIds), obj.peaksSmooth(obj.uniqueValleyIds), 'Color', obj.peaksMarkerColor, 'LineStyle', 'none', 'Marker', 'o', 'HandleVisibility', 'off');
+            plot(obj.time(obj.peakIdsAll), obj.dff(obj.peakIdsAll), 'Color', obj.peaksMarkerColor, 'LineStyle', 'none', 'Marker', 'o', 'DisplayName', 'Peaks');
+            plot(obj.time(obj.valleyIdsAll), obj.dff(obj.valleyIdsAll), 'Color', obj.peaksMarkerColor, 'LineStyle', 'none', 'Marker', 'o', 'DisplayName', 'Peaks');
             ylim(ylims);
-            title('Peak detection');
+            title('Normalization and peak detection');
             legend('show');
 
             % Move axes together.
@@ -599,7 +604,7 @@ classdef FPA < handle
             xlabel('Frequency (Hz)');
             linkaxes(findobj(gcf(), 'type', 'axes'), 'x');
         end
-
+        
         function fig = plotStatistics(obj)
             % Boxplot of dff.
             fig = figure('name', 'FPA: Boxplot');
@@ -621,55 +626,37 @@ classdef FPA < handle
             xtickangle(45);
             title('Stats on df/f traces for each condition');
         end
-            
-        function figs = plotTrigger(obj)
-            name = 'Peak-trigger heatmap';
-            figs(1) = figure('name', name);
-            plotTriggerHeatmap(obj.dff, obj.peakIds, obj.peakLabels, obj.windowTemplate, obj.frequency, obj.configuration.conditionEpochs(1:2:end));
-            annotation('textbox', [0, 0.95, 1, 0.05], 'string', name, 'LineStyle', 'none');
-
-            if numel(obj.eventIds) > 0
-                name = 'Event-trigger heatmap';
-                figs(1) = figure('name', name);
-                plotTriggerHeatmap(obj.dff, obj.eventIds, obj.eventLabels, obj.windowTemplate, obj.frequency, obj.configuration.conditionEpochs(1:2:end));
-                annotation('textbox', [0, 0.95, 1, 0.05], 'string', name, 'LineStyle', 'none');
-            end
-
-            name = 'Start-triggered heatmap';
-            figs(2) = figure('name', name);
-            plotTriggerHeatmap(obj.dff, obj.epochIds(1:2:end)', obj.epochLabels, obj.windowTemplate, obj.frequency, obj.configuration.conditionEpochs(1:2:end));
-            annotation('textbox', [0, 0.95, 1, 0.05], 'string', name, 'LineStyle', 'none');
-
-            name = 'Stop-triggered heatmap';
-            figs(3) = figure('name', name);
-            plotTriggerHeatmap(obj.dff, obj.epochIds(2:2:end)', obj.epochLabels, obj.windowTemplate, obj.frequency, obj.configuration.conditionEpochs(1:2:end));
-            annotation('textbox', [0, 0.95, 1, 0.05], 'string', name, 'LineStyle', 'none');
-        end
-
+        
         function figs = plotTriggerAverage(obj)
             figs(1) = figure('name', 'FPA: Peak-triggered average');
-            plotTriggerAverage(obj.dff, obj.peakIds, obj.peakLabels, obj.windowTemplate, obj.frequency, obj.configuration.conditionEpochs(1:2:end), obj.cmap);
+
+            plotTriggerAverage(obj.dff, obj.peakIds, obj.peakLabels, obj.peakWindowTemplate, obj.frequency, @(data) data, obj.configuration.conditionEpochs(1:2:end), obj.cmap, 'No peaks');
             ylabel('df/f');
             title('Peak-triggered average');
             
             if numel(obj.eventIds) > 0
                 figs(1) = figure('name', 'FPA: Event-triggered average');
-                plotTriggerAverage(obj.dff, obj.eventIds, obj.eventLabels, obj.windowTemplate, obj.frequency, obj.configuration.conditionEpochs(1:2:end), obj.cmap);
+                plotTriggerAverage(obj.dff, obj.eventIds, obj.eventLabels, obj.eventWindowTemplate, obj.frequency, obj.eventNormalization, obj.configuration.conditionEpochs(1:2:end), obj.cmap, 'No events');
                 ylabel('df/f');
                 title('Event-triggered average');
             end
-
-            figs(2) = figure('name', 'FPA: start-triggered average');
-            plotTriggerAverage(obj.dff, obj.epochIds(1:2:end)', obj.epochLabels, obj.windowTemplate, obj.frequency, obj.configuration.conditionEpochs(1:2:end), obj.cmap);
-            ylabel('df/f');
-            title('Start-triggered average');
-
-            figs(3) = figure('name', 'FPA: stop-triggered average');
-            plotTriggerAverage(obj.dff, obj.epochIds(2:2:end)', obj.epochLabels, obj.windowTemplate, obj.frequency, obj.configuration.conditionEpochs(1:2:end), obj.cmap);
-            ylabel('df/f');
-            title('Stop-triggered average');
         end
+        
+        function figs = plotTrigger(obj)
+            name = 'Peak-trigger heatmap';
+            figs(1) = figure('name', name);
 
+            plotTriggerHeatmap(obj.dff, obj.peakIds, obj.peakLabels, obj.peakWindowTemplate, @(data) data, obj.frequency, obj.configuration.conditionEpochs(1:2:end), 'No peaks');
+            annotation('textbox', [0, 0.95, 1, 0.05], 'string', name, 'LineStyle', 'none');
+            
+            if numel(obj.eventIds) > 0
+                name = 'Event-trigger heatmap';
+                figs(1) = figure('name', name);
+                plotTriggerHeatmap(obj.dff, obj.eventIds, obj.eventLabels, obj.eventWindowTemplate, obj.eventNormalization, obj.frequency, obj.configuration.conditionEpochs(1:2:end), 'No events');
+                annotation('textbox', [0, 0.95, 1, 0.05], 'string', name, 'LineStyle', 'none');
+            end
+        end
+        
         function fig = plotAUC(obj)
             % Plot normalized area under the curve.
             obj.nConditions = numel(obj.configuration.conditionEpochs) / 2;
@@ -686,7 +673,7 @@ classdef FPA < handle
             [folder, basename] = fileparts(prefix);
             
             % Save data for post-processing.
-
+            
             % Time vs f.
             % Rows represent increasing values of time with corresponding f values.
             output = fullfile(folder, sprintf('%s - f.csv', basename));
@@ -711,71 +698,61 @@ classdef FPA < handle
             data = data(:, [2, 1, 3, 4, 5])';
             fprintf(fid, '%i, %s, %f, %f, %f\n', data{:});
             fclose(fid);
-
+            
             %  Compute fluorescence statistics for each epoch.
             output = fullfile(folder, sprintf('%s - epoch stats.csv', basename));
             fid = fopen(output, 'w');
             fprintf(fid, '# conditionId, conditionName, mean, median, max\n');
-            startIds = obj.epochIds(1:2:end);
-            stopIds = obj.epochIds(2:2:end);
+            startIds = obj.epochBounds(1:2:end);
+            stopIds = obj.epochBounds(2:2:end);
             for c = 1:numel(startIds)
                 x = obj.dff(startIds(c):stopIds(c));
                 label = obj.epochLabels(c);
                 fprintf(fid, '%i, %s, %f, %f, %f\n', obj.epochLabels(c), obj.epochNames{label}, mean(x), median(x), max(x));
             end
             fclose(fid);
-
+            
             % All peak-triggered windows and their average with corresponding epoch label.
             output1 = fullfile(folder, sprintf('%s - peak-triggered.csv', basename));
             output2 = fullfile(folder, sprintf('%s - peak-triggered averaged.csv', basename));
-            obj.saveEventTrigger(output1, output2, 'condition', obj.peakIds, obj.peakLabels, obj.epochNames(obj.peakLabels));
+            obj.saveEventTrigger(output1, output2, 'condition', obj.peakIds, obj.peakLabels, obj.peakWindowTemplate, onj.eventNormalization, obj.epochNames(obj.peakLabels));
             
             % All event-triggered windows and their average with corresponding epoch label.
             output1 = fullfile(folder, sprintf('%s - event-triggered.csv', basename));
             output2 = fullfile(folder, sprintf('%s - event-triggered averaged.csv', basename));
-            obj.saveEventTrigger(output1, output2, 'condition', obj.eventIds, obj.eventLabels, obj.epochNames(obj.eventLabels));
-
-            % Same as above for start-triggered windows.
-            output1 = fullfile(folder, sprintf('%s - start-triggered.csv', basename));
-            output2 = fullfile(folder, sprintf('%s - start-triggered averaged.csv', basename));
-            startIds = obj.epochIds(1:2:end);
-            obj.saveEventTrigger(output1, output2, 'condition', startIds, obj.epochLabels, obj.epochNames(obj.epochLabels));
-
-            % Same as above for stop-triggered windows.
-            output1 = fullfile(folder, sprintf('%s - stop-triggered.csv', basename));
-            output2 = fullfile(folder, sprintf('%s - stop-triggered averaged.csv', basename));
-            stopIds = obj.epochIds(2:2:end);
-            obj.saveEventTrigger(output1, output2, 'condition', stopIds, obj.epochLabels, obj.epochNames(obj.epochLabels));
+            obj.saveEventTrigger(output1, output2, 'condition', obj.eventIds, obj.eventLabels, obj.eventWindowTemplate, onj.eventNormalization, obj.epochNames(obj.eventLabels));
         end
     end
     
     methods (Access = private)
-        function saveEventTrigger(obj, output1, output2, prefix, triggerIds, triggerLabels, triggerNames)
-            [triggeredWindow, halfWindow] = forceOdd(obj.configuration.triggeredWindow * obj.frequency);
-            window = -halfWindow:halfWindow;
-            traceTime = window / obj.frequency;
-            timeHeader = strjoin(arrayfun(@(x) sprintf('%f', x), traceTime, 'UniformOutput', false), ', ');
+        function saveEventTrigger(obj, output1, output2, prefix, ids, labels, window, normalize, names)
+            window = window(:);
+            nTicks = numel(window);
+            timeTicks = window / obj.frequency;
+            timeHeader = strjoin(arrayfun(@(x) sprintf('%f', x), timeTicks, 'UniformOutput', false), ', ');
             
             % Filter out out-of-range traces.
             nSamples = numel(obj.dff);
-            k = triggerIds > halfWindow & triggerIds + halfWindow < nSamples;
-            triggerLabels = triggerLabels(k);
-            triggerIds = triggerIds(k);
-            triggerIds = triggerIds(:);
-            triggerLabels = triggerLabels(:);
+            k = ids > min(window) & ids + max(window) < nSamples;
+            labels = labels(k);
+            ids = ids(k);
+            ids = ids(:);
+            labels = labels(:);
             if nargin == 7
-                triggerNames = triggerNames(:);
-                triggerNames = triggerNames(k);
+                names = names(:);
+                names = names(k);
                 saveConditionName = true;
             else
                 saveConditionName = false;
             end
-            if numel(triggerIds) >= 1
-                triggerData = obj.dff;
-                triggerData = triggerData(window + triggerIds);
-                triggerData = reshape(triggerData, [], numel(window));
-                triggerTime = obj.time(triggerIds);
-
+            if numel(ids) >= 1
+                windowIds = ids' + window;
+                triggeredData = obj.dff;
+                triggeredData = triggeredData(windowIds);
+                triggeredData = reshape(triggeredData, nTicks, nTriggers);
+                triggeredData = normalize(triggeredData);
+                triggerTime = obj.time(ids);
+                
                 % All triggered windows with corresponding epoch label.
                 % Order depends on epoch definitions. Overlapping is possible.
                 % Rows represent a single trigger:
@@ -783,39 +760,39 @@ classdef FPA < handle
                 fid = fopen(output1, 'w');
                 if saveConditionName
                     fprintf(fid, ['# time, %1$sId, %1$sName, ', timeHeader, '\n'], prefix);
-                    format = ['%f, %i, %s', repmat(', %f', 1, triggeredWindow), '\n'];
-                    data = [triggerNames, num2cell([triggerTime, triggerLabels, triggerData])];
+                    format = ['%f, %i, %s', repmat(', %f', 1, nTicks), '\n'];
+                    data = [names, num2cell([triggerTime, labels, triggeredData])];
                     data = data(:, [2 3 1 4:end])';
                 else
                     fprintf(fid, ['# time, %1$sId, ', timeHeader, '\n'], prefix);
-                    format = ['%f, %i', repmat(', %f', 1, triggeredWindow), '\n'];
-                    data = num2cell([triggerTime, triggerLabels, triggerData]);
+                    format = ['%f, %i', repmat(', %f', 1, nTicks), '\n'];
+                    data = num2cell([triggerTime, labels, triggeredData]);
                     data = data(:, :)';
                 end
                 fprintf(fid, format, data{:});
                 fclose(fid);
-
+                
                 % Average of the above.
-                uLabels = unique(triggerLabels);
-                averages = zeros(0, size(triggerData, 2));
+                uLabels = unique(labels);
+                averages = zeros(0, size(triggeredData, 2));
                 for u = 1:numel(uLabels)
                     label = uLabels(u);
-                    uData = triggerData(triggerLabels == label, :);
-                    uData = reshape(uData, [], size(triggerData, 2));
+                    uData = triggeredData(labels == label, :);
+                    uData = reshape(uData, [], size(triggeredData, 2)); % !!
                     averages = cat(1, averages, mean(uData, 1));
                 end
                 
                 fid = fopen(output2, 'w');
                 if saveConditionName
                     fprintf(fid, ['# %1$sId, %1$sName, ', timeHeader, '\n'], prefix);
-                    format = ['%i, %s', repmat(', %f', 1, triggeredWindow), '\n'];
-                    uTriggerNames = unique(triggerNames, 'stable');
+                    format = ['%i, %s', repmat(', %f', 1, nTicks), '\n'];
+                    uTriggerNames = unique(names, 'stable');
                     data = [uTriggerNames, num2cell([uLabels, averages])];
                     data = data(:, [2, 1, 3:end])';
                     fprintf(fid, format, data{:});
                 else
                     fprintf(fid, ['# %1$sId, ', timeHeader, '\n'], prefix);
-                    format = ['%i', repmat(', %f', 1, triggeredWindow), '\n'];
+                    format = ['%i', repmat(', %f', 1, nTicks), '\n'];
                     data = num2cell([uLabels, averages]);
                     data = data(:, :)';
                     fprintf(fid, format, data{:});
@@ -826,7 +803,15 @@ classdef FPA < handle
     end
 end
 
-function output = normalize(parameters, f, time)
+function [data, f0, f1] = normalize(time, data, c0, c1)
+    f0 = parseNormalization(time, data, c0);
+    f1 = parseNormalization(time, data, c1);
+    data = (data - f0) ./ f1;
+end
+
+function output = parseNormalization(time, data, parameters)
+    % data is represented in a single column.
+    % trials of data are represented in separate columns.
     if iscell(parameters)
         fcn = parameters{1};
         if numel(parameters) == 1
@@ -840,22 +825,22 @@ function output = normalize(parameters, f, time)
                 options = parameters(3:end);
             end
             frequency = 1 / median(diff(time));
-            nSamples = numel(time);
+            nTicks = numel(time);
             window = parameters{2};
-            window = min(round(window * frequency), nSamples);
-            output = fcn(f, window, options{:});
+            window = min(round(window * frequency), nTicks);
+            output = fcn(data, window, options{:});
         else
             % Produce a value from all data (or epochs).
             epochs = parameters{2};
             ids = time2id(time, epochs);
-            output = fcn(f(ids));
+            output = fcn(data(ids, :));
         end
     elseif isa(parameters, 'function_handle')
         % Produce a value from all data (or epochs).
         fcn = parameters;
         epochs = [-Inf, Inf];
         ids = time2id(time, epochs);
-        output = fcn(f(ids));
+        output = fcn(data(ids, :));
     else
         output = parameters;
     end
@@ -899,6 +884,8 @@ end
 function plotEpochs(epochs, xlims, ylims, cmap, show)
     for e = 1:numel(epochs) / 2
         epochName = epochs{2 * e - 1};
+        epochs{2 * e}(epochs{2 * e} == -Inf) = xlims(1);
+        epochs{2 * e}(epochs{2 * e} == +Inf) = xlims(2);
         [faces, vertices] = patchEpochs(epochs{2 * e}, ylims(1), ylims(2));
         vertices(vertices == -inf) = xlims(1);
         vertices(vertices == +inf) = xlims(2);
@@ -921,29 +908,21 @@ function ylims = limits(x, percentile, grow)
     ylims = [ylims(1) - delta, ylims(2) + delta];
 end
 
-function [odd, half] = forceOdd(fractional)
-    % Number of samples in a triggered window (whole length, left to right).
-    odd = fractional;
-    % Force odd count.
-    odd = round(odd) + (mod(round(odd), 2) == 0);
-    half = (odd - 1) / 2;
-end
-
-function plotTriggerHeatmap(data, ids, labels, window, frequency, names)
+function plotTriggerHeatmap(data, ids, labels, window, normalize, frequency, names, message)
     % Filter out out-of-range traces.
+    window = window(:);
     nSamples = numel(data);
-    triggeredWindow = numel(window);
-    halfWindow = (triggeredWindow - 1) / 2;
-    k = ids > halfWindow & ids + halfWindow < nSamples;
+    k = ids > min(window) & ids + max(window) < nSamples;
     labels = labels(k);
     ids = ids(k);
-    time = window / frequency;
+    nTicks = numel(window);
+    timeTicks = window / frequency;
     
     nConditions = numel(names);
     [ni, nj] = squaredFactors(nConditions);
     
     if numel(ids) > 0
-        allWindowIds = ids + window;
+        allWindowIds = ids' + window;
         allTriggeredData = data(allWindowIds);
         clims = limits(allTriggeredData, 0.99, 0);
     end
@@ -951,20 +930,21 @@ function plotTriggerHeatmap(data, ids, labels, window, frequency, names)
     axs = cell(nConditions, 1);
     for c = 1:nConditions
         axs{c} = subplot(ni, nj, c);
-        triggerIds = ids(labels == c);
-        nTriggers = numel(triggerIds);
+        conditionIds = ids(labels == c);
+        nTriggers = numel(conditionIds);
         if nTriggers > 0
-            windowIds = triggerIds + window;
+            windowIds = conditionIds' + window;
+            % Each column is an event.
             triggeredData = data(windowIds);
-            % Make sure matrix is nr x nc, particularly for 1 x nc.
-            triggeredData = reshape(triggeredData, size(windowIds));
-            nTriggers = size(triggeredData, 1);
-            imagesc('xData', time, 'yData', 1:nTriggers, 'cData', triggeredData, clims);
+            % Make sure matrix is nr x nc, particularly when nr x 1.
+            triggeredData = reshape(triggeredData, nTicks, nTriggers);
+            triggeredData = normalize(triggeredData);
+            imagesc('xData', timeTicks, 'yData', 1:nTriggers, 'cData', triggeredData', clims);
             yticks = get(gca(), 'YTick');
             yticks = yticks(round(yticks) == yticks);
             set(gca(), 'YTick', yticks);
         else
-            text(0.5, 0.5, 'No triggers', 'HorizontalAlignment', 'center');
+            text(0.5, 0.5, message, 'HorizontalAlignment', 'center');
         end
         title(names{c});
         axis('tight');
@@ -974,43 +954,71 @@ function plotTriggerHeatmap(data, ids, labels, window, frequency, names)
     set(get(colorbar(), 'title'), 'string', 'df/f');
 end
 
-function plotTriggerAverage(data, ids, labels, window, frequency, names, colors)
+function plotTriggerAverage(data, ids, labels, window, frequency, normalize, names, colors, message)
     % Filter out out-of-range traces.
+    window = window(:);
     nSamples = numel(data);
-    triggeredWindow = numel(window);
-    halfWindow = (triggeredWindow - 1) / 2;
-    k = ids > halfWindow & ids + halfWindow < nSamples;
+    k = ids > min(window) & ids + max(window) < nSamples;
     labels = labels(k);
     ids = ids(k);
-    time = window / frequency;
+    nTicks = numel(window);
+    timeTicks = window / frequency;
+    
+    % Option 1: Difference of exponential functions.
+    %model = @(p, x) p(1) + p(2) * (exp(-x / p(3)) - exp(-x / p(4)));
+    %mask = true(size(time));
+    %initial = @(y, duration) [median(y), std(y), duration / 2, duration / 2];
+    
+    % Option 2: Exponential function.
+    model = @(p, x) p(1) + p(2) * exp(-x / p(3));
+    mask = timeTicks >= 0;
+    initial = @(y, duration) [median(y), std(y), duration / 2];
+
+    duration = max(timeTicks) - min(timeTicks);
+    options = optimoptions('lsqcurvefit', 'Algorithm', 'levenberg-marquardt', 'Display', 'off');
     
     if numel(ids) > 0
         hold('all');
         nConditions = numel(names);
         for c = 1:nConditions
-            triggerIds = ids(labels == c);
-            nTriggers = numel(triggerIds);
+            conditionIds = ids(labels == c);
+            nTriggers = numel(conditionIds);
             if nTriggers > 0
-                windowIds = triggerIds + window;
+                windowIds = conditionIds' + window;
+                % Each column is an event.
                 triggeredData = data(windowIds);
-                % Make sure matrix is nr x nc, particularly for 1 x nc.
-                triggeredData = reshape(triggeredData, size(windowIds));
-                av = mean(triggeredData, 1);
-                nTriggers = size(triggeredData, 1);
+                % Make sure matrix is nr x nc, particularly when nr x 1.
+                triggeredData = reshape(triggeredData, nTicks, nTriggers);
+                triggeredData = normalize(triggeredData);
+                av = mean(triggeredData, 2);
+                sd = std(triggeredData, [], 2);
+                
+                x = timeTicks(mask) - min(timeTicks(mask));
+                y = av(mask);
+                parameters = lsqcurvefit(model, initial(y, duration), x(:), y(:), [], [], options);
+                tauFall = parameters(end);
+                
                 % Plot.
-                plot(time, av, 'Color', colors(c, :), 'HandleVisibility', 'off');
-                sem = std(triggeredData, [], 1) / sqrt(size(triggeredData, 1));
-                sem0 = sem(ceil(size(triggeredData, 2) / 2));
-                label = sprintf('%s (SEM=%f, n = %i)', names{c}, sem0, nTriggers);
-                vertices = [time; av + sem / 2];
-                vertices = cat(2, vertices, [fliplr(time); fliplr(av - sem / 2)])';
-                faces = 1:2 * triggeredWindow;
+                plot(timeTicks, av, 'Color', colors(c, :), 'HandleVisibility', 'off');
+                if parameters(2) <= 0
+                    tauFallText = sprintf('<Inf>');
+                else
+                    tauFallText = sprintf('%.2fs', tauFall);
+                    plot(timeTicks(mask), model(parameters, timeTicks(mask)), 'Color', colors(c, :), 'LineStyle', '--', 'HandleVisibility', 'off');
+                end
+                sem = sd / sqrt(nTriggers);
+                sem0 = sem(ceil(nTriggers / 2));
+                vertices = [timeTicks, av + sem / 2];
+                vertices = cat(1, vertices, [flipud(timeTicks), flipud(av - sem / 2)]);
+                faces = 1:2 * numel(window);
+                label = sprintf('%s (SEM=%.2f, tau=%s, n = %i)', names{c}, sem0, tauFallText, nTriggers);
                 patch('Faces', faces, 'Vertices', vertices, 'FaceColor', colors(c, :), 'EdgeColor', 'none', 'FaceAlpha', 0.10, 'DisplayName', label);
             end
         end
     else
-        text(0.5, 0.5, 'No triggers', 'HorizontalAlignment', 'center');
+        text(0.5, 0.5, message, 'HorizontalAlignment', 'center');
     end
+    plot(NaN(2, 1), NaN(2, 1), 'Color', 'k', 'LineStyle', '--', 'DisplayName', 'Exponential fit');
     legend('show');
     xlabel('Time (s)');
     axis('tight');
