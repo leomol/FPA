@@ -1,5 +1,5 @@
 % Fiber-photometry data recorded with TDT DAQ. (this extracts the data)
-inputFolder = '../data/RA_Odor_604-201116-160100';
+inputFolder = '..data/RA_Odor_604-201116-160100';
 % Load 465nm and 405nm.
 signalTitle = 'Dv1A';
 referenceTitle = 'Dv2A';
@@ -35,3 +35,4 @@ configuration.fitReference = true;
 fpa = FPA(time, signal, reference, configuration);
 cellfun(@warning, fpa.warnings);
 fpa.plot();
+fpa.export('exported');

@@ -715,12 +715,12 @@ classdef FPA < handle
             % All peak-triggered windows and their average with corresponding epoch label.
             output1 = fullfile(folder, sprintf('%s - peak-triggered.csv', basename));
             output2 = fullfile(folder, sprintf('%s - peak-triggered averaged.csv', basename));
-            obj.saveEventTrigger(output1, output2, 'condition', obj.peakIds, obj.peakLabels, obj.peakWindowTemplate, onj.eventNormalization, obj.epochNames(obj.peakLabels));
+            obj.saveEventTrigger(output1, output2, 'condition', obj.peakIds, obj.peakLabels, obj.peakWindowTemplate, obj.eventNormalization, obj.epochNames(obj.peakLabels));
             
             % All event-triggered windows and their average with corresponding epoch label.
             output1 = fullfile(folder, sprintf('%s - event-triggered.csv', basename));
             output2 = fullfile(folder, sprintf('%s - event-triggered averaged.csv', basename));
-            obj.saveEventTrigger(output1, output2, 'condition', obj.eventIds, obj.eventLabels, obj.eventWindowTemplate, onj.eventNormalization, obj.epochNames(obj.eventLabels));
+            obj.saveEventTrigger(output1, output2, 'condition', obj.eventIds, obj.eventLabels, obj.eventWindowTemplate, obj.eventNormalization, obj.epochNames(obj.eventLabels));
         end
     end
     
@@ -747,6 +747,7 @@ classdef FPA < handle
             end
             if numel(ids) >= 1
                 windowIds = ids' + window;
+                nTriggers = numel(ids);
                 triggeredData = obj.dff;
                 triggeredData = triggeredData(windowIds);
                 triggeredData = reshape(triggeredData, nTicks, nTriggers);
@@ -761,12 +762,12 @@ classdef FPA < handle
                 if saveConditionName
                     fprintf(fid, ['# time, %1$sId, %1$sName, ', timeHeader, '\n'], prefix);
                     format = ['%f, %i, %s', repmat(', %f', 1, nTicks), '\n'];
-                    data = [names, num2cell([triggerTime, labels, triggeredData])];
+                    data = [names, num2cell([triggerTime, labels, triggeredData'])];
                     data = data(:, [2 3 1 4:end])';
                 else
                     fprintf(fid, ['# time, %1$sId, ', timeHeader, '\n'], prefix);
                     format = ['%f, %i', repmat(', %f', 1, nTicks), '\n'];
-                    data = num2cell([triggerTime, labels, triggeredData]);
+                    data = num2cell([triggerTime, labels, triggeredData']);
                     data = data(:, :)';
                 end
                 fprintf(fid, format, data{:});
@@ -774,12 +775,12 @@ classdef FPA < handle
                 
                 % Average of the above.
                 uLabels = unique(labels);
-                averages = zeros(0, size(triggeredData, 2));
+                averages = zeros(nTicks, 0);
                 for u = 1:numel(uLabels)
                     label = uLabels(u);
-                    uData = triggeredData(labels == label, :);
-                    uData = reshape(uData, [], size(triggeredData, 2)); % !!
-                    averages = cat(1, averages, mean(uData, 1));
+                    uData = triggeredData(:, labels == label);
+                    uData = reshape(uData, nTicks, []); % !!
+                    averages = cat(2, averages, mean(uData, 2));
                 end
                 
                 fid = fopen(output2, 'w');
@@ -793,7 +794,7 @@ classdef FPA < handle
                 else
                     fprintf(fid, ['# %1$sId, ', timeHeader, '\n'], prefix);
                     format = ['%i', repmat(', %f', 1, nTicks), '\n'];
-                    data = num2cell([uLabels, averages]);
+                    data = num2cell([uLabels, averages']);
                     data = data(:, :)';
                     fprintf(fid, format, data{:});
                 end
