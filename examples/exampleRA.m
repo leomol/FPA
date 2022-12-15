@@ -1,5 +1,5 @@
 % Fiber-photometry data recorded with TDT DAQ. (this extracts the data)
-inputFolder = '..data/RA_Odor_604-201116-160100';
+inputFolder = 'C:\Users\Molina\Documents\public\data\HALO\FibrePhotometry\RobertAukema/RA_Odor_604-201116-160100';
 % Load 465nm and 405nm.
 signalTitle = 'Dv1A';
 referenceTitle = 'Dv2A';
@@ -31,8 +31,8 @@ configuration.eventWindow = [-1, 29];
 configuration.threshold = {2.91, @mad, @median};
 configuration.fitReference = true;
 
-% Call FPA with given configuration.
+% % Call FPA with given configuration.
 fpa = FPA(time, signal, reference, configuration);
 cellfun(@warning, fpa.warnings);
 fpa.plot();
-fpa.export('exported');
+% fpa.export('exported');

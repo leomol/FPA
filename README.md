@@ -135,21 +135,28 @@ configuration.f1 = f1;
 
 
 ## Thresholding
-Fluorescence deflections are considered peaks when they exceed a threshold calculated as `k * f2 + f3` and they are provided by the user as `configuration.threshold = {k, f2, f3}`
+Fluorescence deflections are maximum local points separated by a minimum distance (`peakSeparation`) and with a minimum height or prominence (`peakDetectionMode`), provided in one of two ways:
 
-### Examples:
+### Threshold as a raw value:
+```matlab
+  configuration.threshold = value;
+```
+#### Example 1 - Only peaks exceeding the value 2.91 are included:
+```matlab
+  configuration.threshold = 2.91;
+```
 
-#### 2.91 median absolute deviations from the median:
+### Threshold as a result of applying a function to the data (within `thresholdEpochs`):
 ```matlab
-  configuration.threshold = {2.91, @mad, @median}
+  configuration.threshold = userDefinedFunction;
 ```
-#### 2.91 median absolute deviations from 0:
+#### Example 1 - 2.91 median absolute deviations from the median:
 ```matlab
-  configuration.threshold = {2.91, @mad, 0}
+  configuration.threshold = @(data) 2.91 * mad(data) + median(data);
 ```
-#### 2.00 standard deviations from the mean:
+#### Example 2 - 2.00 standard deviations from the mean:
 ```matlab
-  configuration.threshold = {2.00, @std, @mean}
+  configuration.threshold = @(data) 2.00 * std(data) + mean(data);
 ```
 
 ## Data loaders

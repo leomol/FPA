@@ -1,7 +1,7 @@
 % fpa = FPA(time, signal, reference, configuration);
 % 
-% Remove baseline from data, correct from motion artifacts; normalize, filter,
-% and detect peaks of spontaneous activity in user defined epochs.
+% Subtract baseline, correct from motion artifacts, normalize, filter, and
+% detect peaks of spontaneous activity in user defined epochs.
 % 
 % Time, signal, and reference are column vectors.
 % 
@@ -37,8 +37,10 @@
 %     airPLS - Baseline correction for all data using airPLS (true, false, or airPLS inputs).
 %     resamplingFrequency - Resampling frequency (Hz).
 %     lowpassFrequency - Lowest frequency permitted in normalized signal.
-%     peakSeparation - Minimum time separatio between two peaks.
+%     peakDetectionMode - One of two peak detection modes: height or prominence.
+%     peakSeparation - Minimum time separation between two peaks.
 %     peakWindow - Window to capture around each peak of spontaneous activity.
+%     threshold - Threshold value or function for peak detection.
 %     eventWindow - Window to capture around each event.
 %     fitReference - Shift and scale reference to fit signal.
 % 
@@ -46,17 +48,17 @@
 % user or calculated using given functions:
 % 
 %     Normalization from given functions:
-%         f0 and f1 are common to all datapoints and calculated from all data:
+%         f0 and f1 are common to all data points and calculated from all data:
 %             df/f:
 %                 configuration.f0 = @mean;
 %                 configuration.f1 = @mean;
 %             z-score:
 %                 configuration.f0 = @mean;
 %                 configuration.f1 = @std;
-%             z-score - alternative 1 (default):
+%             z-score - option 1 (default):
 %                 configuration.f0 = @median;
 %                 configuration.f1 = @mad;
-%             z-score - alternative 2:
+%             z-score - option 2:
 %                 configuration.f0 = @median;
 %                 configuration.f1 = @std;
 % 
@@ -79,21 +81,24 @@
 %         configuration.f0 = f0;
 %         configuration.f1 = f1;
 % 
-% Fluorescence deflections are considered peaks when they exceed a threshold calculated as
-% k * f2 + f3 and they are provided by the user as configuration.threshold = {k, f2, f3}
-% Examples:
-%   2.91 median absolute deviations from the median:
-%     configuration.threshold = {2.91, @mad, @median}
-%   2.91 median absolute deviations from 0:
-%     configuration.threshold = {2.91, @mad, 0}
-%   2.00 standard deviations from the mean:
-%     configuration.threshold = {2.00, @std, @mean}
+% Fluorescence deflections are maximum local points separated by a minimum distance (peakSeparation)
+% and with a minimum height or prominence (peakDetectionMode), provided in one of two ways:
+%   Option 1 - threshold as a raw value:
+%     configuration.threshold = value;
+%     Example 1: Only peaks exceeding the value 2.91 are included.
+%       configuration.threshold = 2.91;
+% 
+%   Option2 - threshold as a result of applying a function to the data (within thresholdEpochs):
+%     Example 1 - 2.91 median absolute deviations from the median:
+%         configuration.threshold = @(data) 2.91 * mad(data) + median(data);
+%     Example 2 - 2.00 standard deviations from the mean
+%         configuration.threshold = @(data) 2.00 * std(data) + mean(data);
 % 
 % See examples and source code for detailed analysis steps and default parameters.
 % Units for time and frequency are seconds and hertz respectively.
 % 
 % 2019-02-01. Leonardo Molina.
-% 2022-06-30. Last modified.
+% 2022-12-16. Last modified.
 classdef FPA < handle
     properties
         configuration
@@ -106,7 +111,6 @@ classdef FPA < handle
         eventIds
         eventLabels
         peakCounts
-        valleyCounts
         
         signalRaw
         referenceRaw
@@ -135,15 +139,15 @@ classdef FPA < handle
         referenceProvided
         % Peaks detected including artifacts.
         peakIdsAll
-        valleyIdsAll
         normalizedArea
         boxplotIds
         boxplotLabels
         eventNormalization
+        peakNormalization
         
         % Settings for visualization.
         cmap = lines();
-        zoomSettings = {0.99, 0.50};
+        zoomSettings = {99.75, 0.50};
         signalColor = [0.0000, 0.4470, 0.7410];
         referenceColor = [0.8500, 0.3250, 0.0980];
         alternateColor = [0, 0.6470, 0.9410];
@@ -172,14 +176,17 @@ classdef FPA < handle
             defaults.baselineLowpassFrequency = 0.1;
             defaults.airPLS = false;
             defaults.lowpassFrequency = 5.0;
-            defaults.peakSeparation = 2.0;
+            defaults.peakSeparation = 0.5;
+            defaults.peakDetectionMode = 'height';
             defaults.fitReference = true;
             defaults.f0 = @median;
             defaults.f1 = @mad;
-            defaults.e0 = {@mean, [-1, 0]};
+            defaults.e0 = {@mean, [-Inf, 0]};
             defaults.e1 = 1;
+            defaults.p0 = {@mean, [-Inf, 0]};
+            defaults.p1 = 1;
             defaults.thresholdEpochs = NaN;
-            defaults.threshold = {2.91, @mad, @median};
+            defaults.threshold = @(data) 2.91 * mad(data) + median(data);
             defaults.peakWindow = 10.0;
             defaults.eventWindow = 10.0;
             
@@ -194,6 +201,14 @@ classdef FPA < handle
                 else
                     obj.warnings{end + 1} = warn('[parsing] "%s" is not a valid parameter.', name);
                 end
+            end
+            
+            options = {'MinPeakHeight', 'MinPeakProminence'};
+            k = strcmpi(configuration.peakDetectionMode, {'height', 'prominence'});
+            if any(k)
+                peakDetectionMode = options{k};
+            else
+                error('peakDetectionMode must be either "height" or "prominence"');
             end
             
             if numel(configuration.peakWindow) == 1
@@ -356,18 +371,16 @@ classdef FPA < handle
             % Get peak threshold.
             state = warning('Query', 'signal:findpeaks:largeMinPeakHeight');
             warning('Off', 'signal:findpeaks:largeMinPeakHeight');
-            peakThreshold = threshold(configuration.threshold, dff(thresholdId));
-            
-            if any(+dff >= peakThreshold)
-                [~, peakIdsAll] = findpeaks(+dff, 'MinPeakHeight', peakThreshold, 'MinPeakDistance', configuration.peakSeparation * frequency);
+            if isa(configuration.threshold, 'function_handle')
+                % A value obtained by applying a function.
+                % Example:
+                % fcn = @(data) = 2.91 * mad(data) + median(data)
+                peakThreshold = configuration.threshold(dff(thresholdId));
             else
-                peakIdsAll = [];
+                % A given raw value.
+                peakThreshold = configuration.threshold;
             end
-            if any(-dff >= peakThreshold)
-                [~, valleyIdsAll] = findpeaks(-dff, 'MinPeakHeight', peakThreshold, 'MinPeakDistance', configuration.peakSeparation * frequency);
-            else
-                valleyIdsAll = [];
-            end
+            [~, peakIdsAll] = findpeaks(+dff, peakDetectionMode, peakThreshold, 'MinPeakDistance', configuration.peakSeparation * frequency);
             warning(state.state, 'signal:findpeaks:largeMinPeakHeight');
 
             % Index template to apply around each peak and event.
@@ -391,7 +404,6 @@ classdef FPA < handle
             boxplotIds = zeros(0, 1);
             boxplotLabels = zeros(0, 1);
             peakCounts = zeros(nConditions, 1);
-            valleyCounts = zeros(nConditions, 1);
             duration = zeros(nConditions, 1);
             area = zeros(nConditions, 1);
             
@@ -422,7 +434,6 @@ classdef FPA < handle
                 peakLabels = cat(1, peakLabels, repmat(c, n, 1));
                 
                 peakCounts(c) = sum(ismember(ids, peakIdsAll));
-                valleyCounts(c) = sum(ismember(ids, valleyIdsAll));
                 
                 boxplotIds = cat(1, boxplotIds, ids);
                 boxplotLabels = cat(1, boxplotLabels, repmat(c, numel(ids), 1));
@@ -439,6 +450,7 @@ classdef FPA < handle
             obj.time = time;
             obj.frequency = frequency;
             obj.eventNormalization = @(data) normalize(obj.eventWindowTemplate / obj.frequency, data, obj.configuration.e0, obj.configuration.e1);
+            obj.peakNormalization = @(data) normalize(obj.peakWindowTemplate / obj.frequency, data, obj.configuration.p0, obj.configuration.p1);
             
             % Order depends on epoch definitions. Overlapping is possible and allowed.
             obj.peakIds = peakIds;
@@ -448,7 +460,6 @@ classdef FPA < handle
             obj.epochBounds = epochBounds;
             obj.epochLabels = epochLabels;
             obj.peakCounts = peakCounts;
-            obj.valleyCounts = valleyCounts;
             
             % Resampled only.
             obj.signalRaw = signal;
@@ -480,7 +491,6 @@ classdef FPA < handle
             obj.cleanId = edgeFreeId;
             obj.peakThreshold = peakThreshold;
             obj.peakIdsAll = peakIdsAll;
-            obj.valleyIdsAll = valleyIdsAll;
             obj.boxplotIds = boxplotIds;
             obj.boxplotLabels = boxplotLabels;
             obj.normalizedArea = normalizedArea;
@@ -490,10 +500,10 @@ classdef FPA < handle
         function plot(obj)
             obj.plotTrace();
             %obj.plotPowerSpectrum();
-            %obj.plotStatistics();
+            obj.plotStatistics();
             obj.plotTrigger();
             obj.plotTriggerAverage();
-            %obj.plotAUC();
+            obj.plotAUC();
         end
         
         function fig = plotTrace(obj)
@@ -548,7 +558,7 @@ classdef FPA < handle
             yy = obj.dff(obj.cleanId);
             ylims = limits(yy, obj.zoomSettings{:});
             epochs = obj.configuration.conditionEpochs;
-            epochs(1:2:end) = arrayfun(@(e) sprintf('area:%.2f / %i peaks / %i valleys', obj.area(e), obj.peakCounts(e), obj.valleyCounts(e)), 1:obj.nConditions, 'UniformOutput', false);
+            epochs(1:2:end) = arrayfun(@(e) sprintf('area:%.2f / %i peaks', obj.area(e), obj.peakCounts(e)), 1:obj.nConditions, 'UniformOutput', false);
             plotEpochs(epochs, xlims, ylims, obj.cmap, true);
             % Show event triggers if user provided such data, and the events exist within epochs.
             nEvents = numel(obj.eventIds);
@@ -558,10 +568,10 @@ classdef FPA < handle
                 plot(x(:), y(:), 'Color', obj.eventsMarkerColor, 'LineStyle', '-', 'DisplayName', 'Events');
             end
             plot(obj.time, obj.dff, 'Color', obj.signalColor, 'DisplayName', 'df/f');
-            plot(obj.time([1, end]), +obj.peakThreshold([1, 1]), 'Color', obj.dashColor, 'LineStyle', '--', 'DisplayName', sprintf('threshold:%.2f', obj.peakThreshold));
-            plot(obj.time([1, end]), -obj.peakThreshold([1, 1]), 'Color', obj.dashColor, 'LineStyle', '--', 'HandleVisibility', 'off');
+            if strcmpi(obj.configuration.peakDetectionMode, 'height')
+                plot(obj.time([1, end]), +obj.peakThreshold([1, 1]), 'Color', obj.dashColor, 'LineStyle', '--', 'DisplayName', sprintf('threshold:%.2f', obj.peakThreshold));
+            end
             plot(obj.time(obj.peakIdsAll), obj.dff(obj.peakIdsAll), 'Color', obj.peaksMarkerColor, 'LineStyle', 'none', 'Marker', 'o', 'DisplayName', 'Peaks');
-            plot(obj.time(obj.valleyIdsAll), obj.dff(obj.valleyIdsAll), 'Color', obj.peaksMarkerColor, 'LineStyle', 'none', 'Marker', 'o', 'DisplayName', 'Peaks');
             ylim(ylims);
             title('Normalization and peak detection');
             legend('show');
@@ -630,7 +640,7 @@ classdef FPA < handle
         function figs = plotTriggerAverage(obj)
             figs(1) = figure('name', 'FPA: Peak-triggered average');
 
-            plotTriggerAverage(obj.dff, obj.peakIds, obj.peakLabels, obj.peakWindowTemplate, obj.frequency, @(data) data, obj.configuration.conditionEpochs(1:2:end), obj.cmap, 'No peaks');
+            plotTriggerAverage(obj.dff, obj.peakIds, obj.peakLabels, obj.peakWindowTemplate, obj.frequency, obj.peakNormalization, obj.configuration.conditionEpochs(1:2:end), obj.cmap, 'No peaks');
             ylabel('df/f');
             title('Peak-triggered average');
             
@@ -646,7 +656,7 @@ classdef FPA < handle
             name = 'Peak-trigger heatmap';
             figs(1) = figure('name', name);
 
-            plotTriggerHeatmap(obj.dff, obj.peakIds, obj.peakLabels, obj.peakWindowTemplate, @(data) data, obj.frequency, obj.configuration.conditionEpochs(1:2:end), 'No peaks');
+            plotTriggerHeatmap(obj.dff, obj.peakIds, obj.peakLabels, obj.peakWindowTemplate, obj.peakNormalization, obj.frequency, obj.configuration.conditionEpochs(1:2:end), 'No peaks');
             annotation('textbox', [0, 0.95, 1, 0.05], 'string', name, 'LineStyle', 'none');
             
             if numel(obj.eventIds) > 0
@@ -715,7 +725,7 @@ classdef FPA < handle
             % All peak-triggered windows and their average with corresponding epoch label.
             output1 = fullfile(folder, sprintf('%s - peak-triggered.csv', basename));
             output2 = fullfile(folder, sprintf('%s - peak-triggered averaged.csv', basename));
-            obj.saveEventTrigger(output1, output2, 'condition', obj.peakIds, obj.peakLabels, obj.peakWindowTemplate, obj.eventNormalization, obj.epochNames(obj.peakLabels));
+            obj.saveEventTrigger(output1, output2, 'condition', obj.peakIds, obj.peakLabels, obj.peakWindowTemplate, obj.peakNormalization, obj.epochNames(obj.peakLabels));
             
             % All event-triggered windows and their average with corresponding epoch label.
             output1 = fullfile(folder, sprintf('%s - event-triggered.csv', basename));
@@ -847,51 +857,16 @@ function output = parseNormalization(time, data, parameters)
     end
 end
 
-function value = threshold(parameters, data)
-    % {value1, @mad, @median}
-    % {value1, @mad}
-    % {value1, @mad, value2}
-    % {value1}
-    % value
-    if iscell(parameters)
-        n = numel(parameters);
-        if n >= 1
-            k = parameters{1};
-        else
-            k = 2.91;
-        end
-        if n >= 2
-            f2 = parameters{2};
-        else
-            f2 = @mad;
-        end
-        if n >= 3
-            f3 = parameters{3};
-        else
-            f3 = @median;
-        end
-    else
-        k = parameters;
-        f2 = @mad;
-        f3 = @median;
-    end
-    if isa(f3, 'function_handle')
-        value = k * f2(data) + f3(data);
-    else
-        value = k * f2(data) + f3;
-    end
-end
-
 function plotEpochs(epochs, xlims, ylims, cmap, show)
     for e = 1:numel(epochs) / 2
         epochName = epochs{2 * e - 1};
         epochs{2 * e}(epochs{2 * e} == -Inf) = xlims(1);
-        epochs{2 * e}(epochs{2 * e} == +Inf) = xlims(2);
+        epochs{2 * e}(epochs{2 * e} == +Inf) = xlims(2); % !!
         [faces, vertices] = patchEpochs(epochs{2 * e}, ylims(1), ylims(2));
         vertices(vertices == -inf) = xlims(1);
-        vertices(vertices == +inf) = xlims(2);
+        vertices(vertices == +inf) = xlims(2); % !!
         if show
-            patch('Faces', faces, 'Vertices', vertices, 'FaceColor', cmap(e, :), 'EdgeColor', 'none', 'FaceAlpha', 0.50, 'DisplayName', sprintf('%s', epochName));
+            patch('Faces', faces, 'Vertices', vertices, 'FaceColor', cmap(e, :), 'EdgeColor', 'none', 'FaceAlpha', 0.50, 'DisplayName', sprintf('%s', epochName)); % !!
         else
             patch('Faces', faces, 'Vertices', vertices, 'FaceColor', cmap(e, :), 'EdgeColor', 'none', 'FaceAlpha', 0.50, 'HandleVisibility', 'off');
         end
@@ -904,9 +879,10 @@ end
 
 function ylims = limits(x, percentile, grow)
     x = x(:);
-    ylims = [prctile(x, 100 * (1 - percentile)), prctile(x, 100 * percentile)];
+    ylims = [prctile(x, 100 - percentile), prctile(x, percentile)];
     delta = diff(ylims) * grow;
     ylims = [ylims(1) - delta, ylims(2) + delta];
+    ylims = [max(min(x), ylims(1)), min(max(x), ylims(2))];
 end
 
 function plotTriggerHeatmap(data, ids, labels, window, normalize, frequency, names, message)
@@ -925,7 +901,7 @@ function plotTriggerHeatmap(data, ids, labels, window, normalize, frequency, nam
     if numel(ids) > 0
         allWindowIds = ids' + window;
         allTriggeredData = data(allWindowIds);
-        clims = limits(allTriggeredData, 0.99, 0);
+        clims = limits(allTriggeredData, 99.75, 0);
     end
     
     axs = cell(nConditions, 1);

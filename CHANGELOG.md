@@ -1,11 +1,25 @@
 ## Changelog
+* 2022-12-16
+	- Added option for detecting peaks using prominence or height (default). When prominence is selected, threshold is not plotted.
+	- Changed the way thresholds are provided; using a raw value or a function that operates on input data.
+	- Changed default peak separation from 2.0 to 0.5.
+	- Removed rendering of negative peaks.
+	- Removed examples. Will re-add on a request basis.
+	- Added option to plot event trigger average.
+	- Added option normalize event data prior to plotting (undocumented).
+	- Added a reader for Deep Lab Cut generated files (undocumented).
+	- Added normalization options for peaks.
+	- Event and peak are normalized to values left of the peak by default.
+* 2022-08-31
+	- Updated `exampleRA.m` to show how to normalize.
+	- Documented code and `readme.md`
 * 2022-06-30
 	- Added setup.
 	- Added exponential decay fit to trigger plots.
 	- Removed smooth dff plots and object fields.
 	- Thresholding value is calculated on both artifact and edge free data.
 	- Removed `peaksLowpassFrequency`:
-		- Peak detection is done directly in dff with minimum distance given by peakSeparation (convert with 1.0 / lowpassFrequency).
+		- Peak detection is done directly in dff with minimum distance given by peakSeparation (convert with `1.0 / peaksLowpassFrequency`).
 	- Filtering includes data edges.
 	- Fitting reference to signal uses all data.
 	- Added event window for event triggers.
