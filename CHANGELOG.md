@@ -5,6 +5,7 @@
 	- Changed default peak separation from 2.0 to 0.5.
 	- Removed rendering of negative peaks.
 	- Removed examples. Will re-add on a request basis.
+	- Event and peak windows can be defined as a range or as a vector.
 	- Added option to plot event trigger average.
 	- Added option normalize event data prior to plotting (undocumented).
 	- Added a reader for Deep Lab Cut generated files (undocumented).

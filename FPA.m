@@ -210,14 +210,6 @@ classdef FPA < handle
             else
                 error('peakDetectionMode must be either "height" or "prominence"');
             end
-            
-            if numel(configuration.peakWindow) == 1
-                configuration.peakWindow = [-configuration.peakWindow, +configuration.peakWindow] / 2;
-            end
-            
-            if numel(configuration.eventWindow) == 1
-                configuration.eventWindow = [-configuration.eventWindow, +configuration.eventWindow] / 2;
-            end
 
             % Resampling frequency defaults to the smallest between 100Hz and the source frequency.
             sourceFrequency = 1 / median(diff(time));
@@ -382,12 +374,24 @@ classdef FPA < handle
             end
             [~, peakIdsAll] = findpeaks(+dff, peakDetectionMode, peakThreshold, 'MinPeakDistance', configuration.peakSeparation * frequency);
             warning(state.state, 'signal:findpeaks:largeMinPeakHeight');
-
+            
             % Index template to apply around each peak and event.
-            range = round(configuration.peakWindow * frequency);
-            obj.peakWindowTemplate = range(1):range(2);
-            range = round(configuration.eventWindow * frequency);
-            obj.eventWindowTemplate = range(1):range(2);
+            n = numel(configuration.peakWindow);
+            if n == 1
+                obj.peakWindowTemplate = -round(0.5 * configuration.peakWindow * frequency):round(0.5 * configuration.peakWindow * frequency);
+            elseif n == 2
+                obj.peakWindowTemplate = round(configuration.peakWindow(1) * frequency):round(configuration.peakWindow(2) * frequency);
+            else
+                obj.peakWindowTemplate = round(configuration.peakWindow * frequency);
+            end
+            n = numel(configuration.eventWindow);
+            if n == 1
+                obj.eventWindowTemplate = -round(0.5 * configuration.eventWindow * frequency):round(0.5 * configuration.eventWindow * frequency);
+            elseif n == 2
+                obj.eventWindowTemplate = round(configuration.eventWindow(1) * frequency):round(configuration.eventWindow(2) * frequency);
+            else
+                obj.eventWindowTemplate = round(configuration.eventWindow * frequency);
+            end
             
             % Get indices for epochs.
             % Start and stop vector indices for all provided epochs.

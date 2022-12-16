@@ -1,5 +1,5 @@
 % Fiber-photometry data recorded with Doric DAQ.
-inputDataFile = 'data/GP_JZLPho_JZL_Nov20_M43.csv';
+inputDataFile = 'C:\Users\Molina\Documents\public\data\HALO\FibrePhotometry\Gavin\202211/GP_JZLPho_JZL_Nov20_M43.csv';
 
 % Columns corresponding to 465nm and 405nm.
 signalColumn = 2;
@@ -18,6 +18,7 @@ configuration.lowpassFrequency = 4.0;
 configuration.peakSeparation = 0.5;
 configuration.threshold = @(data) 2.0 * std(data);
 configuration.peakDetectionMode = 'prominence';
+configuration.peakWindow = 2.5; % Change to -2.5:0.1:2.5 for lower resolution.
 % Use a portion of the data to compute modified z-score.
 configuration.f0 = {@median, [1200, 9600]};
 configuration.f1 = {@mad, [1200, 9600]};
