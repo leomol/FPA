@@ -34,6 +34,7 @@
 %     thresholdEpochs - Epochs to include for peak threshold calculation.
 %     events - Event-triggered data; times at which a type of event occurs.
 %     baselineLowpassFrequency - Frequency representative of baseline.
+%     baselineFitType - Curve to fit for baseline subtraction (e.g. 'exp1', 'poly1').
 %     airPLS - Baseline correction for all data using airPLS (true, false, or airPLS inputs).
 %     resamplingFrequency - Resampling frequency (Hz).
 %     lowpassFrequency - Lowest frequency permitted in normalized signal.
@@ -98,7 +99,7 @@
 % Units for time and frequency are seconds and hertz respectively.
 % 
 % 2019-02-01. Leonardo Molina.
-% 2022-12-16. Last modified.
+% 2023-01-10. Last modified.
 classdef FPA < handle
     properties
         configuration
@@ -174,8 +175,9 @@ classdef FPA < handle
             defaults.events = [];
             defaults.resamplingFrequency = NaN;
             defaults.baselineLowpassFrequency = 0.1;
+            defaults.baselineFitType = 'exp1';
             defaults.airPLS = false;
-            defaults.lowpassFrequency = 5.0;
+            defaults.lowpassFrequency = 10.0;
             defaults.peakSeparation = 0.5;
             defaults.peakDetectionMode = 'height';
             defaults.fitReference = true;
@@ -327,11 +329,11 @@ classdef FPA < handle
                 end
             else
                 % Model baseline with an exponential decay at given epochs (where indicated).
-                signalFit = fit(time(baselineId), signalArtifactFreeSmooth(baselineId), fittype('exp1'));
+                signalFit = fit(time(baselineId), signalArtifactFreeSmooth(baselineId), fittype(configuration.baselineFitType));
                 signalBaseline = signalFit(time);
                 signalCorrected = signalArtifactFree - signalBaseline;
                 if referenceProvided
-                    referenceFit = fit(time(baselineId), referenceArtifactFreeSmooth(baselineId), fittype('exp1'));
+                    referenceFit = fit(time(baselineId), referenceArtifactFreeSmooth(baselineId), fittype(configuration.baselineFitType));
                     referenceBaseline = referenceFit(time);
                     referenceCorrected = referenceArtifactFree - referenceBaseline;
                 else
