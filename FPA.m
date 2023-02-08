@@ -99,7 +99,7 @@
 % Units for time and frequency are seconds and hertz respectively.
 % 
 % 2019-02-01. Leonardo Molina.
-% 2023-01-10. Last modified.
+% 2023-02-03. Last modified.
 classdef FPA < handle
     properties
         configuration
@@ -254,10 +254,13 @@ classdef FPA < handle
                 [p, q] = rat(frequency / sourceFrequency);
                 % Resample: interpolate every p/q/f, upsample by p, filter, downsample by q.
                 [signal, time2] = resample(signal, time, frequency, p, q);
+                k = time2 <= time(end);
+                signal = signal(k);
                 if referenceProvided
                     reference = resample(reference, time, frequency, p, q);
+                    reference = reference(k);
                 end
-                time = time2;
+                time = time2(k);
             elseif configuration.resamplingFrequency > sourceFrequency
                 frequency = sourceFrequency;
                 obj.warnings{end + 1} = warn('[resampling] Cannot resample to frequencies higher than the source frequency (%.2f Hz).', sourceFrequency);
@@ -749,7 +752,7 @@ classdef FPA < handle
             
             % Filter out out-of-range traces.
             nSamples = numel(obj.dff);
-            k = ids > min(window) & ids + max(window) < nSamples;
+            k = ids + min(window) > 0 & ids + max(window) < nSamples;
             labels = labels(k);
             ids = ids(k);
             ids = ids(:);
@@ -895,7 +898,7 @@ function plotTriggerHeatmap(data, ids, labels, window, normalize, frequency, nam
     % Filter out out-of-range traces.
     window = window(:);
     nSamples = numel(data);
-    k = ids > min(window) & ids + max(window) < nSamples;
+    k = ids + min(window) > 0 & ids + max(window) < nSamples;
     labels = labels(k);
     ids = ids(k);
     nTicks = numel(window);
@@ -941,7 +944,7 @@ function plotTriggerAverage(data, ids, labels, window, frequency, normalize, nam
     % Filter out out-of-range traces.
     window = window(:);
     nSamples = numel(data);
-    k = ids > min(window) & ids + max(window) < nSamples;
+    k = ids + min(window) > 0 & ids + max(window) < nSamples;
     labels = labels(k);
     ids = ids(k);
     nTicks = numel(window);

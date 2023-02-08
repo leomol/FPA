@@ -1,4 +1,8 @@
 ## Changelog
+* 2023-02-03
+	- Added h5 loader, which works for Doric lock-in datasets by default.
+	- Fix an out of bounds bug that could happen for peaks at the beginning or end of a trace.
+	- Removing time points later than the original time series.
 * 2022-12-16
 	- Added option for detecting peaks using prominence or height (default). When prominence is selected, threshold is not plotted.
 	- Changed the way thresholds are provided; using a raw value or a function that operates on input data.
