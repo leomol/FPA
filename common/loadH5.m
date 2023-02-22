@@ -2,7 +2,7 @@
 % Load Doric data in with h5 or doric extension.
 
 % 2023-02-03. Leonardo Molina.
-% 2023-02-03. Last modified.
+% 2023-02-15. Last modified.
 function data = loadH5(filename, datasets)
     if nargin < 2
         datasets = {
@@ -20,4 +20,6 @@ function data = loadH5(filename, datasets)
         end
         data(:, i) = column;
     end
+    k = ~any(isnan(data), 2);
+    data = data(k, :);
 end

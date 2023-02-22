@@ -99,7 +99,7 @@
 % Units for time and frequency are seconds and hertz respectively.
 % 
 % 2019-02-01. Leonardo Molina.
-% 2023-02-03. Last modified.
+% 2023-02-22. Last modified.
 classdef FPA < handle
     properties
         configuration
@@ -993,7 +993,7 @@ function plotTriggerAverage(data, ids, labels, window, frequency, normalize, nam
                     plot(timeTicks(mask), model(parameters, timeTicks(mask)), 'Color', colors(c, :), 'LineStyle', '--', 'HandleVisibility', 'off');
                 end
                 sem = sd / sqrt(nTriggers);
-                sem0 = sem(ceil(nTriggers / 2));
+                sem0 = sem(ceil(numel(sem) / 2));
                 vertices = [timeTicks, av + sem / 2];
                 vertices = cat(1, vertices, [flipud(timeTicks), flipud(av - sem / 2)]);
                 faces = 1:2 * numel(window);
