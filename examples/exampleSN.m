@@ -4,11 +4,7 @@ inputDataFile = 'C:\Users\Molina\Documents\public\data\HALO\FibrePhotometry\Sabi
 % Columns corresponding to 465nm and 405nm.
 signalColumn = 2;
 referenceColumn = 3;
-data = loadH5(inputDataFile, {
-        '/Traces/Console/Time(s)/Console_time(s)'
-        '/Traces/Console/AIn-1 - Dem (AOut-1)/AIn-1 - Dem (AOut-1)'
-        '/Traces/Console/AIn-2 - Dem (AOut-2)/AIn-2 - Dem (AOut-2)'
-    });
+data = loadH5(inputDataFile);
 time = data(:, 1);
 signal = data(:, signalColumn);
 reference = data(:, referenceColumn);
