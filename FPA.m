@@ -99,7 +99,7 @@
 % Units for time and frequency are seconds and hertz respectively.
 % 
 % 2019-02-01. Leonardo Molina.
-% 2023-02-22. Last modified.
+% 2023-04-05. Last modified.
 classdef FPA < handle
     properties
         configuration
@@ -204,6 +204,15 @@ classdef FPA < handle
                     obj.warnings{end + 1} = warn('[parsing] "%s" is not a valid parameter.', name);
                 end
             end
+
+            % Separate baseline epochs for signal and reference.
+            if iscell(configuration.baselineEpochs)
+                signalBaselineEpochs = configuration.baselineEpochs{1};
+                referenceBaselineEpochs = configuration.baselineEpochs{2};
+            else
+                signalBaselineEpochs = configuration.baselineEpochs;
+                referenceBaselineEpochs = configuration.baselineEpochs;
+            end
             
             options = {'MinPeakHeight', 'MinPeakProminence'};
             k = strcmpi(configuration.peakDetectionMode, {'height', 'prominence'});
@@ -286,8 +295,10 @@ classdef FPA < handle
             cleanId = intersect(artifactFreeId, edgeFreeId);
             
             % Define clean epochs for fitting and peak detection.
-            baselineId = time2id(time, configuration.baselineEpochs);
-            baselineId = intersect(baselineId, cleanId);
+            signalBaselineId = time2id(time, signalBaselineEpochs);
+            signalBaselineId = intersect(signalBaselineId, cleanId);
+            referenceBaselineId = time2id(time, referenceBaselineEpochs);
+            referenceBaselineId = intersect(referenceBaselineId, cleanId);
             
             % Threshold epochs defaults to everything.
             if isnan(configuration.thresholdEpochs)
@@ -332,11 +343,11 @@ classdef FPA < handle
                 end
             else
                 % Model baseline with an exponential decay at given epochs (where indicated).
-                signalFit = fit(time(baselineId), signalArtifactFreeSmooth(baselineId), fittype(configuration.baselineFitType));
+                signalFit = fit(time(signalBaselineId), signalArtifactFreeSmooth(signalBaselineId), fittype(configuration.baselineFitType));
                 signalBaseline = signalFit(time);
                 signalCorrected = signalArtifactFree - signalBaseline;
                 if referenceProvided
-                    referenceFit = fit(time(baselineId), referenceArtifactFreeSmooth(baselineId), fittype(configuration.baselineFitType));
+                    referenceFit = fit(time(referenceBaselineId), referenceArtifactFreeSmooth(referenceBaselineId), fittype(configuration.baselineFitType));
                     referenceBaseline = referenceFit(time);
                     referenceCorrected = referenceArtifactFree - referenceBaseline;
                 else

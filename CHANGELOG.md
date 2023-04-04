@@ -1,4 +1,6 @@
 ## Changelog
+* 2023-04-05
+	- Added option to provide separate baseline epochs for signal and reference.
 * 2023-02-03
 	- Added h5 loader, which works for Doric lock-in datasets by default.
 	- Fix an out of bounds bug that could happen for peaks at the beginning or end of a trace.
