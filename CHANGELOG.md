@@ -1,4 +1,7 @@
 ## Changelog
+* 2023-04-12
+	- Added option to modify the default baseline correction operation (signal bleaching is subtracted from signal and reference bleaching is subtracted from reference).
+	- Changed the threshold function signature; arguments to calling function are now fpa and data.
 * 2023-04-05
 	- Added option to provide separate baseline epochs for signal and reference.
 * 2023-02-03

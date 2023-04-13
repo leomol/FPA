@@ -99,7 +99,7 @@
 % Units for time and frequency are seconds and hertz respectively.
 % 
 % 2019-02-01. Leonardo Molina.
-% 2023-04-05. Last modified.
+% 2023-04-12. Last modified.
 classdef FPA < handle
     properties
         configuration
@@ -176,6 +176,8 @@ classdef FPA < handle
             defaults.resamplingFrequency = NaN;
             defaults.baselineLowpassFrequency = 0.1;
             defaults.baselineFitType = 'exp1';
+            defaults.signalCorrection = @(fpa, data) data - fpa.signalBaseline;
+            defaults.referenceCorrection = @(fpa, data) data - fpa.referenceBaseline;
             defaults.airPLS = false;
             defaults.lowpassFrequency = 10.0;
             defaults.peakSeparation = 0.5;
@@ -188,7 +190,7 @@ classdef FPA < handle
             defaults.p0 = {@mean, [-Inf, 0]};
             defaults.p1 = 1;
             defaults.thresholdEpochs = NaN;
-            defaults.threshold = @(data) 2.91 * mad(data) + median(data);
+            defaults.threshold = @(fpa, data) 2.91 * mad(data) + median(data);
             defaults.peakWindow = 10.0;
             defaults.eventWindow = 10.0;
             
@@ -330,32 +332,30 @@ classdef FPA < handle
             
             if useAirPLS
                 % Model baseline with airPLS (everywhere).
-                [~, signalBaseline] = airPLS(signalArtifactFreeSmooth', configuration.airPLS{:});
-                signalBaseline = signalBaseline';
-                signalCorrected = signalArtifactFree - signalBaseline;
+                [~, obj.signalBaseline] = airPLS(signalArtifactFreeSmooth', configuration.airPLS{:});
+                obj.signalBaseline = obj.signalBaseline';
                 if referenceProvided
-                    [~, referenceBaseline] = airPLS(referenceArtifactFreeSmooth', configuration.airPLS{:});
-                    referenceBaseline = referenceBaseline';
-                    referenceCorrected = referenceArtifactFree - referenceBaseline;
+                    [~, obj.referenceBaseline] = airPLS(referenceArtifactFreeSmooth', configuration.airPLS{:});
+                    obj.referenceBaseline = obj.referenceBaseline';
                 else
-                    referenceBaseline = zeros(size(signalCorrected));
-                    referenceCorrected = zeros(size(signalCorrected));
+                    obj.referenceBaseline = zeros(size(signal));
                 end
             else
                 % Model baseline with an exponential decay at given epochs (where indicated).
                 signalFit = fit(time(signalBaselineId), signalArtifactFreeSmooth(signalBaselineId), fittype(configuration.baselineFitType));
-                signalBaseline = signalFit(time);
-                signalCorrected = signalArtifactFree - signalBaseline;
+                obj.signalBaseline = signalFit(time);
                 if referenceProvided
                     referenceFit = fit(time(referenceBaselineId), referenceArtifactFreeSmooth(referenceBaselineId), fittype(configuration.baselineFitType));
-                    referenceBaseline = referenceFit(time);
-                    referenceCorrected = referenceArtifactFree - referenceBaseline;
+                    obj.referenceBaseline = referenceFit(time);
                 else
-                    referenceBaseline = zeros(size(signalCorrected));
-                    referenceCorrected = zeros(size(signalCorrected));
+                    obj.referenceBaseline = zeros(size(signal));
                 end
             end
-            
+
+            % Apply baseline corrections.
+            signalCorrected = configuration.signalCorrection(obj, signalArtifactFree);
+            referenceCorrected = configuration.referenceCorrection(obj, referenceArtifactFree);
+
             % Fit reference to signal (where indicated).
             if referenceProvided && configuration.fitReference
                 r2sFit = fit(referenceCorrected(cleanId), signalCorrected(cleanId), fittype('poly1'), 'Robust', 'on');
@@ -383,7 +383,7 @@ classdef FPA < handle
                 % A value obtained by applying a function.
                 % Example:
                 % fcn = @(data) = 2.91 * mad(data) + median(data)
-                peakThreshold = configuration.threshold(dff(thresholdId));
+                peakThreshold = configuration.threshold(obj, dff(thresholdId));
             else
                 % A given raw value.
                 peakThreshold = configuration.threshold;
@@ -484,10 +484,6 @@ classdef FPA < handle
             % Resampled only.
             obj.signalRaw = signal;
             obj.referenceRaw = reference;
-            
-            % Filtered, uncorrected.
-            obj.signalBaseline = signalBaseline;
-            obj.referenceBaseline = referenceBaseline;
             
             % Unfiltered, corrected.
             obj.signal = signalCorrected;
