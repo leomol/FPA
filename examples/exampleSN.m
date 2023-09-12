@@ -17,7 +17,7 @@ configuration.baselineLowpassFrequency = 0.1;
 configuration.fitReference = false;
 configuration.lowpassFrequency = 10.0;
 configuration.peakSeparation = 0.5;
-configuration.threshold = @(data) 2.0 * std(data);
+configuration.threshold = @(fpa, data) 2.0 * std(data);
 configuration.peakDetectionMode = 'prominence';
 configuration.peakWindow = 2.5;
 % Use a portion of the data to compute modified z-score.

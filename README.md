@@ -5,14 +5,14 @@ MATLAB scripts to plot data from a fiber photometry recording.
 - [MATLAB][MATLAB] (last tested with R2022a)
 
 ## Installation
-- Install MATLAB with the following toolboxes:
+- Install [MATLAB][MATLAB] with the following toolboxes:
 	- Curve Fitting Toolbox
 	- Signal Processing Toolbox
 	- Statistics and Machine Learning Toolbox
-- Download and extract these scripts to Documents/MATLAB folder.
+- Download and extract the [FPA library][FPA] to the `Documents/MATLAB` folder
 
 ## Usage
-- Run `setup.m` to add FPA dependencies to the MATLAB search path.
+- Run `startup.m` to add FPA dependencies to the MATLAB search path.
 - See and edit examples according to your experimental setup.
 
 

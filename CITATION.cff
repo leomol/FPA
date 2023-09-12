@@ -4,7 +4,7 @@ abstract: "MATLAB toolbox to process data collected with a few popular fiber pho
 message: If you use this software, please cite it.
 type: software
 version: 1.0.0
-doi: 10.5281/zenodo.5708471
+doi: 10.5281/zenodo.5708470
 date-released: 2019-02-20
 repository-code: https://github.com/leomol/FPA
 authors:

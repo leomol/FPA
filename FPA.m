@@ -99,13 +99,14 @@
 % Units for time and frequency are seconds and hertz respectively.
 % 
 % 2019-02-01. Leonardo Molina.
-% 2023-04-12. Last modified.
+% 2023-06-23. Last modified.
 classdef FPA < handle
     properties
         configuration
         
         warnings
         time
+        labels
         frequency
         peakIds
         peakLabels
@@ -410,6 +411,7 @@ classdef FPA < handle
             end
             
             % Get indices for epochs.
+            labels = zeros(size(time));
             % Start and stop vector indices for all provided epochs.
             epochBounds = zeros(2, 0);
             % Numeric label corresponding to each epoch range.
@@ -435,7 +437,8 @@ classdef FPA < handle
             for c = 1:nConditions
                 % Accumulate vector indices limited to conditions.
                 [ids, bounds] = time2id(time, configuration.conditionEpochs{2 * c});
-                
+                labels(ids) = c;
+
                 % Start/stop-triggered data.
                 n = numel(bounds) / 2;
                 epochBounds = cat(2, epochBounds, bounds);
@@ -468,6 +471,7 @@ classdef FPA < handle
             
             obj.configuration = configuration;
             obj.time = time;
+            obj.labels = labels;
             obj.frequency = frequency;
             obj.eventNormalization = @(data) normalize(obj.eventWindowTemplate / obj.frequency, data, obj.configuration.e0, obj.configuration.e1);
             obj.peakNormalization = @(data) normalize(obj.peakWindowTemplate / obj.frequency, data, obj.configuration.p0, obj.configuration.p1);
@@ -697,9 +701,7 @@ classdef FPA < handle
         function export(obj, prefix)
             prefix = regexprep(prefix, '/$', '');
             [folder, basename] = fileparts(prefix);
-            
-            % Save data for post-processing.
-            
+
             % Time vs f.
             % Rows represent increasing values of time with corresponding f values.
             output = fullfile(folder, sprintf('%s - f.csv', basename));
@@ -751,7 +753,7 @@ classdef FPA < handle
     end
     
     methods (Access = private)
-        function saveEventTrigger(obj, output1, output2, prefix, ids, labels, window, normalize, names)
+        function saveEventTrigger(obj, output1, output2, prefix, ids, labels, window, normalization, names)
             window = window(:);
             nTicks = numel(window);
             timeTicks = window / obj.frequency;
@@ -777,7 +779,7 @@ classdef FPA < handle
                 triggeredData = obj.dff;
                 triggeredData = triggeredData(windowIds);
                 triggeredData = reshape(triggeredData, nTicks, nTriggers);
-                triggeredData = normalize(triggeredData);
+                triggeredData = normalization(triggeredData);
                 triggerTime = obj.time(ids);
                 
                 % All triggered windows with corresponding epoch label.

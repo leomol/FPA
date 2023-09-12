@@ -34,7 +34,7 @@ function analysis(filename, epoch)
     configuration.baselineFitType = 'exp1'; % exp1 | poly1
     configuration.lowpassFrequency = 10.0;
     configuration.peakSeparation = 0.5;
-    configuration.threshold = @(data) 2.0 * std(data);
+    configuration.threshold = @(fpa, data) 2.0 * std(data);
     configuration.peakDetectionMode = 'prominence';
     configuration.peakWindow = 2.5; % Change to -2.5:0.1:2.5 for lower resolution.
     % Use a portion of the data to compute modified z-score.
