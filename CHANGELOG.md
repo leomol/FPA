@@ -1,4 +1,24 @@
 ## Changelog
+* 2023-11-09 - v2.0.0
+	- New changes saved to a new branch.
+	- Packaged data loaders.
+	- Renamed data properties to match the name of the corresponding function that generates it.
+	- Analysis steps are part of the configuration.
+	- Outcomes of the analysis are read-only.
+	- Added standardization step in the analysis and plots.
+	- Added 95% confidence interval to PowerSpectrumPlot and uses the Welch's method.
+	- Added helper functions to customize analysis steps.
+	- Window size and event times moved from the configuration to an argument of the plotting or exporting functions.
+	- Exporting data may now occur in rows or columns.
+	- Examples are described in the online documentation.
+	- Removed deprecated data and example files.
+* 2023-10-12
+	- Configuration is now reflected as members of the FPA object.
+	- Changed the signature of multiple parameters to provide flexibility with the analysis steps.
+		- The following parameters are affected: `configuration.threshold`, `configuration.signalCorrection` and `configuration.referenceCorrection`. Now these functions expect `dff` as argument, `configuration.threshold` expect a single number as an output argument, whereas `signal` and `referenceCorrection` expect an array of the same size of `fpa.dff` as output.
+	- User provided epochs are now used _as is_ without consideration of `edgeId` or `artifactFreeId`.
+	- Removed `thresholdEpochs` as the user may incorporate this information in the aformetioned function.
+	- Added `signalArtifactFree` and `referenceArtifactFree` to `fpa`'s properties.
 * 2023-04-12
 	- Added option to modify the default baseline correction operation (signal bleaching is subtracted from signal and reference bleaching is subtracted from reference).
 	- Changed the threshold function signature; arguments to calling function are now fpa and data.
