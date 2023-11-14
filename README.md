@@ -16,7 +16,7 @@ MATLAB scripts to process, plot and export fiber photometry data.
 - Create a new script using the examples below as a template for your experimental setup, then run it.
 
 ### Example usage - minimal script
-Call FPA using all default settings then call `plotTraces` (one of the functions for [plotting](#plotting-functions) or [exporting](#exporting-functions)).
+Call FPA using all default settings then call `plotTrace` (one of the functions for [plotting](#plotting-functions) or [exporting](#exporting-functions)).
 
 Change the data loader (and data columns) according to your data acquisition system and data layout.
 
@@ -28,7 +28,7 @@ signal = data(:, 2);
 reference = data(:, 3);
 
 fpa = FPA(time, signal, reference);
-fpa.plotTraces();
+fpa.plotTrace();
 ```
 
 ### Modifying default configuration
@@ -63,7 +63,7 @@ signal = data(:, 2);
 reference = data(:, 3);
 
 fpa = FPA(time, signal, reference, config);
-fpa.plotTraces();
+fpa.plotTrace();
 ```
 
 ## FPA inputs
