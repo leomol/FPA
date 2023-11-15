@@ -1,5 +1,8 @@
 ## Changelog
 * v2.0.0
+	* 2023-11-14
+		- Rename release names
+		- Removed unused tags
 	* 2023-11-10
 		- Changed version from `1.0.0` to `2.0.1` in the citation file.
 		- Changed `plotTraces` to `plotTrace` in the documentation.
