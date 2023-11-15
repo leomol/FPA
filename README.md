@@ -1,5 +1,5 @@
 # Fiber photometry analysis
-MATLAB scripts to process, plot and export fiber photometry data.
+MATLAB toolbox to process, plot and export fiber photometry data.
 
 ## Prerequisites
 - [MATLAB][MATLAB] (last tested with `R2023b`)
