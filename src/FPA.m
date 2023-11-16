@@ -1,7 +1,7 @@
 % FPA - Fiber Photometry Analysis.
 % 
 % fpa = FPA(time, signal, reference, configuration);
-% Subtract photo-bleaching, correct for motion artifacts, 
+% Subtract photobleaching, correct for motion artifacts, 
 % normalize, filter, detect peaks of spontaneous activity in user defined
 % epochs, display trigger averages of user defined events.
 % 
@@ -39,7 +39,7 @@
 % FPA methods to customize the configuration:
 % findPeaks - Find peaks in data
 % fit - Fit curve to trace according to the fitting type
-% fitReferenceToSignal - Fit reference to signal using a non-negative constrain
+% fitReferenceToSignal - Fit reference to signal using non-negative, least-squares fit, at the given epochs
 % get - Get trace according to data choice and epoch range
 % ids - Get indices relative to timeResampled for the given epochs
 % interpolate - Interpolate trace linearly within epochs
@@ -57,7 +57,7 @@
 % Normalize - Normalize data according to parameters f0 and f1
 % 
 % 2019-02-01. Leonardo Molina.
-% 2023-11-10. Last modified.
+% 2023-11-15. Last modified.
 classdef FPA < handle
     properties (Access = public)
         % time - Raw time
@@ -76,9 +76,9 @@ classdef FPA < handle
         signalTrimmed
         % referenceArtifactFree - Reference after removing artifacts
         referenceTrimmed
-        % signalSmoothed - Smoothed signal to model baseline
+        % signalSmoothed - Smoothed signal to model photobleaching
         signalSmoothed
-        % referenceSmoothed - Smoothed reference to model baseline
+        % referenceSmoothed - Smoothed reference to model photobleaching
         referenceSmoothed
         % signalModeled - Baseline modeled from signal
         signalModeled
@@ -329,7 +329,7 @@ classdef FPA < handle
                 if isEnabled(obj.fitReference)
                     obj.referenceFitted = obj.fitReference(obj);
                 else
-                    obj.referenceFitted = obj.referenceCorrected;
+                    obj.referenceFitted = obj.referenceStandardized;
                 end
             end
             
@@ -337,7 +337,7 @@ classdef FPA < handle
             if isEnabled(obj.getF)
                 obj.f = obj.getF(obj);
             else
-                obj.f = obj.signalCorrected;
+                obj.f = obj.signalStandardized;
             end
             
             % Filtered, motion corrected.
@@ -419,23 +419,22 @@ classdef FPA < handle
             data = FPA.Fit(time, data, fitType, epochs);
         end
         
-        function data = fitReferenceToSignal(obj, targetFrequency, epochs)
+        function data1 = fitReferenceToSignal(obj, targetFrequency, epochs)
             % data = FPA.fitReferenceToSignal(targetFrequency, epochs)
-            % Fit reference to a smoothed signal using a non-negative, bisquare, linear regression at the given epochs.
+            % Fit reference to the smoothed signal using a non-negative, least-squares fit, at the given epochs.
+
             if nargin < 2
                 targetFrequency = 0.1;
             end
             if nargin < 3
                 epochs = [-Inf, Inf];
             end
+            
+            % Fit on smoothed data.
             k = obj.ids(epochs);
-            
-            data1 = FPA.Lowpass(obj.timeResampled(k), obj.referenceStandardized(k), targetFrequency);
-            data2 = FPA.Lowpass(obj.timeResampled(k), obj.signalStandardized(k), targetFrequency);
-            
-            fitOptions = fitoptions('Method', 'LinearLeastSquares', 'Robust', 'Bisquare', 'Lower', [0, -Inf]);
-            fitModel = fit(data1, data2, fittype('poly1'), fitOptions);
-            data = fitModel.p1 * obj.referenceStandardized + fitModel.p2;
+            data1 = FPA.Lowpass(obj.timeResampled, obj.referenceStandardized, targetFrequency);
+            data2 = FPA.Lowpass(obj.timeResampled, obj.signalStandardized, targetFrequency);
+            data1 = obj.referenceStandardized * lsqnonneg(data1(k), data2(k));
         end
 
         function data = get(obj, traceName, epochs)
@@ -634,12 +633,14 @@ classdef FPA < handle
             yy = [obj.signalResampled(:); obj.referenceResampled(:); obj.signalModeled(:)];
             ylims = limits(yy, obj.zoomSettings{:});
             plotEpochs(obj.epochNames, obj.epochRanges, xlims, ylims, obj.cmap, true);
-            plot(obj.timeResampled, obj.signalResampled, 'Color', obj.colors.signal, 'DisplayName', 'Resampled signal');
             if obj.referenceProvided
                 plot(obj.timeResampled, obj.referenceResampled, 'Color', obj.colors.reference, 'DisplayName', 'Resampled reference');
-                plot(obj.timeResampled, obj.referenceModeled, 'Color', obj.colors.threshold, 'LineStyle', '--', 'DisplayName', 'Baseline', 'HandleVisibility', 'off');
             end
-            plot(obj.timeResampled, obj.signalModeled, 'Color', obj.colors.threshold, 'LineStyle', '--', 'DisplayName', 'Baseline');
+            plot(obj.timeResampled, obj.signalResampled, 'Color', obj.colors.signal, 'DisplayName', 'Resampled signal');
+            if obj.referenceProvided
+                plot(obj.timeResampled, obj.referenceModeled, 'Color', obj.colors.threshold, 'LineStyle', '--', 'DisplayName', 'Photobleaching', 'HandleVisibility', 'off');
+            end
+            plot(obj.timeResampled, obj.signalModeled, 'Color', obj.colors.threshold, 'LineStyle', '--', 'DisplayName', 'Photobleaching');
             ylim(ylims);
             title('Raw data');
             legend('show');
@@ -650,12 +651,12 @@ classdef FPA < handle
             yy = [obj.signalCorrected(:); obj.referenceCorrected(:)];
             ylims = limits(yy, obj.zoomSettings{:});
             plotEpochs(obj.epochNames, obj.epochRanges, xlims, ylims, obj.cmap, false);
-            plot(obj.timeResampled, obj.signalCorrected, 'Color', obj.colors.signal, 'DisplayName', 'Corrected signal');
             if obj.referenceProvided
                 plot(obj.timeResampled, obj.referenceCorrected, 'Color', obj.colors.reference, 'DisplayName', 'Corrected reference');
             end
+            plot(obj.timeResampled, obj.signalCorrected, 'Color', obj.colors.signal, 'DisplayName', 'Corrected signal');
             ylim(ylims);
-            title('Baseline correction');
+            title('Photobleaching correction');
             legend('show');
 
             % Plot standardize signal and reference.
@@ -664,9 +665,11 @@ classdef FPA < handle
             yy = [obj.signalStandardized(:); obj.referenceStandardized(:)];
             ylims = limits(yy, obj.zoomSettings{:});
             plotEpochs(obj.epochNames, obj.epochRanges, xlims, ylims, obj.cmap, false);
-            plot(obj.timeResampled, obj.signalStandardized, 'Color', obj.colors.signal, 'DisplayName', 'Standardized signal');
             if obj.referenceProvided
                 plot(obj.timeResampled, obj.referenceStandardized, 'Color', obj.colors.reference, 'DisplayName', 'Standardized reference');
+            end
+            plot(obj.timeResampled, obj.signalStandardized, 'Color', obj.colors.signal, 'DisplayName', 'Standardized signal');
+            if obj.referenceProvided
                 if isEnabled(obj.fitReference)
                     plot(obj.timeResampled, obj.referenceFitted, 'Color', obj.colors.referenceFitted, 'DisplayName', 'Fitted reference');
                 end
@@ -681,8 +684,8 @@ classdef FPA < handle
             yy = [obj.f; obj.fSmoothed];
             ylims = limits(yy, obj.zoomSettings{:});
             plotEpochs(obj.epochNames, obj.epochRanges, xlims, ylims, obj.cmap, false);
-            plot(obj.timeResampled, obj.f, 'Color', obj.colors.signal, 'DisplayName', 'f');
-            plot(obj.timeResampled, obj.fSmoothed, 'Color', obj.colors.fSmoothed, 'DisplayName', 'f smooth');
+            plot(obj.timeResampled, obj.f, 'Color', obj.colors.threshold, 'DisplayName', 'f');
+            plot(obj.timeResampled, obj.fSmoothed, 'Color', obj.colors.signal, 'DisplayName', 'f smooth');
             ylim(ylims);
             title('Motion correction');
             legend('show');
@@ -1010,6 +1013,10 @@ classdef FPA < handle
         end
     end
     
+    properties (Constant)
+        version = '2.0.2'
+    end
+
     methods (Static)
         function defaults = Defaults()
             % FPA.Defaults()
@@ -1029,7 +1036,7 @@ classdef FPA < handle
             defaults.standardizeSignal = @(fpa) zscore(fpa.signalCorrected);
             defaults.standardizeReference = @(fpa) zscore(fpa.referenceCorrected);
             defaults.fitReference = @(fpa) fpa.fitReferenceToSignal(0.1, [-Inf, Inf]);
-            defaults.getF = @(fpa) fpa.signalCorrected - fpa.referenceFitted;
+            defaults.getF = @(fpa) fpa.signalStandardized - fpa.referenceFitted;
             defaults.smoothF = @(fpa, time, data) fpa.lowpass(time, data, 10);
             defaults.normalizeF = @(fpa, time, data) fpa.normalize(time, data, @median, @mad);
             defaults.normalizeEvents = @(fpa, time, data) fpa.normalize(time, data, {@mean, [-Inf, 0]}, 1);

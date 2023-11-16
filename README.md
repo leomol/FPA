@@ -255,12 +255,12 @@ Function that rescales the reference so that it is comparable to the signal.
 The result is saved into `fpa.referenceFitted`. 
 
 #### Default
-Fits a 0.1 Hz lowpass version of `fpa.referenceStandardize` to `fpa.signalStandardize` using a non-negative, bisquare, linear regression over the whole range.
+Fits a 0.1 Hz lowpass version of `fpa.referenceStandardize` to `fpa.signalStandardize` using a bisquare, linear regression over the whole range.
 
 #### Example customization
-Apply a non-negative, bisquare, linear regression over the epochs of choice, after lowpass filtering to 10 Hz:
+Apply a non-negative, least-squares fit at the given epochs, after lowpass filtering to 0.5 Hz:
 ```MATLAB
-config.fitReference = @(fpa) fpa.fitReferenceToSignal(10, [0, 300, 1200, 1500]);
+config.fitReference = @(fpa) fpa.fitReferenceToSignal(0.5, [0, 300, 1200, 1500]);
 ```
 
 ### `getF`
@@ -392,7 +392,7 @@ config.epochs = struct('Habituation', [0, 600], 'AirPuffPre', [600, 605, 630, 63
 FPA methods to customize the configuration:
 - `findPeaks(type, separation, peakThreshold)` - Find peaks in data.
 - `fit(time, data, fitType, epochs)` - Fit curve to trace of choice according to the fitting type.
-- `fitReferenceToSignal(targetFrequency, epochs)` - Fit reference to signal using a non-negative constrain.
+- `fitReferenceToSignal(targetFrequency, epochs)` - FFit reference to signal using non-negative, least-squares fit, at the given epochs.
 - `get(traceName, epochs)` - Get trace according to data choice and epoch range.
 - `ids(epochs)` - Get indices relative to `fpa.timeResampled` for the given epochs.
 - `interpolate(time, data, epochs)` - Interpolate trace linearly according to data choice and epoch range.

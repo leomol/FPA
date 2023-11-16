@@ -1,5 +1,15 @@
 ## Changelog
-* v2.0.0
+* v2.0.2
+	* 2023-11-15
+		- Changed defaults:
+		  - `getF` from `@(fpa) fpa.signalCorrected - fpa.referenceFitted` to `@(fpa) fpa.signalStandardized - fpa.referenceFitted;`
+		  - `referenceFitted` from `referenceCorrected` to `referenceStandardized`
+		  - `f` from `signalCorrected` to `signalStandardized`
+		- Replaced default `fitReferenceToSignal` function to calculate non-negative, bisquare, linear regression from `fit` to `lsqnonneg`.
+		- Changed legend from `Baseline` to `Photobleaching`
+		- Moved `signal` in front of `reference` in plotTrace figures.
+		- Added version number as a static field of FPA.
+* v2.0.1
 	* 2023-11-14
 		- Rename release names
 		- Removed unused tags
