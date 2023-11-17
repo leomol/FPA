@@ -49,7 +49,7 @@ config.correctReference = @(fpa) fpa.referenceTrimmed - fpa.referenceModeled;
 config.standardizeSignal = @(fpa) zscore(fpa.signalCorrected);
 config.standardizeReference = @(fpa) zscore(fpa.referenceCorrected);
 config.fitReference = @(fpa) fpa.fitReferenceToSignal(0.1, [-Inf, Inf]);
-config.getF = @(fpa) fpa.signalCorrected - fpa.referenceFitted;
+config.getF = @(fpa) fpa.signalStandardized - fpa.referenceFitted;
 config.smoothF = @(fpa, time, data) fpa.lowpass(time, data, 10);
 config.normalizeF = @(fpa, time, data) fpa.normalize(time, data, @median, @mad);
 config.normalizeEvents = @(fpa, time, data) fpa.normalize(time, data, {@mean, [-Inf, 0]}, 1);
@@ -104,7 +104,6 @@ The steps are defined in the `configuration` and results are saved as properties
 | `getPeaks`             | `peakIds`, `peakLabels` `peakCounts`                     |
 |          *             | `duration`                                               |
 |          *             | `area`                                                   |
-|          *             | `normalizedArea`                                         |
 
 \* Data available after all the processing steps have been executed.
 
@@ -138,7 +137,7 @@ While data undergoes multiple processing steps, the adjectives attached to them 
 ## Configuration
 A default behavior applies for any function or parameter not defined in the `configuration`.
 
-FPA helper functions used in the processing steps can be listed with `methods(FPA)` or by executing `FPA.Defaults()`
+FPA helper functions used in the processing steps can be listed with `methods(FPA)` or by executing `FPA.defaults`
 
 To disable any processing step, assign `[]` to the processing function.
 
@@ -433,10 +432,13 @@ Apply `df/f` using a moving window of 1 minute:
 
 further combinations possible with `@movmean`, `@movmedian`, `@movstd`, `@movmad`, ...
 
-Normalize using values provided by hand
+Normalize using known values
 ```MATLAB
-@(fpa, time, data) fpa.normalize(time, data, zeros(size(fpa.f)), ones(size(fpa.f)));
+@(fpa, time, data) (data – value1) / value2;
+@(fpa, time, data) (data – array1) / array2;
 ```
+
+
 
 ## Data loaders
 ### Load a CSV file (e.g. data acquired with Doric, Multifiber, or Inscopix DAQ)
