@@ -7,8 +7,9 @@
 		  - `f` from `signalCorrected` to `signalStandardized`
 		- Replaced default `fitReferenceToSignal` function to calculate non-negative, bisquare, linear regression from `fit` to `lsqnonneg`.
 		- Changed legend from `Baseline` to `Photobleaching`
-		- Moved `signal` in front of `reference` in plotTrace figures.
+		- Moved `signal` in front of `reference` in `plotTrace` figures.
 		- Added version number as a static field of FPA.
+		- Removed `exportAUC` and added this and additional data to `exportStatistics`
 * v2.0.1
 	* 2023-11-14
 		- Rename release names

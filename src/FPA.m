@@ -33,10 +33,10 @@
 % exportPeakAverage - Export peak-triggered average
 % 
 % FPA methods to export epoch delimited data:
-% exportAUC - Export area under the curve
-% exportStatistics - Export df/f's mean, median and max
+% exportStatistics - Export AUC, sum, mean, median, min and max for normalized f and epoch duration and peak counts.
 % 
 % FPA methods to customize the configuration:
+% adaptive - Get a baseline using the AirPLS function using default parameters
 % findPeaks - Find peaks in data
 % fit - Fit curve to trace according to the fitting type
 % fitReferenceToSignal - Fit reference to signal using non-negative, least-squares fit, at the given epochs
@@ -48,7 +48,7 @@
 % resample - Resample signal and reference according to frequency
 % 
 % FPA static methods:
-% AirPLS - Get a baseline using the AirPLS function using default parameters
+% Adaptive - Get a baseline using the AirPLS function using default parameters
 % Defaults - Get default configuration
 % Fit - Fit curve to trace according to the fitting type
 % Ids - Get indices relative to time for the given epochs
@@ -57,7 +57,7 @@
 % Normalize - Normalize data according to parameters f0 and f1
 % 
 % 2019-02-01. Leonardo Molina.
-% 2023-11-15. Last modified.
+% 2023-11-17. Last modified.
 classdef FPA < handle
     properties (Access = public)
         % time - Raw time
@@ -401,6 +401,12 @@ classdef FPA < handle
             obj.normalizedArea(obj.duration == 0) = 0;
         end
 
+        function data = adaptive(~, data)
+            % FPA.adaptive(data)
+            % Model a baseline in data using the airPLS algorithm with default parameters.
+            data = FPA.Adaptive(data);
+        end
+
         function peakIds = findPeaks(obj, type, separation, peakThreshold)
             % peakIds = FPA.findPeaks(type, separation, peakThreshold)
             % Shortcut to MATLAB's findpeaks.
@@ -705,7 +711,7 @@ classdef FPA < handle
             legend('show');
             
             % Move axes together.
-            axs = findobj(gcf(), 'type', 'axes');
+            axs = findobj(fig, 'type', 'axes');
             linkaxes(axs, 'x');
             xlim(axs(1), [obj.timeResampled(1), obj.timeResampled(end)]);
             set(axs(2:end), 'XTick', []);
@@ -779,18 +785,6 @@ classdef FPA < handle
             annotation('textbox', [0, 0.95, 1, 0.05], 'string', name, 'LineStyle', 'none');
         end
         
-        function exportAUC(obj, filename)
-            % FPA.exportAUC(filename)
-            % Export area under the curve (both normalized and unnormalized).
-
-            fid = fopen(filename, 'w');
-            fprintf(fid, 'conditionId, conditionName, area, duration, normalizedArea\n');
-            data = [obj.epochNames(:), num2cell([colon(1, obj.nEpochs)', obj.area, obj.duration, obj.normalizedArea])];
-            data = data(:, [2, 1, 3, 4, 5])';
-            fprintf(fid, '%i, %s, %f, %f, %f\n', data{:});
-            fclose(fid);
-        end
-        
         function exportF(obj, filename)
             % FPA.exportF(filename)
             % Export time vs f  (both normalized and unnormalized).
@@ -804,14 +798,14 @@ classdef FPA < handle
         
         function exportStatistics(obj, filename)
             % FPA.exportStatistics(filename)
-            % Export simple statistics (mean, median, max) for normalized f, for each epoch.
+            % Export AUC, sum, mean, median, min and max for normalized f and epoch duration and peak counts.
 
             fid = fopen(filename, 'w');
-            fprintf(fid, 'conditionId, conditionName, mean, median, max\n');
+            fprintf(fid, 'conditionId, conditionName, duration, area, sum, mean, median, min, max, peakCount\n');
             for c = 1:numel(obj.epochStartIds)
                 x = obj.fNormalized(obj.epochStartIds(c):obj.epochStopIds(c));
                 label = obj.epochStartLabels(c);
-                fprintf(fid, '%i, %s, %f, %f, %f\n', obj.epochStartLabels(c), obj.epochNames{label}, mean(x), median(x), max(x));
+                fprintf(fid, '%i, %s, %f, %f, %f, %f, %f, %f, %f, %i\n', obj.epochStartLabels(c), obj.epochNames{label}, obj.duration(c), obj.area(c), sum(x), mean(x), median(x), min(x), max(x), obj.peakCounts(c));
             end
             fclose(fid);
         end
@@ -1014,38 +1008,42 @@ classdef FPA < handle
     end
     
     properties (Constant)
+        % version - FPA version
         version = '2.0.2'
+
+        % defaults - Configuration defaults.
+        defaults = FPA.Defaults();
     end
 
     methods (Static)
-        function defaults = Defaults()
+        function config = Defaults()
             % FPA.Defaults()
             % Default parameters for preprocessing.
-
-            defaults = struct();
-            defaults.epochs = {'Data', [-Inf, Inf]};
-            defaults.resampleData = @(fpa) fpa.resample(100);
-            defaults.trimSignal = @(fpa, time, data) fpa.interpolate(time, data, []);
-            defaults.trimReference = @(fpa, time, data) fpa.interpolate(time, data, []);
-            defaults.smoothSignal = @(fpa, time, data) fpa.lowpass(time, data, 0.1);
-            defaults.smoothReference = @(fpa, time, data) fpa.lowpass(time, data, 0.1);
-            defaults.modelSignal = @(fpa, time, data) fpa.fit(time, data, 'exp1', [-Inf, Inf]);
-            defaults.modelReference = @(fpa, time, data) fpa.fit(time, data, 'exp1', [-Inf, Inf]);
-            defaults.correctSignal = @(fpa) fpa.signalTrimmed - fpa.signalModeled;
-            defaults.correctReference = @(fpa) fpa.referenceTrimmed - fpa.referenceModeled;
-            defaults.standardizeSignal = @(fpa) zscore(fpa.signalCorrected);
-            defaults.standardizeReference = @(fpa) zscore(fpa.referenceCorrected);
-            defaults.fitReference = @(fpa) fpa.fitReferenceToSignal(0.1, [-Inf, Inf]);
-            defaults.getF = @(fpa) fpa.signalStandardized - fpa.referenceFitted;
-            defaults.smoothF = @(fpa, time, data) fpa.lowpass(time, data, 10);
-            defaults.normalizeF = @(fpa, time, data) fpa.normalize(time, data, @median, @mad);
-            defaults.normalizeEvents = @(fpa, time, data) fpa.normalize(time, data, {@mean, [-Inf, 0]}, 1);
-            defaults.normalizePeaks = @(fpa, time, data) fpa.normalize(time, data, {@mean, [-Inf, 0]}, 1);
-            defaults.getPeaks = @(fpa) fpa.findPeaks('prominence', 0.5, median(fpa.fNormalized) + 2.91 * mad(fpa.fNormalized));
+            
+            config = struct();
+            config.epochs = {'Data', [-Inf, Inf]};
+            config.resampleData = @(fpa) fpa.resample(100);
+            config.trimSignal = @(fpa, time, data) fpa.interpolate(time, data, []);
+            config.trimReference = @(fpa, time, data) fpa.interpolate(time, data, []);
+            config.smoothSignal = @(fpa, time, data) fpa.lowpass(time, data, 0.1);
+            config.smoothReference = @(fpa, time, data) fpa.lowpass(time, data, 0.1);
+            config.modelSignal = @(fpa, time, data) fpa.fit(time, data, 'exp1', [-Inf, Inf]);
+            config.modelReference = @(fpa, time, data) fpa.fit(time, data, 'exp1', [-Inf, Inf]);
+            config.correctSignal = @(fpa) fpa.signalTrimmed - fpa.signalModeled;
+            config.correctReference = @(fpa) fpa.referenceTrimmed - fpa.referenceModeled;
+            config.standardizeSignal = @(fpa) zscore(fpa.signalCorrected);
+            config.standardizeReference = @(fpa) zscore(fpa.referenceCorrected);
+            config.fitReference = @(fpa) fpa.fitReferenceToSignal(0.1, [-Inf, Inf]);
+            config.getF = @(fpa) fpa.signalStandardized - fpa.referenceFitted;
+            config.smoothF = @(fpa, time, data) fpa.lowpass(time, data, 10);
+            config.normalizeF = @(fpa, time, data) fpa.normalize(time, data, @median, @mad);
+            config.normalizeEvents = @(fpa, time, data) fpa.normalize(time, data, {@mean, [-Inf, 0]}, 1);
+            config.normalizePeaks = @(fpa, time, data) fpa.normalize(time, data, {@mean, [-Inf, 0]}, 1);
+            config.getPeaks = @(fpa) fpa.findPeaks('prominence', 0.5, median(fpa.fNormalized) + 2.91 * mad(fpa.fNormalized));
         end
         
-        function data = AirPLS(data)
-            % FPA.AirPLS(data)
+        function data = Adaptive(data)
+            % FPA.Adaptive(data)
             % Model a baseline in data using the airPLS algorithm with default parameters.
             
             if ~isempty(data)
@@ -1245,20 +1243,6 @@ function plotTriggerAverage(data, ids, labels, window, frequency, normalization,
     ids = ids(r);
     nTicks = numel(window);
     timeTicks = window / frequency;
-    
-    % Option 1: Difference of exponential functions.
-    %model = @(p, x) p(1) + p(2) * (exp(-x / p(3)) - exp(-x / p(4)));
-    %mask = true(size(time));
-    %initial = @(y, duration) [median(y), std(y), duration / 2, duration / 2];
-    
-    % Option 2: Exponential function.
-    model = @(p, x) p(1) + p(2) * exp(-x / p(3));
-    mask = timeTicks >= 0;
-    initial = @(y, duration) [median(y), std(y), duration / 2];
-    
-    duration = max(timeTicks) - min(timeTicks);
-    options = optimoptions('lsqcurvefit', 'Algorithm', 'levenberg-marquardt', 'Display', 'off');
-    
     if numel(ids) > 0
         hold('all');
         nEpochs = numel(names);
@@ -1274,33 +1258,20 @@ function plotTriggerAverage(data, ids, labels, window, frequency, normalization,
                 triggeredData = normalization(timeTicks, triggeredData);
                 av = mean(triggeredData, 2);
                 sd = std(triggeredData, [], 2);
-                
-                x = timeTicks(mask) - min(timeTicks(mask));
-                y = av(mask);
-                parameters = lsqcurvefit(model, initial(y, duration), x(:), y(:), [], [], options);
-                tauFall = parameters(end);
-                
                 % Plot.
                 plot(timeTicks, av, 'Color', colors(c, :), 'HandleVisibility', 'off');
-                if parameters(2) <= 0
-                    tauFallText = sprintf('<Inf>');
-                else
-                    tauFallText = sprintf('%.2fs', tauFall);
-                    plot(timeTicks(mask), model(parameters, timeTicks(mask)), 'Color', colors(c, :), 'LineStyle', '--', 'HandleVisibility', 'off');
-                end
                 sem = sd / sqrt(nTriggers);
                 sem0 = sem(ceil(numel(sem) / 2));
                 vertices = [timeTicks, av + sem / 2];
                 vertices = cat(1, vertices, flipud([timeTicks, av - sem / 2]));
                 faces = 1:2 * nTicks;
-                label = sprintf('%s (SEM=%.2f, tau=%s, n = %i)', names{c}, sem0, tauFallText, nTriggers);
+                label = sprintf('%s (SEM=%.2f, n=%i)', names{c}, sem0, nTriggers);
                 patch('Faces', faces, 'Vertices', vertices, 'FaceColor', colors(c, :), 'EdgeColor', 'none', 'FaceAlpha', 0.10, 'DisplayName', label);
             end
         end
     else
         text(0.5, 0.5, message, 'HorizontalAlignment', 'center');
     end
-    plot(NaN(2, 1), NaN(2, 1), 'Color', 'k', 'LineStyle', '--', 'DisplayName', 'Exponential fit');
     legend('show');
     xlabel('Time (s)');
     axis('tight');

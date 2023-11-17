@@ -374,11 +374,9 @@ config.epochs = struct('Habituation', [0, 600], 'AirPuffPre', [600, 605, 630, 63
 - `plotPeakHeatmap([window])` - Similar to `plotPeaks` but displaying each trigger using a heatmap plot.
 
 # Exporting functions
-- `exportAUC(filename)` - Export area under the curve (both normalized and unnormalized).
-
 - `exportF(filename)` - Export time vs f  (both normalized and unnormalized).
 
-- `exportStatistics(filename)` - Export simple statistics (mean, median, max) for normalized f, for each epoch.
+- `exportStatistics(filename)` - Export AUC, sum, mean, median, min and max for normalized f and epoch duration and peak counts.
 
 - `exportEvents(filename, eventTimes, [window], [asColumns])` - Export event-triggered traces with corresponding epoch name for time points given by `eventTimes`, using a `window` of a given size (defaults to 5s). When `asColumns` is set to `true` (default), the output `csv` file will show data in columns, otherwise as rows.
 
