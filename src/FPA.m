@@ -57,7 +57,7 @@
 % Normalize - Normalize data according to parameters f0 and f1
 % 
 % 2019-02-01. Leonardo Molina.
-% 2023-11-17. Last modified.
+% 2023-11-18. Last modified.
 classdef FPA < handle
     properties (Access = public)
         % time - Raw time
@@ -401,10 +401,10 @@ classdef FPA < handle
             obj.normalizedArea(obj.duration == 0) = 0;
         end
 
-        function data = adaptive(~, data)
-            % FPA.adaptive(data)
+        function data = adaptive(~, data, varargin)
+            % FPA.adaptive(data, lambda, order, wep, p, itermax)
             % Model a baseline in data using the airPLS algorithm with default parameters.
-            data = FPA.Adaptive(data);
+            data = FPA.Adaptive(data, varargin{:});
         end
 
         function peakIds = findPeaks(obj, type, separation, peakThreshold)
@@ -1042,12 +1042,14 @@ classdef FPA < handle
             config.getPeaks = @(fpa) fpa.findPeaks('prominence', 0.5, median(fpa.fNormalized) + 2.91 * mad(fpa.fNormalized));
         end
         
-        function data = Adaptive(data)
-            % FPA.Adaptive(data)
+        function data = Adaptive(data, varargin)
+            % FPA.Adaptive(data, lambda, order, wep, p, itermax)
             % Model a baseline in data using the airPLS algorithm with default parameters.
             
+            parameters = {5e9, 2, 0.1, 0.5, 50};
+            [parameters{1:numel(varargin)}] = deal(varargin{:});
             if ~isempty(data)
-                [~, data] = FPA.airPLS(data(:)', 5e9, 2, 0.1, 0.5, 50);
+                [~, data] = FPA.airPLS(data(:)', parameters{:});
                 data = data(:);
             end
         end
