@@ -1,5 +1,10 @@
 ## Changelog
+* v2.0.3
+	* 2023-12-07
+		- Modified `Doric.Load` to handle more data storage choices.
 * v2.0.2
+	* 2023-11-30
+		- Made `frequency` a public property.
 	* 2023-11-15
 		- Changed defaults:
 		  - `getF` from `@(fpa) fpa.signalCorrected - fpa.referenceFitted` to `@(fpa) fpa.signalStandardized - fpa.referenceFitted;`

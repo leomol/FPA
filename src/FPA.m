@@ -57,7 +57,7 @@
 % Normalize - Normalize data according to parameters f0 and f1
 % 
 % 2019-02-01. Leonardo Molina.
-% 2023-11-18. Last modified.
+% 2023-11-30. Last modified.
 classdef FPA < handle
     properties (Access = public)
         % time - Raw time
@@ -160,6 +160,9 @@ classdef FPA < handle
         peakLabels
         % peakCounts - Number of peaks within each epoch
         peakCounts
+        
+        % frequency - Resampling frequency
+        frequency
     end
     
     properties (Access = private)
@@ -181,9 +184,6 @@ classdef FPA < handle
         epochIds
         % epochLabels - Labels given to indices found within the same epoch
         epochLabels
-        
-        % frequency - Resampling frequency
-        frequency
         
         % Settings for visualization.
         cmap = lines();
