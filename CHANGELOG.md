@@ -1,4 +1,7 @@
 ## Changelog
+* v2.0.4
+	* 2023-12-07
+		- Fixed bug when the user attempts to resample to frequencies higher than the sampling rate.
 * v2.0.3
 	* 2023-12-07
 		- Modified `Doric.Load` to handle more data storage choices.
