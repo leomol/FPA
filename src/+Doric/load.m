@@ -28,8 +28,7 @@ function data = load(filename, patterns)
             };
     end
     nTargets = numel(patterns);
-    info = h5info(filename, '/DataAcquisition');
-    locations = getLocations(filename, info);
+    locations = getLocations(filename);
     match = @(pattern) locations(find(~cellfun(@isempty, regexp(locations, pattern, 'match')), 1));
     data = h5read(filename, match(patterns{1}));
     data(:, 2:nTargets) = NaN;
@@ -43,15 +42,18 @@ function data = load(filename, patterns)
     end
 end
 
-function locations = getLocations(filename, dataAcquisition)
-    nGroups = numel(dataAcquisition.Groups);
-    nDatasets = numel(dataAcquisition.Datasets);
+function locations = getLocations(filename, location)
+    if nargin < 2
+        location = h5info(filename, '/DataAcquisition');
+    end
+    nGroups = numel(location.Groups);
+    nDatasets = numel(location.Datasets);
     if nGroups > 0
         locations = zeros(0, 1);
         for i = 1:nGroups
-            locations = cat(1, locations, getLocations(filename, dataAcquisition.Groups(i)));
+            locations = cat(1, locations, getLocations(filename, location.Groups(i)));
         end
     elseif nDatasets > 0
-        locations = dataAcquisition.Name + "/" + {dataAcquisition.Datasets.Name}';
+        locations = location.Name + "/" + {location.Datasets.Name}';
     end
 end
