@@ -36,7 +36,7 @@ function data = load(filename, patterns)
     for i = 2:nTargets
         location = match(patterns{i});
         if isempty(location)
-            error('[Doric.read] Could not match pattern %i against available locations:\n%s', i, sprintf('  %s\n', locations{:}));
+            error('[Doric.load] Could not match pattern %i against available locations:\n%s', i, sprintf('  %s\n', locations{:}));
         else
             data(:, i) = h5read(filename, match(patterns{i}));
         end
@@ -52,6 +52,6 @@ function locations = getLocations(filename, dataAcquisition)
             locations = cat(1, locations, getLocations(filename, dataAcquisition.Groups(i)));
         end
     elseif nDatasets > 0
-        locations = dataAcquisition.Name + "/" + string({dataAcquisition.Datasets.Name}');
+        locations = dataAcquisition.Name + "/" + {dataAcquisition.Datasets.Name}';
     end
 end
