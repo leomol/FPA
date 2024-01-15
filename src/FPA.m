@@ -57,7 +57,7 @@
 % Normalize - Normalize data according to parameters f0 and f1
 % 
 % 2019-02-01. Leonardo Molina.
-% 2023-12-07. Last modified.
+% 2024-01-18. Last modified.
 classdef FPA < handle
     properties (Access = public)
         % time - Raw time
@@ -1013,7 +1013,7 @@ classdef FPA < handle
     
     properties (Constant)
         % version - FPA version
-        version = '2.0.4'
+        version = '2.0.5'
 
         % defaults - Configuration defaults.
         defaults = FPA.Defaults();

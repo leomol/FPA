@@ -1,4 +1,10 @@
 ## Changelog
+* v2.0.5
+	* 2024-01-18
+		- Added `Doric.getLocations(filename)`
+		- Added datasets to the defaults in `Doric.load(filename, [datasets])`
+		- Moved `Boris.load` to `Boris.TSV.load`
+		- Added `Boris.CSV.load`
 * v2.0.4
 	* 2023-12-07
 		- Fixed bug when the user attempts to resample to frequencies higher than the sampling rate.
