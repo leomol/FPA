@@ -1,5 +1,10 @@
 ## Changelog
 * v2.0.5
+	* 2024-01-19
+		- Moved `Boris.TSV.load` to `Boris.Aggregated.load`
+		- Moved `Boris.CSV.load` to `Boris.Tabulated.load`
+		- Created `Boris.load` which calls `Aggregated` or `Tabulated` automatically.
+		- Modified `Doric.load` to provide more information during errors.
 	* 2024-01-18
 		- Added `Doric.getLocations(filename)`
 		- Added datasets to the defaults in `Doric.load(filename, [datasets])`
