@@ -10,28 +10,37 @@
 %   {'behavior1', [start1, stop1, start2, stop2, ...], 'behavior2', [start1, stop1, start2, stop2, ...]}
 
 % 2021-02-26. Leonardo Molina.
-% 2024-01-19. Last modified.
+% 2024-06-17. Last modified.
 function varargout = load(filename)
     % Data is separated by commas or tabs.
     fid = fopen(filename, 'r');
-    line = fgetl(fid);
-    delimiter = ',';
-    header = strsplit(line, delimiter);
-    if numel(header) == 1
-        delimiter = '\t';
-        header = strsplit(line, delimiter);
+    targets = 'Time|Behavior type|Status|Behavior';
+    pattern = ['\<(' targets ')\>.*\<(' targets ')\>.*\<(' targets ')\>'];
+    nHeaderLines = 1;
+    while true
+        line = fgetl(fid);
+        targetColumns = regexp(line, pattern, 'tokens', 'once');
+        if isempty(targetColumns)
+            nHeaderLines = nHeaderLines + 1;
+        else
+            break;
+        end
     end
+    delimiter = regexp(line, '([,\t])', 'match', 'once');
+    header = strsplit(line, delimiter);
+    
+    % Status column can be one of two: 'Behavior type' or 'Status'
+    statusColumnName = targetColumns{~ismember(targetColumns, {'Behavior', 'Time'})};
+
     % Read all columns as text.
     format = repmat({'%s'}, size(header));
     % Some columns are expected to be numeric.
     [format{ismember(header, {'Time', 'Total length', 'FPS'})}] = deal('%f');
     format = [format{:}];
     % Target columns.
-    [~, columns] = intersect(header, {'Behavior', 'Behavior type', 'Time'});
-    % Reset cursor.
-    fseek(fid, 0, 'bof');
+    [~, columns] = intersect(header, {'Behavior', statusColumnName, 'Time'});
     % Read, sort columns, and assign.
-    data = textscan(fid, format, 'Delimiter', delimiter, 'HeaderLines', 1);
+    data = textscan(fid, format, 'Delimiter', delimiter);
     data = data(columns);
     time = cat(1, data{3});
     labels = data{1};
@@ -40,8 +49,7 @@ function varargout = load(filename)
     % Sort data so that every behavior starts and stops in consecutive rows.
     fseek(fid, 0, 'bof');
     format = repmat('%s', size(header));
-    % Read time as text to find the largest decimal count.
-    data = textscan(fid, format, 'Delimiter', delimiter, 'HeaderLines', 1);
+    data = textscan(fid, format, 'Delimiter', delimiter, 'HeaderLines', nHeaderLines);
     timeText = data{columns(3)};
     decimalsText = regexp(timeText, '\.(\d+)', 'tokens', 'once');
     decimalsText = [decimalsText{:}];

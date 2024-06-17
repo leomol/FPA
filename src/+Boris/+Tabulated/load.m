@@ -10,14 +10,14 @@
 %   {'behavior1', [start1, stop1, start2, stop2, ...], 'behavior2', [start1, stop1, start2, stop2, ...]}
 
 % 2021-02-26. Leonardo Molina.
-% 2024-01-19. Last modified.
+% 2024-06-17. Last modified.
 function varargout = load(filename)
     % Data is separated by commas or tabs.
     fid = fopen(filename, 'r');
     line = fgetl(fid);
     delimiter = ',';
     header = strsplit(line, delimiter);
-    if numel(header) == 1
+    if isscalar(header)
         delimiter = '\t';
         header = strsplit(line, delimiter);
     end
