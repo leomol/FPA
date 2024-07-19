@@ -1,5 +1,7 @@
 ## Changelog
 * v2.0.5
+	* 2024-07-19
+		- Fixed trimSignal and trimReference.
 	* 2024-01-19
 		- Moved `Boris.TSV.load` to `Boris.Aggregated.load`
 		- Moved `Boris.CSV.load` to `Boris.Tabulated.load`

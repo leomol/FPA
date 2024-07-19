@@ -57,7 +57,7 @@
 % Normalize - Normalize data according to parameters f0 and f1
 % 
 % 2019-02-01. Leonardo Molina.
-% 2024-01-18. Last modified.
+% 2024-07-19. Last modified.
 classdef FPA < handle
     properties (Access = public)
         % time - Raw time
@@ -1099,7 +1099,7 @@ classdef FPA < handle
 
             if ~isempty(epochs)
                 % Index of artifacts and non-artifacts.
-                artifactId = FPA.ids(time, epochs);
+                artifactId = FPA.Ids(time, epochs);
                 artifactFreeId = setdiff(colon(1, numel(time))', artifactId);
                 data(artifactId) = interp1(artifactFreeId, data(artifactFreeId), artifactId);
             end
@@ -1133,7 +1133,7 @@ function output = parseNormalizationParameter(time, data, parameters)
     
     if iscell(parameters)
         fcn = parameters{1};
-        if numel(parameters) == 1
+        if isscalar(parameters)
             parameters{2} = [-Inf, Inf];
         end
         if isscalar(parameters{2})
