@@ -31,7 +31,7 @@ fpa = FPA(time, signal, reference);
 fpa.plotTrace();
 ```
 
-### Modifying default configuration
+### Changing the default configuration
 Configure each of the analysis steps. With the help of this documentation, you may adjust some values or whole functions altogether to customize the analysis.
 
 ```MATLAB

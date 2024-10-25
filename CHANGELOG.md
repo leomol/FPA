@@ -1,5 +1,7 @@
 ## Changelog
 * v2.0.5
+	* 2024-08-29
+		- Fixed a bug in `exportStatistics` where function would error when epochs was given in multiple ranges.
 	* 2024-07-19
 		- Fixed trimSignal and trimReference.
 	* 2024-01-19

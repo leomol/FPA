@@ -57,7 +57,7 @@
 % Normalize - Normalize data according to parameters f0 and f1
 % 
 % 2019-02-01. Leonardo Molina.
-% 2024-07-19. Last modified.
+% 2024-10-25. Last modified.
 classdef FPA < handle
     properties (Access = public)
         % time - Raw time
@@ -806,8 +806,9 @@ classdef FPA < handle
 
             fid = fopen(filename, 'w');
             fprintf(fid, 'conditionId, conditionName, duration, area, sum, mean, median, min, max, peakCount\n');
-            for c = 1:numel(obj.epochStartIds)
-                x = obj.fNormalized(obj.epochStartIds(c):obj.epochStopIds(c));
+            for c = 1:obj.nEpochs
+                k = obj.ids(obj.epochRanges{c});
+                x = obj.fNormalized(k);
                 label = obj.epochStartLabels(c);
                 fprintf(fid, '%i, %s, %f, %f, %f, %f, %f, %f, %f, %i\n', obj.epochStartLabels(c), obj.epochNames{label}, obj.duration(c), obj.area(c), sum(x), mean(x), median(x), min(x), max(x), obj.peakCounts(c));
             end
@@ -1013,7 +1014,7 @@ classdef FPA < handle
     
     properties (Constant)
         % version - FPA version
-        version = '2.0.5'
+        version = '2.0.6'
 
         % defaults - Configuration defaults.
         defaults = FPA.Defaults();
