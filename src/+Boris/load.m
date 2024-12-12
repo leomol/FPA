@@ -10,7 +10,7 @@
 %   {'behavior1', [start1, stop1, start2, stop2, ...], 'behavior2', [start1, stop1, start2, stop2, ...]}
 
 % 2021-02-26. Leonardo Molina.
-% 2024-01-19. Last modified.
+% 2024-12-12. Last modified.
 function varargout = load(filename)
     % Data is separated by commas.
     fid = fopen(filename, 'r');
@@ -19,8 +19,13 @@ function varargout = load(filename)
     header = strsplit(line, '[,\t]', 'DelimiterType', 'RegularExpression');
     varargout = cell(1, nargout);
     if ismember('Start (s)', header)
-        [varargout{:}] = deal(Boris.Tabulated.load(filename));
+        fcn = @Boris.Tabulated.load;
     else
-        [varargout{:}] = deal(Boris.Aggregated.load(filename));
+        fcn = @Boris.Aggregated.load;
+    end
+    if nargout == 1
+        varargout{1} = fcn(filename);
+    else
+        [varargout{1}, varargout{2}, varargout{3}] = fcn(filename);
     end
 end

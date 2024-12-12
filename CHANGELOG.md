@@ -1,4 +1,7 @@
 ## Changelog
+* v2.0.6
+	* 2024-12-12
+		- `Boris.load` now correctly returns one or three outputs.
 * v2.0.5
 	* 2024-08-29
 		- Fixed a bug in `exportStatistics` where function would error when epochs was given in multiple ranges.
