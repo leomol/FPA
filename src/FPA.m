@@ -386,9 +386,9 @@ classdef FPA < handle
                 if all(obj.idLabels(k) == 0)
                     obj.idLabels(k) = c;
                 else
-                    % xlims = obj.timeResampled([1, end]);
-                    % ylims = [0, 1];
-                    % plotEpochs(obj.epochNames, obj.epochRanges, xlims, ylims, obj.cmap, true);
+                    xlims = obj.timeResampled([1, end]);
+                    ylims = [0, 1];
+                    plotEpochs(obj.epochNames, obj.epochRanges, xlims, ylims, obj.cmap, true);
                     error('Epoch definitions are overlapping');
                 end
                 % Start/stop-triggered data.
@@ -900,9 +900,9 @@ classdef FPA < handle
             % Get indices for time triggers.
             x = arrayfun(@(t) find(obj.timeResampled >= t, 1, 'first'), eventTimes, 'UniformOutput', false);
             r = ~cellfun(@isempty, x);
-
+            
             eventIds = [x{r}]';
-            eventLabels = obj.idLabels(eventIds)
+            eventLabels = obj.idLabels(eventIds);
         end
         
         function template = parseWindow(obj, window)
