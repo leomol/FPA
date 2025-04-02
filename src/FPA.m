@@ -57,7 +57,7 @@
 % Normalize - Normalize data according to parameters f0 and f1
 % 
 % 2019-02-01. Leonardo Molina.
-% 2024-10-25. Last modified.
+% 2025-04-02. Last modified.
 classdef FPA < handle
     properties (Access = public)
         % time - Raw time
@@ -184,6 +184,9 @@ classdef FPA < handle
         epochIds
         % epochLabels - Labels given to indices found within the same epoch
         epochLabels
+
+        % idLabels - Epoch label for each time point.
+        idLabels
         
         % Settings for visualization.
         cmap = lines();
@@ -373,12 +376,21 @@ classdef FPA < handle
             obj.peakCounts = zeros(obj.nEpochs, 1);
             obj.duration = zeros(obj.nEpochs, 1);
             obj.area = zeros(obj.nEpochs, 1);
+            obj.idLabels = zeros(size(obj.timeResampled));
             
             for c = 1:obj.nEpochs
                 % Accumulate vector indices limited to conditions.
                 [k, bounds] = obj.ids(obj.epochRanges{c});
                 startIds = bounds(1, :);
                 stopIds = bounds(2, :);
+                if all(obj.idLabels(k) == 0)
+                    obj.idLabels(k) = c;
+                else
+                    % xlims = obj.timeResampled([1, end]);
+                    % ylims = [0, 1];
+                    % plotEpochs(obj.epochNames, obj.epochRanges, xlims, ylims, obj.cmap, true);
+                    error('Epoch definitions are overlapping');
+                end
                 % Start/stop-triggered data.
                 n = numel(bounds) / 2;
                 obj.epochStartIds = cat(1, obj.epochStartIds, startIds(:));
@@ -569,7 +581,7 @@ classdef FPA < handle
                 else
                     axs{c} = subplot(obj.nEpochs, 1, c);
                 end
-                hold('all');
+                hold('on');
                 epochName = obj.epochNames{c};
                 epochRange = obj.epochRanges{c};
                 k = obj.ids(epochRange);
@@ -613,7 +625,7 @@ classdef FPA < handle
             % Not all epochs may be available.
             boxplotNames = obj.epochNames(unique(obj.epochLabels));
             boxplot(obj.fNormalized(obj.epochIds), obj.epochLabels, 'Labels', boxplotNames);
-            hold('all');
+            hold('on');
             ylims = ylim();
             for c = 1:obj.nEpochs
                 k = obj.ids(obj.epochRanges{c});
@@ -639,7 +651,7 @@ classdef FPA < handle
             
             % Plot raw signal, reference, and photobleaching model.
             subplot(5, 1, 1);
-            hold('all');
+            hold('on');
             yy = [obj.signalResampled(:); obj.referenceResampled(:); obj.signalModeled(:)];
             ylims = limits(yy, obj.zoomSettings{:});
             plotEpochs(obj.epochNames, obj.epochRanges, xlims, ylims, obj.cmap, true);
@@ -657,7 +669,7 @@ classdef FPA < handle
             
             % Plot bleaching corrected signal and reference.
             subplot(5, 1, 2);
-            hold('all');
+            hold('on');
             yy = [obj.signalCorrected(:); obj.referenceCorrected(:)];
             ylims = limits(yy, obj.zoomSettings{:});
             plotEpochs(obj.epochNames, obj.epochRanges, xlims, ylims, obj.cmap, false);
@@ -671,7 +683,7 @@ classdef FPA < handle
 
             % Plot standardize signal and reference.
             subplot(5, 1, 3);
-            hold('all');
+            hold('on');
             yy = [obj.signalStandardized(:); obj.referenceStandardized(:)];
             ylims = limits(yy, obj.zoomSettings{:});
             plotEpochs(obj.epochNames, obj.epochRanges, xlims, ylims, obj.cmap, false);
@@ -690,7 +702,7 @@ classdef FPA < handle
             
             % Plot motion correction (f and lowpass f).
             subplot(5, 1, 4);
-            hold('all');
+            hold('on');
             yy = [obj.f; obj.fSmoothed];
             ylims = limits(yy, obj.zoomSettings{:});
             plotEpochs(obj.epochNames, obj.epochRanges, xlims, ylims, obj.cmap, false);
@@ -702,7 +714,7 @@ classdef FPA < handle
             
             % Plot normalization (e.g. df/f) and peak detection.
             subplot(5, 1, 5);
-            hold('all');
+            hold('on');
             yy = obj.fNormalized;
             ylims = limits(yy, obj.zoomSettings{:});
             tmpNames = arrayfun(@(e) sprintf('area:%.2f / %i peaks', obj.area(e), obj.peakCounts(e)), 1:obj.nEpochs, 'UniformOutput', false);
@@ -735,7 +747,7 @@ classdef FPA < handle
             [eventIds, eventLabels] = obj.getEventData(eventTimes);
             if numel(eventIds) > 0
                 template = obj.parseWindow(window);
-                plotTriggerAverage(obj.fNormalized, eventIds, eventLabels, template, obj.frequency, @(time, data) obj.normalizeEvents(obj, time, data), obj.epochNames, obj.cmap, 'No events'); % !!
+                plotTriggerAverage(obj.fNormalized, eventIds, eventLabels, template, obj.frequency, @(time, data) obj.normalizeEvents(obj, time, data), obj.epochNames, obj.cmap, 'No events');
                 ylabel('df/f');
                 title(name);
             end
@@ -753,7 +765,7 @@ classdef FPA < handle
             [eventIds, eventLabels] = obj.getEventData(eventTimes);
             if numel(eventIds) > 0
                 template = obj.parseWindow(window);
-                plotTriggerHeatmap(obj.fNormalized, eventIds, eventLabels, template, @(time, data) obj.normalizeEvents(obj, time, data), obj.frequency, obj.epochNames, 'No events'); % !!
+                plotTriggerHeatmap(obj.fNormalized, eventIds, eventLabels, template, @(time, data) obj.normalizeEvents(obj, time, data), obj.frequency, obj.epochNames, 'No events');
                 annotation('textbox', [0, 0.95, 1, 0.05], 'string', name, 'LineStyle', 'none');
             end
         end
@@ -769,7 +781,7 @@ classdef FPA < handle
             fig = figure('name', ['FPA: ' name]);
             template = obj.parseWindow(window);
             k = obj.peakLabels > 0;
-            plotTriggerAverage(obj.fNormalized, obj.peakIds(k), obj.peakLabels(k), template, obj.frequency, @(time, data) obj.normalizePeaks(obj, time, data), obj.epochNames, obj.cmap, 'No peaks'); % !! obj.epochNames(obj.peakLabels(k)) ?
+            plotTriggerAverage(obj.fNormalized, obj.peakIds(k), obj.peakLabels(k), template, obj.frequency, @(time, data) obj.normalizePeaks(obj, time, data), obj.epochNames, obj.cmap, 'No peaks');
             ylabel('df/f');
             title(name);
         end
@@ -785,7 +797,7 @@ classdef FPA < handle
             fig = figure('name', ['FPA: ' name]);
             template = obj.parseWindow(window);
             k = obj.peakLabels > 0;
-            plotTriggerHeatmap(obj.fNormalized, obj.peakIds(k), obj.peakLabels(k), template, @(time, data) obj.normalizePeaks(obj, time, data), obj.frequency, obj.epochNames, 'No peaks'); % !!
+            plotTriggerHeatmap(obj.fNormalized, obj.peakIds(k), obj.peakLabels(k), template, @(time, data) obj.normalizePeaks(obj, time, data), obj.frequency, obj.epochNames, 'No peaks');
             annotation('textbox', [0, 0.95, 1, 0.05], 'string', name, 'LineStyle', 'none');
         end
         
@@ -884,25 +896,13 @@ classdef FPA < handle
         function [eventIds, eventLabels] = getEventData(obj, eventTimes)
             % [eventIds, eventLabels] = FPA.getEventData(eventTimes)
             % Get eventIds and eventLabels given eventTimes.
-
-            eventIds = zeros(0, 1);
-            eventLabels = zeros(0, 1);
             
             % Get indices for time triggers.
             x = arrayfun(@(t) find(obj.timeResampled >= t, 1, 'first'), eventTimes, 'UniformOutput', false);
             r = ~cellfun(@isempty, x);
-            eventTimeIds = [x{r}];
-            
-            for c = 1:obj.nEpochs
-                % Accumulate vector indices limited to conditions.
-                k = obj.ids(obj.epochRanges{c});
-                
-                % Event-triggered data.
-                eventIdsEpoch = intersect(k, eventTimeIds);
-                n = numel(eventIdsEpoch);
-                eventIds = cat(1, eventIds, eventIdsEpoch);
-                eventLabels = cat(1, eventLabels, repmat(c, n, 1));
-            end
+
+            eventIds = [x{r}]';
+            eventLabels = obj.idLabels(eventIds)
         end
         
         function template = parseWindow(obj, window)
@@ -1171,12 +1171,12 @@ function plotEpochs(epochNames, epochRanges, xlims, ylims, cmap, show)
         epochName = epochNames{e};
         epochRange = epochRanges{e};
         epochRange(epochRange == -Inf) = xlims(1);
-        epochRange(epochRange == +Inf) = xlims(2); % !!
+        epochRange(epochRange == +Inf) = xlims(2);
         [faces, vertices] = patchEpochs(epochRange, ylims(1), ylims(2));
         vertices(vertices == -Inf) = xlims(1);
-        vertices(vertices == +Inf) = xlims(2); % !!
+        vertices(vertices == +Inf) = xlims(2);
         if show
-            patch('Faces', faces, 'Vertices', vertices, 'FaceColor', cmap(e, :), 'EdgeColor', 'none', 'FaceAlpha', 0.50, 'DisplayName', sprintf('%s', epochName)); % !!
+            patch('Faces', faces, 'Vertices', vertices, 'FaceColor', cmap(e, :), 'EdgeColor', 'none', 'FaceAlpha', 0.50, 'DisplayName', sprintf('%s', epochName));
         else
             patch('Faces', faces, 'Vertices', vertices, 'FaceColor', cmap(e, :), 'EdgeColor', 'none', 'FaceAlpha', 0.50, 'HandleVisibility', 'off');
         end
@@ -1251,7 +1251,7 @@ function plotTriggerAverage(data, ids, labels, window, frequency, normalization,
     nTicks = numel(window);
     timeTicks = window / frequency;
     if numel(ids) > 0
-        hold('all');
+        hold('on');
         nEpochs = numel(names);
         for c = 1:nEpochs
             conditionIds = ids(labels == c);
