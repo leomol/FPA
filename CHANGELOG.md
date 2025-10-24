@@ -2,7 +2,7 @@
 * v2.0.7
 	* 2025-03-31
 		- Added a test for overlapping epoch definitions since these are unexpected for the analysis.
-		- Fixed a bug in `getEventData` which affected all event-triggered functions: Previously, each event data point was extended to the whole epoch range.
+		- Fixed a bug in `getEventData` which affected all event-triggered functions: Previously, each event data point was extended to the whole epoch range. Peak-triggered data is unafected.
 * v2.0.6
 	* 2024-12-12
 		- `Boris.load` now correctly returns one or three outputs.

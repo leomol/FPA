@@ -57,7 +57,7 @@
 % Normalize - Normalize data according to parameters f0 and f1
 % 
 % 2019-02-01. Leonardo Molina.
-% 2025-04-02. Last modified.
+% 2025-10-15. Last modified.
 classdef FPA < handle
     properties (Access = public)
         % time - Raw time
@@ -166,32 +166,35 @@ classdef FPA < handle
     end
     
     properties (Access = private)
+        % referenceProvided - Whether a reference was provided
+        referenceProvided
+
         % nEpochs - Number of epoch definitions or conditions
         nEpochs
+        
         % epochNames - Name of each epoch definition extracted from epochs
         epochNames
         % epochRanges - Epoch time ranges extracted from epochs
         epochRanges
-        % epochStartIds - Start indices for each period and epoch of epochRanges
+
+        % epochStartIds - Start indices for each period for each epoch of epochRanges
         epochStartIds
-        % epochStopIds - Stop indices for each period and epoch of epochRanges
+        % epochStopIds - Stop indices for each period for each epoch of epochRanges
         epochStopIds
-        % epochStartLabels - Labels given to periods belonging to the same epochRange
+        % epochStartLabels - Epoch label corresponding to start and stop indices
         epochStartLabels
-        % referenceProvided - Whether a reference was provided
-        referenceProvided
         % epochIds - Indices corresponding to all epoch definitions
         epochIds
-        % epochLabels - Labels given to indices found within the same epoch
+        % epochLabels - Epoch labels corresponding to epochsIds
         epochLabels
-
-        % idLabels - Epoch label for each time point.
-        idLabels
+        
+        % timeIds - Epoch label of each time point.
+        timeIds
         
         % Settings for visualization.
         cmap = lines();
-        zoomSettings = {99.75, 0.50};
         colors = struct();
+        zoomSettings = {99.75, 0.50};
     end
     
     methods
@@ -204,10 +207,10 @@ classdef FPA < handle
                 parameters = struct();
             end
             
+            % Default colors for plotting.
             obj.colors.signal = [0.0000, 0.4470, 0.7410];
             obj.colors.reference = [0.8500, 0.3250, 0.0980];
             obj.colors.referenceFitted = [0.0000, 0.0000, 0.0000];
-            obj.colors.fSmoothed = [0, 0.6470, 0.9410];
             obj.colors.peaks = [1.0000, 0.0000, 0.0000];
             obj.colors.threshold = [0.0000, 0.0000, 0.0000];
             
@@ -250,7 +253,7 @@ classdef FPA < handle
             obj.referenceProvided = ~isempty(reference);
             
             % Resample data to target frequency.
-            if isEnabled(obj.resampleData)
+            if isFunctionHandle(obj.resampleData)
                 [obj.timeResampled, obj.signalResampled, obj.referenceResampled] = obj.resampleData(obj);
             else
                 [obj.timeResampled, obj.signalResampled, obj.referenceResampled] = deal(obj.time, obj.signal, obj.reference);
@@ -258,41 +261,41 @@ classdef FPA < handle
             obj.frequency = getFrequency(obj.timeResampled);
             
             % Replace artifacts with straight lines for modeling baseline.
-            if isEnabled(obj.trimSignal)
+            if isFunctionHandle(obj.trimSignal)
                 obj.signalTrimmed = obj.trimSignal(obj, obj.timeResampled, obj.signalResampled);
             else
                 obj.signalTrimmed = obj.signalResampled;
             end
             if obj.referenceProvided
-                if isEnabled(obj.trimReference)
+                if isFunctionHandle(obj.trimReference)
                     obj.referenceTrimmed = obj.trimReference(obj, obj.timeResampled, obj.referenceResampled);
                 else
                     obj.referenceTrimmed = obj.referenceResampled;
                 end
             end
             
-            % Remove high-frequency oscillations to detect baseline (where indicated).
-            if isEnabled(obj.smoothSignal)
+            % Remove high-frequency oscillations to detect baseline.
+            if isFunctionHandle(obj.smoothSignal)
                 obj.signalSmoothed = obj.smoothSignal(obj, obj.timeResampled, obj.signalTrimmed);
             else
                 obj.signalSmoothed = obj.signalTrimmed;
             end
             if obj.referenceProvided
-                if isEnabled(obj.smoothReference)
+                if isFunctionHandle(obj.smoothReference)
                     obj.referenceSmoothed = obj.smoothReference(obj, obj.timeResampled, obj.referenceTrimmed);
                 else
                     obj.referenceSmoothed = obj.referenceTrimmed;
                 end
             end
             
-            % Detect baseline according to model.
-            if isEnabled(obj.modelSignal)
+            % Model baseline for signal and reference.
+            if isFunctionHandle(obj.modelSignal)
                 obj.signalModeled = obj.modelSignal(obj, obj.timeResampled, obj.signalSmoothed);
             else
                 obj.signalModeled = zeros(size(obj.signalSmoothed));
             end
             if obj.referenceProvided
-                if isEnabled(obj.modelReference)
+                if isFunctionHandle(obj.modelReference)
                     obj.referenceModeled = obj.modelReference(obj, obj.timeResampled, obj.referenceSmoothed);
                 else
                     obj.referenceModeled = zeros(size(obj.referenceSmoothed));
@@ -300,13 +303,13 @@ classdef FPA < handle
             end
             
             % Subtract baseline.
-            if isEnabled(obj.correctSignal)
+            if isFunctionHandle(obj.correctSignal)
                 obj.signalCorrected = obj.correctSignal(obj);
             else
                 obj.signalCorrected = obj.signalTrimmed;
             end
             if obj.referenceProvided
-                if isEnabled(obj.correctReference)
+                if isFunctionHandle(obj.correctReference)
                     obj.referenceCorrected = obj.correctReference(obj);
                 else
                     obj.referenceCorrected = obj.referenceTrimmed;
@@ -314,13 +317,13 @@ classdef FPA < handle
             end
 
             % Standardize signal and reference.
-            if isEnabled(obj.standardizeSignal)
+            if isFunctionHandle(obj.standardizeSignal)
                 obj.signalStandardized = obj.standardizeSignal(obj);
             else
                 obj.signalStandardized = obj.signalCorrected;
             end
             if obj.referenceProvided
-                if isEnabled(obj.standardizeReference)
+                if isFunctionHandle(obj.standardizeReference)
                     obj.referenceStandardized = obj.standardizeReference(obj);
                 else
                     obj.referenceStandardized = obj.referenceCorrected;
@@ -329,7 +332,7 @@ classdef FPA < handle
             
             % Fit reference to signal.
             if obj.referenceProvided
-                if isEnabled(obj.fitReference)
+                if isFunctionHandle(obj.fitReference)
                     obj.referenceFitted = obj.fitReference(obj);
                 else
                     obj.referenceFitted = obj.referenceStandardized;
@@ -337,27 +340,27 @@ classdef FPA < handle
             end
             
             % Unfiltered f.
-            if isEnabled(obj.getF)
+            if isFunctionHandle(obj.getF)
                 obj.f = obj.getF(obj);
             else
                 obj.f = obj.signalStandardized;
             end
             
             % Filtered, motion corrected.
-            if isEnabled(obj.smoothF)
+            if isFunctionHandle(obj.smoothF)
                 obj.fSmoothed = obj.smoothF(obj, obj.timeResampled, obj.f);
             else
                 obj.fSmoothed = obj.f;
             end
             
             % Normalize.
-            if isEnabled(obj.normalizeF)
+            if isFunctionHandle(obj.normalizeF)
                 [obj.fNormalized, obj.f0, obj.f1] = obj.normalizeF(obj, obj.timeResampled, obj.fSmoothed);
             else
                 [obj.fNormalized, obj.f0, obj.f1] = deal(obj.f, NaN, NaN);
             end
             
-            if isEnabled(obj.getPeaks)
+            if isFunctionHandle(obj.getPeaks)
                 obj.peakIds = obj.getPeaks(obj);
             else
                 obj.peakIds = [];
@@ -376,15 +379,15 @@ classdef FPA < handle
             obj.peakCounts = zeros(obj.nEpochs, 1);
             obj.duration = zeros(obj.nEpochs, 1);
             obj.area = zeros(obj.nEpochs, 1);
-            obj.idLabels = zeros(size(obj.timeResampled));
+            obj.timeIds = zeros(size(obj.timeResampled));
             
             for c = 1:obj.nEpochs
                 % Accumulate vector indices limited to conditions.
                 [k, bounds] = obj.ids(obj.epochRanges{c});
                 startIds = bounds(1, :);
                 stopIds = bounds(2, :);
-                if all(obj.idLabels(k) == 0)
-                    obj.idLabels(k) = c;
+                if all(obj.timeIds(k) == 0)
+                    obj.timeIds(k) = c;
                 else
                     xlims = obj.timeResampled([1, end]);
                     ylims = [0, 1];
@@ -398,8 +401,9 @@ classdef FPA < handle
                 obj.epochStartLabels = cat(1, obj.epochStartLabels, repmat(c, n, 1));
                 
                 % Peak-triggered data.
-                obj.peakLabels(ismember(obj.peakIds, k)) = c;
-                obj.peakCounts(c) = sum(ismember(k, obj.peakIds));
+                mask = ismember(obj.peakIds, k);
+                obj.peakLabels(mask) = c;
+                obj.peakCounts(c) = sum(mask);
                 
                 obj.epochIds = cat(1, obj.epochIds, k);
                 obj.epochLabels = cat(1, obj.epochLabels, repmat(c, numel(k), 1));
@@ -452,7 +456,9 @@ classdef FPA < handle
             k = obj.ids(epochs);
             data1 = FPA.Lowpass(obj.timeResampled, obj.referenceStandardized, targetFrequency);
             data2 = FPA.Lowpass(obj.timeResampled, obj.signalStandardized, targetFrequency);
-            data1 = obj.referenceStandardized * lsqnonneg(data1(k), data2(k));
+
+            r2s = lsqnonneg([data1(k), ones(size(data1(k)))], data2(k));
+            data1 = data1 * r2s(1) + r2s(2); % !!
         end
 
         function data = get(obj, traceName, epochs)
@@ -692,7 +698,7 @@ classdef FPA < handle
             end
             plot(obj.timeResampled, obj.signalStandardized, 'Color', obj.colors.signal, 'DisplayName', 'Standardized signal');
             if obj.referenceProvided
-                if isEnabled(obj.fitReference)
+                if isFunctionHandle(obj.fitReference)
                     plot(obj.timeResampled, obj.referenceFitted, 'Color', obj.colors.referenceFitted, 'DisplayName', 'Fitted reference');
                 end
             end
@@ -746,7 +752,7 @@ classdef FPA < handle
             fig = figure('name', ['FPA: ' name]);
             [eventIds, eventLabels] = obj.getEventData(eventTimes);
             if numel(eventIds) > 0
-                template = obj.parseWindow(window);
+                template = obj.getWindowIds(window);
                 plotTriggerAverage(obj.fNormalized, eventIds, eventLabels, template, obj.frequency, @(time, data) obj.normalizeEvents(obj, time, data), obj.epochNames, obj.cmap, 'No events');
                 ylabel('df/f');
                 title(name);
@@ -764,7 +770,7 @@ classdef FPA < handle
             fig = figure('name', ['FPA: ' name]);
             [eventIds, eventLabels] = obj.getEventData(eventTimes);
             if numel(eventIds) > 0
-                template = obj.parseWindow(window);
+                template = obj.getWindowIds(window);
                 plotTriggerHeatmap(obj.fNormalized, eventIds, eventLabels, template, @(time, data) obj.normalizeEvents(obj, time, data), obj.frequency, obj.epochNames, 'No events');
                 annotation('textbox', [0, 0.95, 1, 0.05], 'string', name, 'LineStyle', 'none');
             end
@@ -779,7 +785,7 @@ classdef FPA < handle
             end
             name = 'Peak-triggered average';
             fig = figure('name', ['FPA: ' name]);
-            template = obj.parseWindow(window);
+            template = obj.getWindowIds(window);
             k = obj.peakLabels > 0;
             plotTriggerAverage(obj.fNormalized, obj.peakIds(k), obj.peakLabels(k), template, obj.frequency, @(time, data) obj.normalizePeaks(obj, time, data), obj.epochNames, obj.cmap, 'No peaks');
             ylabel('df/f');
@@ -795,7 +801,7 @@ classdef FPA < handle
             end
             name = 'Peak-trigger heatmap';
             fig = figure('name', ['FPA: ' name]);
-            template = obj.parseWindow(window);
+            template = obj.getWindowIds(window);
             k = obj.peakLabels > 0;
             plotTriggerHeatmap(obj.fNormalized, obj.peakIds(k), obj.peakLabels(k), template, @(time, data) obj.normalizePeaks(obj, time, data), obj.frequency, obj.epochNames, 'No peaks');
             annotation('textbox', [0, 0.95, 1, 0.05], 'string', name, 'LineStyle', 'none');
@@ -821,7 +827,7 @@ classdef FPA < handle
             for c = 1:obj.nEpochs
                 k = obj.ids(obj.epochRanges{c});
                 x = obj.fNormalized(k);
-                label = obj.epochStartLabels(c);
+                label = obj.epochStartLabels(c); % !!
                 fprintf(fid, '%i, %s, %f, %f, %f, %f, %f, %f, %f, %i\n', obj.epochStartLabels(c), obj.epochNames{label}, obj.duration(c), obj.area(c), sum(x), mean(x), median(x), min(x), max(x), obj.peakCounts(c));
             end
             fclose(fid);
@@ -838,7 +844,7 @@ classdef FPA < handle
             if nargin < 5
                 asColumns = true;
             end
-            template = obj.parseWindow(window);
+            template = obj.getWindowIds(window);
             [eventIds, eventLabels] = obj.getEventData(eventTimes);
             obj.saveTriggers(filename, asColumns, false, eventIds, eventLabels, template, @(time, data) obj.normalizeEvents(obj, time, data), obj.epochNames(eventLabels));
         end
@@ -854,7 +860,7 @@ classdef FPA < handle
                 asColumns = true;
             end
 
-            template = obj.parseWindow(window);
+            template = obj.getWindowIds(window);
             [eventIds, eventLabels] = obj.getEventData(eventTimes);
             obj.saveTriggers(filename, asColumns, true, eventIds, eventLabels, template, @(time, data) obj.normalizeEvents(obj, time, data), obj.epochNames(eventLabels));
         end
@@ -870,7 +876,7 @@ classdef FPA < handle
                 asColumns = true;
             end
             
-            template = obj.parseWindow(window);
+            template = obj.getWindowIds(window);
             k = obj.peakLabels > 0;
             obj.saveTriggers(filename, asColumns, false, obj.peakIds(k), obj.peakLabels(k), template, @(time, data) obj.normalizePeaks(obj, time, data), obj.epochNames(obj.peakLabels(k)));
         end
@@ -886,7 +892,7 @@ classdef FPA < handle
                 asColumns = true;
             end
             
-            template = obj.parseWindow(window);
+            template = obj.getWindowIds(window);
             k = obj.peakLabels > 0;
             obj.saveTriggers(filename, asColumns, true, obj.peakIds(k), obj.peakLabels(k), template, @(time, data) obj.normalizePeaks(obj, time, data), obj.epochNames(obj.peakLabels(k)));
         end
@@ -902,11 +908,11 @@ classdef FPA < handle
             r = ~cellfun(@isempty, x);
             
             eventIds = [x{r}]';
-            eventLabels = obj.idLabels(eventIds);
+            eventLabels = obj.timeIds(eventIds);
         end
         
-        function template = parseWindow(obj, window)
-            % template = FPA.parseWindow(window)
+        function template = getWindowIds(obj, window)
+            % template = FPA.getWindowIds(window)
             % Get an indexing template to apply around each peak and event.
 
             n = numel(window);
@@ -1014,7 +1020,7 @@ classdef FPA < handle
     
     properties (Constant)
         % version - FPA version
-        version = '2.0.6'
+        version = '2.0.7'
 
         % defaults - Configuration defaults.
         defaults = FPA.Defaults();
@@ -1284,7 +1290,8 @@ function plotTriggerAverage(data, ids, labels, window, frequency, normalization,
     axis('tight');
 end
 
-function result = isEnabled(value)
+function result = isFunctionHandle(value)
+    % Steps must be function handles otherwise they are considered disabled.
     result = isa(value, 'function_handle');
 end
 

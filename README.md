@@ -333,6 +333,7 @@ config.getPeaks = @(fpa) fpa.findPeaks('height', 1.0, mean(fpa.fNormalized) + 2 
 ### `epochs`
 Structure with epoch definitions according to the experimental design.
 Plots and output data will be parsed out and averaged according to these epochs.
+There must not be time overlaps in the epoch definitions.
 
 #### Default
 A single epoch called `Data` spanning the whole recording.
@@ -417,7 +418,7 @@ Apply a modified `z-score` where `f0` and `f1` are common to all datapoints and 
 
 Apply a regular `z-score`, calculate the mean from the first 10 minutes only:
 ```MATLAB
-@(fpa, time, data) fpa.normalize(time, data, {@mean, [0, 600]}, @std);
+@(fpa, time, data) fpa.normalize(time, data, {@mean, [0, 600]}, {@std, [0, 600]});
 ```
 
 Apply `df/f`:
