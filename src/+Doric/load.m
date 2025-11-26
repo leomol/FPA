@@ -15,7 +15,7 @@
 % Same as before but the name of the datasets are interpreted literally (as opposed to regular expressions).
 
 % 2023-02-03. Leonardo Molina.
-% 2024-01-19. Last modified.
+% 2025-11-26. Last modified.
 function data = load(filename, datasets, regex)
     if nargin < 2
         datasets = {
@@ -38,6 +38,10 @@ function data = load(filename, datasets, regex)
     end
     if nargin < 3
         regex = true;
+    end
+
+    if ~iscell(datasets)
+        datasets = {datasets};
     end
     
     nTargets = numel(datasets);
