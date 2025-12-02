@@ -57,7 +57,7 @@
 % Normalize - Normalize data according to parameters f0 and f1
 % 
 % 2019-02-01. Leonardo Molina.
-% 2025-10-15. Last modified.
+% 2025-12-02. Last modified.
 classdef FPA < handle
     properties (Access = public)
         % time - Raw time
@@ -337,6 +337,8 @@ classdef FPA < handle
                 else
                     obj.referenceFitted = obj.referenceStandardized;
                 end
+            else
+                obj.referenceFitted = 0;
             end
             
             % Unfiltered f.
