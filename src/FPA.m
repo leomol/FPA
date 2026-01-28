@@ -57,7 +57,7 @@
 % Normalize - Normalize data according to parameters f0 and f1
 % 
 % 2019-02-01. Leonardo Molina.
-% 2025-12-02. Last modified.
+% 2026-01-26. Last modified.
 classdef FPA < handle
     properties (Access = public)
         % time - Raw time
@@ -239,11 +239,6 @@ classdef FPA < handle
                 error('See previous warnings.');
             end
             
-            % Setup.
-            obj.epochNames = obj.epochs(1:2:end);
-            obj.epochRanges = obj.epochs(2:2:end);
-            obj.nEpochs = numel(obj.epochNames);
-            
             % Turn data into columns.
             obj.time = time(:);
             obj.signal = signal(:);
@@ -367,6 +362,15 @@ classdef FPA < handle
             else
                 obj.peakIds = [];
             end
+
+            obj.setEpochs(obj.epochs);
+        end
+        
+        function setEpochs(obj, epochs)
+            obj.epochs = epochs;
+            obj.epochNames = epochs(1:2:end);
+            obj.epochRanges = epochs(2:2:end);
+            obj.nEpochs = numel(obj.epochNames);
             
             % Start and stop vector indices for all provided epochs.
             obj.epochStartIds = zeros(0, 1);
@@ -755,7 +759,12 @@ classdef FPA < handle
             [eventIds, eventLabels] = obj.getEventData(eventTimes);
             if numel(eventIds) > 0
                 template = obj.getWindowIds(window);
-                plotTriggerAverage(obj.fNormalized, eventIds, eventLabels, template, obj.frequency, @(time, data) obj.normalizeEvents(obj, time, data), obj.epochNames, obj.cmap, 'No events');
+                if isFunctionHandle(obj.normalizePeaks)
+                    fcn = @(time, data) obj.normalizeEvents(obj, time, data);
+                else
+                    fcn = [];
+                end
+                plotTriggerAverage(obj.fNormalized, eventIds, eventLabels, template, obj.frequency, fcn, obj.epochNames, obj.cmap, 'No events');
                 ylabel('df/f');
                 title(name);
             end
@@ -773,7 +782,12 @@ classdef FPA < handle
             [eventIds, eventLabels] = obj.getEventData(eventTimes);
             if numel(eventIds) > 0
                 template = obj.getWindowIds(window);
-                plotTriggerHeatmap(obj.fNormalized, eventIds, eventLabels, template, @(time, data) obj.normalizeEvents(obj, time, data), obj.frequency, obj.epochNames, 'No events');
+                if isFunctionHandle(obj.normalizePeaks)
+                    fcn = @(time, data) obj.normalizeEvents(obj, time, data);
+                else
+                    fcn = [];
+                end
+                plotTriggerHeatmap(obj.fNormalized, eventIds, eventLabels, template, obj.frequency, fcn, obj.epochNames, 'No events');
                 annotation('textbox', [0, 0.95, 1, 0.05], 'string', name, 'LineStyle', 'none');
             end
         end
@@ -789,7 +803,12 @@ classdef FPA < handle
             fig = figure('name', ['FPA: ' name]);
             template = obj.getWindowIds(window);
             k = obj.peakLabels > 0;
-            plotTriggerAverage(obj.fNormalized, obj.peakIds(k), obj.peakLabels(k), template, obj.frequency, @(time, data) obj.normalizePeaks(obj, time, data), obj.epochNames, obj.cmap, 'No peaks');
+            if isFunctionHandle(obj.normalizePeaks)
+                fcn = @(time, data) obj.normalizePeaks(obj, time, data);
+            else
+                fcn = [];
+            end
+            plotTriggerAverage(obj.fNormalized, obj.peakIds(k), obj.peakLabels(k), template, obj.frequency, fcn, obj.epochNames, obj.cmap, 'No peaks');
             ylabel('df/f');
             title(name);
         end
@@ -805,7 +824,12 @@ classdef FPA < handle
             fig = figure('name', ['FPA: ' name]);
             template = obj.getWindowIds(window);
             k = obj.peakLabels > 0;
-            plotTriggerHeatmap(obj.fNormalized, obj.peakIds(k), obj.peakLabels(k), template, @(time, data) obj.normalizePeaks(obj, time, data), obj.frequency, obj.epochNames, 'No peaks');
+            if isFunctionHandle(obj.normalizePeaks)
+                fcn = @(time, data) obj.normalizePeaks(obj, time, data);
+            else
+                fcn = [];
+            end
+            plotTriggerHeatmap(obj.fNormalized, obj.peakIds(k), obj.peakLabels(k), template, obj.frequency, fcn, obj.epochNames, 'No peaks');
             annotation('textbox', [0, 0.95, 1, 0.05], 'string', name, 'LineStyle', 'none');
         end
         
@@ -1203,7 +1227,7 @@ function ylims = limits(x, percentile, grow)
     ylims = [max(min(x), ylims(1)), min(max(x), ylims(2))];
 end
 
-function plotTriggerHeatmap(data, ids, labels, window, normalization, frequency, names, message)
+function plotTriggerHeatmap(data, ids, labels, window, frequency, normalization, names, message)
     % Filter out out-of-range traces.
     window = window(:);
     nSamples = numel(data);
@@ -1233,7 +1257,9 @@ function plotTriggerHeatmap(data, ids, labels, window, normalization, frequency,
             triggeredData = data(windowIds);
             % Make sure matrix is nr x nc, particularly when nr x 1.
             triggeredData = reshape(triggeredData, nTicks, nTriggers);
-            triggeredData = normalization(timeTicks, triggeredData);
+            if isFunctionHandle(normalization)
+                triggeredData = normalization(timeTicks, triggeredData);
+            end
             imagesc('xData', timeTicks, 'yData', 1:nTriggers, 'cData', triggeredData', clims);
             yticks = get(gca(), 'YTick');
             yticks = yticks(round(yticks) == yticks);
@@ -1270,7 +1296,9 @@ function plotTriggerAverage(data, ids, labels, window, frequency, normalization,
                 triggeredData = data(windowIds);
                 % Make sure matrix is nr x nc, particularly when nr x 1.
                 triggeredData = reshape(triggeredData, nTicks, nTriggers);
-                triggeredData = normalization(timeTicks, triggeredData);
+                if isFunctionHandle(normalization)
+                    triggeredData = normalization(timeTicks, triggeredData);
+                end
                 av = mean(triggeredData, 2);
                 sd = std(triggeredData, [], 2);
                 % Plot.
