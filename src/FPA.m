@@ -57,7 +57,7 @@
 % Normalize - Normalize data according to parameters f0 and f1
 % 
 % 2019-02-01. Leonardo Molina.
-% 2026-01-26. Last modified.
+% 2026-04-10. Last modified.
 classdef FPA < handle
     properties (Access = public)
         % time - Raw time
@@ -586,7 +586,7 @@ classdef FPA < handle
             name = 'Power spectrum';
             fig = figure('name', ['FPA: ' name]);
             axs = cell(1, obj.nEpochs);
-            segmentLength = round(window * obj.frequency);
+            segmentLength = round(window * obj.frequency); % !!
             for c = 1:obj.nEpochs
                 if overlap
                     axs{c} = gca;
@@ -599,7 +599,7 @@ classdef FPA < handle
                 k = obj.ids(epochRange);
                 n = numel(k);
                 if n > 2
-                    [power, frequencies, ci] = pwelch(obj.fNormalized(k), ones(segmentLength, 1), 0, segmentLength, obj.frequency, 'power', 'ConfidenceLevel', 0.95);
+                    [power, frequencies, ci] = pwelch(obj.fNormalized(k), ones(segmentLength, 1), 0, segmentLength, obj.frequency, 'power', 'ConfidenceLevel', 0.95); % !!
                     vertices = [frequencies, 10 * log10(ci(:, 2))];
                     vertices = cat(1, vertices, flipud([frequencies, 10 * log10(ci(:, 1))]));
                     faces = 1:2 * numel(frequencies);
@@ -614,17 +614,18 @@ classdef FPA < handle
                 end
                 axis('tight');
             end
+            axs = [axs{:}];
             if overlap
                 legend('show');
+            elseif obj.nEpochs > 1 
+                ylims = get(axs, 'ylim');
+                ylims = cat(1, ylims{:});
+                ylims = [min(ylims(:, 1)), max(ylims(:, 2))];
+                set(axs, 'ylim', ylims);
+                linkaxes(axs, 'x');
             end
-            axs = [axs{:}];
-            ylims = get(axs, 'ylim');
-            ylims = cat(1, ylims{:});
-            ylims = [min(ylims(:, 1)), max(ylims(:, 2))];
-            set(axs, 'ylim', ylims);
             ylabel('Power (dB)');
             xlabel('Frequency (Hz)');
-            linkaxes(axs, 'x');
         end
         
         function fig = plotStatistics(obj)
@@ -925,9 +926,11 @@ classdef FPA < handle
     end
     
     methods (Access = private)
-        function [eventIds, eventLabels] = getEventData(obj, eventTimes)
+        function [eventIds, eventLabels] = getEventData(obj, eventTimes, removeZeroLabels)
             % [eventIds, eventLabels] = FPA.getEventData(eventTimes)
             % Get eventIds and eventLabels given eventTimes.
+
+            removeZeroLabels = nargin < 3 || removeZeroLabels;
             
             % Get indices for time triggers.
             x = arrayfun(@(t) find(obj.timeResampled >= t, 1, 'first'), eventTimes, 'UniformOutput', false);
@@ -935,6 +938,12 @@ classdef FPA < handle
             
             eventIds = [x{r}]';
             eventLabels = obj.timeIds(eventIds);
+
+            if removeZeroLabels
+                k = eventLabels > 0;
+                eventIds = eventIds(k);
+                eventLabels = eventLabels(k);
+            end
         end
         
         function template = getWindowIds(obj, window)
