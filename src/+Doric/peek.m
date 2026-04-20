@@ -1,4 +1,4 @@
-function peak(filename, resamplingFrequency)
+function peek(filename, resamplingFrequency)
     if nargin < 2
         resamplingFrequency = 20;
     end
