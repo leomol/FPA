@@ -1,3 +1,5 @@
+% 2026-04-17. Leonardo Molina.
+% 2026-04-20. Last modified.
 function peek(filename, resamplingFrequency)
     if nargin < 2
         resamplingFrequency = 20;
@@ -19,18 +21,22 @@ function peek(filename, resamplingFrequency)
             groups(parentPath) = {leafName};
         end
     end
-
+    
     % Process each group to find peaks.
     parents = keys(groups);
     for i = 1:numel(parents)
         parent = parents{i};
         leafNames = groups(parent);
         signalNames = leafNames(~strcmpi(leafNames, 'Time'));
-        time = Doric.load(filename, sprintf('%s/Time', parent));
-        sourceFrequency = 1 / median(diff(time));
-        figure();
-        hold('on');
-        title(parent);
+        nSignals = numel(signalNames);
+        if nSignals > 0
+            dataset = sprintf('%s/Time', parent);
+            time = Doric.load(filename, dataset);
+            sourceFrequency = 1 / median(diff(time));
+            figure();
+            hold('on');
+            plot(NaN(2, 1), NaN(2, 1), 'DisplayName', dataset);
+        end
         for j = 1:numel(signalNames)
             signalName = signalNames{j};
             dataset = sprintf('%s/%s', parent, signalName);
@@ -41,8 +47,10 @@ function peek(filename, resamplingFrequency)
             [signal2, time2] = resample(signal, time, resamplingFrequency, p, q);
             plot(time2, signal2, 'DisplayName', dataset);
         end
-        xlabel('time (s)');
-        % axis('tight');
-        legend('show');
+        if nSignals > 0
+            xlabel('time (s)');
+            axis('tight');
+            legend('show');
+        end
     end
 end
